@@ -1,5 +1,5 @@
 from qaoa.functions import *
-from Classical.functions import *
+from classical.functions import *
 from preprocessing.functions import *
 from postprocessing.functions import *
 
@@ -46,7 +46,7 @@ quantumCircuit = transpileAnsatz(ansatz, backend, prints=prints)
 # Use estimator primitive to find best gamma and ß
     # Using initial parameter values for gamma and ß
     # Evaluate using Hc
-bestParameters = findParameters(quantumCircuit, prints=prints, plots=plots)
+bestParameters = findParameters(initial_betas, initial_gammas, quantumCircuit, prints=prints, plots=plots)
 
 # Use best gamma & ß to sample solutions using sampler primitive
 distribution = sampleSolutions(bestParameters, prints=prints, plots=plots)
@@ -54,11 +54,12 @@ distribution = sampleSolutions(bestParameters, prints=prints, plots=plots)
 # (Find most probable solution)
 bitstringSolution =[] 
 
-# Decode bitstring output to schedule
-schedule_df = decodeBitstring(bitstringSolution, encoding, prints=prints)
-
 # (QUBO --> classical optimization algorithm, to compare)
 
 # (Evaluate & compare solution to classical methods)
 
-# Export calendar as .csv or similar
+# Decode bitstring output to schedule
+schedule_df = decodeBitstring(bitstringSolution, encoding, prints=prints)
+
+# Export schedule as .csv or similar
+# schedule_df.to_csv('data/final_schedule')

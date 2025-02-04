@@ -10,7 +10,6 @@ import numpy as np
 def makeCostHamiltonian(qubo:QuadraticProgram, prints=True):
     return []
 
-
 def makeAnsatz(Hc, prints=True)->QAOAAnsatz:
     # use QAOAAnsatz
     return []
@@ -21,7 +20,8 @@ def hardwareSetup(prints=True):
 def transpileAnsatz(ansatz:QAOAAnsatz, backend, prints=True): 
     return []
 
-def findParameters(quantumCircuit, prints=True, plots=True):
+def findParameters(initial_betas, initial_gammas, quantumCircuit, prints=True, plots=True):
+    n_layers = len(initial_gammas)
     # Using estimator primitive
     # use parallelism job-mode
     return []
@@ -29,5 +29,6 @@ def findParameters(quantumCircuit, prints=True, plots=True):
 
 def sampleSolutions(bestParameters, prints=True, plots=True):
     # Using sampler primitive
+    # Use single job-mode
     # returns distribution of solutions
     return []
