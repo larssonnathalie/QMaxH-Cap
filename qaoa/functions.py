@@ -3,6 +3,7 @@ from qiskit_algorithms.optimizers import COBYLA
 from qiskit_optimization import QuadraticProgram
 from qiskit_optimization.algorithms import MinimumEigenOptimizer
 from qiskit.circuit.library import QAOAAnsatz
+import qiskit
 
 import numpy as np
 

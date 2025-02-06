@@ -3,8 +3,10 @@ from classical.functions import *
 from preprocessing.functions import *
 from postprocessing.functions import *
 
+
 # Parameters
-end_date = '2025-12-31'
+start_date = '2025-02-10' # including this date
+end_date = '2025-02-12' # including this date
 prints = True
 plots = True
 preferences = False
@@ -13,53 +15,77 @@ lamda_pref = 0.5
 n_layers = 5
 initial_betas = [np.pi/2]*n_layers
 initial_gammas = [np.pi/2]*n_layers
-
+cl = 1 # complexity level
 
 # Construct empty calendar with holidays etc.
-empty_calendar_df = emptyCalendar(end_date)
+empty_calendar_df = emptyCalendar(end_date, start_date)
+
+# Automatically generate demand per day based on weekday/holiday --> 'demand.csv'
+generateDemandData(empty_calendar_df, cl, prints=prints)
 
 # Import problem data as objective functions
-objectives = constructObjectives(empty_calendar_df, lamda_fair=lamda_fair, lamda_pref=lamda_pref, preferences=False, prints=prints)
+objectives = constructObjectives(empty_calendar_df, cl, preferences=False, prints=prints)
 
-# Encode problem to QUBO  Y = x^T Qx
-qubo, encoding = makeQubo(objectives, prints=prints)
+if cl==1:
+    qubo = objectives
+    backend = Aer.get_backend('qasm_simulator') # QasmSimulator, aer_simulator, statevector_simulator
+    sampler = Sampler()
+    #sampler.set_options(backend)
 
-# QUBO --> Cost Function Hamiltonian Hc      Y = z^T Qz + b^T z
-    # x {0, 1}  --> z {-1, 1}
-    # built from 
-        # pauli-Z operators
-        # and pauli-ZZ operators (enabling entanglement)
-Hc = makeCostHamiltonian(qubo, prints=prints)
+    operator, offset = qubo.to_ising()
+    cybola = COBYLA(maxiter=200)
+    ansatz = QAOAAnsatz(cost_operator=operator)
 
-# Hc --> QAOA Circuit (Ansatz)
-ansatz = makeAnsatz(Hc, prints=prints)
+    qaoa_circuit = ansatz.assign_parameters(parameters=[0.5] * ansatz.num_parameters)
+    transpiled_circuit = qiskit.transpile(qaoa_circuit, backend=backend, basis_gates=['u3', 'cx'])
+    print(transpiled_circuit.draw())
 
-# Set up hardware 
-    # (IBM or other)
-backend = hardwareSetup(prints=prints)
+    qaoa = QAOA(sampler=sampler, optimizer=cybola )
+    optimizer = MinimumEigenOptimizer(qaoa)
+    result = optimizer.solve(qubo)
+    print(result)
 
-# Transpile
-    # using function in qiskit
-    # adapted to specific hardware
-quantumCircuit = transpileAnsatz(ansatz, backend, prints=prints)
 
-# Use estimator primitive to find best gamma and ß
-    # Using initial parameter values for gamma and ß
-    # Evaluate using Hc
-bestParameters = findParameters(initial_betas, initial_gammas, quantumCircuit, prints=prints, plots=plots)
+if cl>1:
+    # Encode problem to QUBO  Y = x^T Qx
+    qubo, encoding = makeQubo(objectives, lamda_fair=lamda_fair, lamda_pref=lamda_pref, prints=prints)
 
-# Use best gamma & ß to sample solutions using sampler primitive
-distribution = sampleSolutions(bestParameters, prints=prints, plots=plots)
+    # QUBO --> Cost Function Hamiltonian Hc      Y = z^T Qz + b^T z
+        # x {0, 1}  --> z {-1, 1}
+        # built from 
+            # pauli-Z operators
+            # and pauli-ZZ operators (enabling entanglement)
+    Hc = makeCostHamiltonian(qubo, prints=prints)
 
-# (Find most probable solution)
-bitstringSolution =[] 
+    # Hc --> QAOA Circuit (Ansatz)
+    ansatz = makeAnsatz(Hc, prints=prints)
 
-# (QUBO --> classical optimization algorithm, to compare)
+    # Set up hardware 
+        # (IBM or other)
+    backend = hardwareSetup(prints=prints)
 
-# (Evaluate & compare solution to classical methods)
+    # Transpile
+        # using function in qiskit
+        # adapted to specific hardware
+    quantumCircuit = transpileAnsatz(ansatz, backend, prints=prints)
 
-# Decode bitstring output to schedule
-schedule_df = decodeBitstring(bitstringSolution, encoding, prints=prints)
+    # Use estimator primitive to find best gamma and ß
+        # Using initial parameter values for gamma and ß
+        # Evaluate using Hc
+    bestParameters = findParameters(initial_betas, initial_gammas, quantumCircuit, prints=prints, plots=plots)
 
-# Export schedule as .csv or similar
-# schedule_df.to_csv('data/final_schedule')
+    # Use best gamma & ß to sample solutions using sampler primitive
+    distribution = sampleSolutions(bestParameters, prints=prints, plots=plots)
+
+    # (Find most probable solution)
+    bitstringSolution =[] 
+
+    # (QUBO --> classical optimization algorithm, to compare)
+
+    # (Evaluate & compare solution to classical methods)
+
+    # Decode bitstring output to schedule
+    schedule_df = decodeBitstring(bitstringSolution, encoding, prints=prints)
+
+    # Export schedule as .csv or similar
+    # schedule_df.to_csv('data/final_schedule')
