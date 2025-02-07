@@ -1,11 +1,13 @@
 # from data Import shift time info, preferences, constraints etc.
 import pandas as pd
+import numpy as np
 import holidays
 from datetime import datetime
 from qiskit_optimization import QuadraticProgram
 from qiskit_aer import Aer
 from qiskit_algorithms.optimizers import COBYLA
 from qiskit.primitives import Sampler#StatevectorSampler, Estimator
+
 
 
 # construct empty calendar with work days, holidays etc
@@ -43,42 +45,75 @@ def generateDemandData(empty_calendar, cl, prints=True):
 def constructObjectives(empty_calendar_df, cl, preferences=True, prints=True):
     physician_df = pd.read_csv('data/physician_cl{}.csv'.format(str(cl))) 
     demand_df = pd.read_csv('data/demand_cl{}.csv'.format(str(cl)))
-    nPhysicians, nShifts = physician_df.shape[0], demand_df.shape[0]    # NOTE assuming 1 shift per row
+    n_physicians, n_shifts = physician_df.shape[0], demand_df.shape[0]    # NOTE assuming 1 shift per row
 
     if cl <=1:
-        nVars = nPhysicians * nShifts # n.o. decision variables 
+        n_vars = n_physicians * n_shifts # n.o. decision variables 
 
         # USING qiskit QP    
         qubo = QuadraticProgram()     # TODO Move section to makeQubo or add bitstring encoding
-        linear_weights={}             # TODO Demand based on demand_df
-        two_on_same={}
-        for i in range(nPhysicians): # TODO remove loops?
-            for j in range(nShifts):
+        linear_q={}             # TODO Demand based on demand_df
+        quad_q={}
+        '''for i in range(n_physicians): # TODO remove loops?
+            for j in range(n_shifts):
                 qubo.binary_var(name='x{}{}'.format(i,j))
                 if i==j:
-                    linear_weights['x{}{}'.format(i,j)] = -1 # TODO diagonal weights value
-                elif (j-i)%nShifts ==0:
-                    two_on_same['x{}{}'.format(i,j)] = 2
-        qubo.minimize(linear=linear_weights)
-        qubo.minimize(quadratic=two_on_same)
+                    linear_q['x{}{}'.format(i,j)] = 1 # TODO diagonal weights value
+                elif (j-i)%n_shifts ==0:
+                    quad_q['x{}{}'.format(i,j)] = 2
+        print(linear_q)
+        print(quad_q)
+        qubo.minimize(linear=linear_q)
+        qubo.minimize(quadratic=quad_q)'''
+        
+
+        # USING help (translating i,j to Q indices)
+
+        Q = np.zeros((n_vars,n_vars))
+        lamda = 1
+        x_index = 0
+        for j in range(n_shifts):
+            for i in range(n_physicians):
+                qubo.binary_var(name=f'x{i}{j}') 
+                print('added:'+f'x{i}{j}')
+                #qubo.binary_var(name='x{}'.format(x_index))  # NOTE x-indices only 1 digit
+                #print('added:'+f'x{x_index}')
+                x_index +=1
+                q_index_str = str(i + j * n_physicians)+str(i + j * n_physicians)
+                q_index = [i + j * n_physicians,i + j * n_physicians]
+                Q[q_index] = lamda  # Linear term
+
+                for k in range(i + 1, n_physicians):
+                    kq_index = [i + j * n_physicians, k + j * n_physicians]
+                    Q[kq_index] = 2 * lamda  # Quadratic term
+            
+        for i in range(n_vars):
+            for j in range(n_vars):
+                if Q[i, j] != 0:
+                    if i==j:
+                        qubo.minimize(linear={f'x{i}': Q[i, j]})
+                    else:
+                        qubo.minimize(quadratic={(f'x{i}', f'x{j}'): Q[i, j]})
+
+
 
 
         # USING dictionary:
-        Q_oneEachDay = {}
+        '''Q_oneEachDay = {}
         for i in range(nVars):
             for j in range(i,nVars):
                 if i==j:
                     Q_oneEachDay[(i,j)] = -1  # Minimize diagonal variables (why -1?)
                 elif (j-i)%nShifts ==0:
-                    Q_oneEachDay[(i,j)] = 2   # Penalize 2 docs on same shift
+                    Q_oneEachDay[(i,j)] = 2   # Penalize 2 docs on same shift'''
         
 
     else: 
         print('constructObjectives is not coded yet for cl', str(cl))
 
     if prints:
-        print('Physicians:', nPhysicians)
-        print('Shifts:', nShifts)
+        print('Physicians:', n_physicians)
+        print('Shifts:', n_shifts)
         print(qubo)
 
     return qubo

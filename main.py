@@ -21,7 +21,7 @@ cl = 1 # complexity level
 empty_calendar_df = emptyCalendar(end_date, start_date)
 
 # Automatically generate demand per day based on weekday/holiday --> 'demand.csv'
-generateDemandData(empty_calendar_df, cl, prints=prints)
+generateDemandData(empty_calendar_df, cl, prints=False)
 
 # Import problem data as objective functions
 objectives = constructObjectives(empty_calendar_df, cl, preferences=False, prints=prints)
