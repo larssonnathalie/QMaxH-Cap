@@ -6,7 +6,7 @@ from postprocessing.functions import *
 
 # Parameters
 start_date = '2025-02-10' # including this date
-end_date = '2025-02-12' # including this date
+end_date = '2025-02-17' # including this date
 prints = True
 plots = True
 preferences = False
@@ -21,7 +21,7 @@ cl = 1 # complexity level
 empty_calendar_df = emptyCalendar(end_date, start_date)
 
 # Automatically generate demand per day based on weekday/holiday --> 'demand.csv'
-generateDemandData(empty_calendar_df, cl, prints=False)
+generateDemandData(empty_calendar_df, cl, prints=prints)
 
 # Import problem data as objective functions
 objectives = constructObjectives(empty_calendar_df, cl, preferences=False, prints=prints)

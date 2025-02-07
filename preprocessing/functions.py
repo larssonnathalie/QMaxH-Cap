@@ -4,6 +4,7 @@ import numpy as np
 import holidays
 from datetime import datetime
 from qiskit_optimization import QuadraticProgram
+from qiskit_optimization.converters import QuadraticProgramToQubo
 from qiskit_aer import Aer
 from qiskit_algorithms.optimizers import COBYLA
 from qiskit.primitives import Sampler#StatevectorSampler, Estimator
@@ -26,7 +27,7 @@ def emptyCalendar(end_date, start_date, prints=True):
 # cl stands for complexity level
 def generateDemandData(empty_calendar, cl, prints=True):
     if cl == 1: 
-        demand_col = [1]*len(empty_calendar)             # demand = 1 physician per day
+        demand_col = [int(empty_calendar.loc[i,'is_holiday']==False) for i in range(len(empty_calendar))] #[1]*len(empty_calendar)             
         df = pd.DataFrame({'date':empty_calendar['date'], 'demand': demand_col})
 
     else:
@@ -37,7 +38,8 @@ def generateDemandData(empty_calendar, cl, prints=True):
         print(df)
         print('filename:', filename)
     df.to_csv(filename, index=False)
-    
+
+
 
 
 # construct objective functions for fairness, preference
@@ -46,54 +48,94 @@ def constructObjectives(empty_calendar_df, cl, preferences=True, prints=True):
     physician_df = pd.read_csv('data/physician_cl{}.csv'.format(str(cl))) 
     demand_df = pd.read_csv('data/demand_cl{}.csv'.format(str(cl)))
     n_physicians, n_shifts = physician_df.shape[0], demand_df.shape[0]    # NOTE assuming 1 shift per row
+    n_vars = n_physicians * n_shifts # n.o. decision variables 
+
+    def xToQIndex(x_index): # [[i,j],[i,j]] --> [i,j]    # TODO test function
+        # Takes ij-indices of 2 x-variables that are combined in Q, 
+        # Returns ij-index of q-element (ij no longer represent shift & phys.)
+        # i = phys, j = shift                                       # TODO change to p and s as in report
+        first_x, second_x = x_index
+        first_xp, first_xs, second_xp, second_xs = first_x, second_x
+
+        i = first_xs + first_xp * n_shifts
+        j = second_xs + second_xp * n_shifts
+        return [i, j]
+    
+    def qToXIndex(q_index): #  [i,j] -->  [[i,j],[i,j]]   # TODO test function
+        q_i, q_j = q_index
+        first_xp = int(q_i/n_shifts)
+        first_xs = q_i%n_shifts
+        
+        second_xp = int(q_j/n_shifts)
+        second_xs = q_j%n_shifts
+
+        return [[first_xp, first_xs], [second_xp, second_xs]]
 
     if cl <=1:
-        n_vars = n_physicians * n_shifts # n.o. decision variables 
 
-        # USING qiskit QP    
-        qubo = QuadraticProgram()     # TODO Move section to makeQubo or add bitstring encoding
-        linear_q={}             # TODO Demand based on demand_df
-        quad_q={}
-        '''for i in range(n_physicians): # TODO remove loops?
-            for j in range(n_shifts):
-                qubo.binary_var(name='x{}{}'.format(i,j))
-                if i==j:
-                    linear_q['x{}{}'.format(i,j)] = 1 # TODO diagonal weights value
-                elif (j-i)%n_shifts ==0:
-                    quad_q['x{}{}'.format(i,j)] = 2
-        print(linear_q)
-        print(quad_q)
-        qubo.minimize(linear=linear_q)
-        qubo.minimize(quadratic=quad_q)'''
+        # USING qiskit QP and np matrix 
+        qp = QuadraticProgram()     
+        # TODO Move section to makeQubo or add bitstring encoding
+        # TODO Demand based on demand_df
+
+        all_x = []
+        for p in range(n_physicians):        
+            for s in range(n_shifts):
+                qp.binary_var(name=f'x{p}{s}') 
+                all_x.append((p,s))
+
+        # QP constraints, later converted to penalties
+        for s in range(n_shifts): # Exactly 1 p per s
+            demand = demand_df['demand'].iloc[s]
+            qp.linear_constraint(
+                linear={f'x{p}{s}': 1 for p in range(n_physicians)},
+                sense='==',
+                rhs=demand, # right hand side
+                name=f'fill_shift{s}')
         
-
-        # USING help (translating i,j to Q indices)
-
-        Q = np.zeros((n_vars,n_vars))
-        lamda = 1
-        x_index = 0
-        for j in range(n_shifts):
-            for i in range(n_physicians):
-                qubo.binary_var(name=f'x{i}{j}') 
-                print('added:'+f'x{i}{j}')
-                #qubo.binary_var(name='x{}'.format(x_index))  # NOTE x-indices only 1 digit
-                #print('added:'+f'x{x_index}')
-                x_index +=1
-                q_index_str = str(i + j * n_physicians)+str(i + j * n_physicians)
-                q_index = [i + j * n_physicians,i + j * n_physicians]
-                Q[q_index] = lamda  # Linear term
-
-                for k in range(i + 1, n_physicians):
-                    kq_index = [i + j * n_physicians, k + j * n_physicians]
-                    Q[kq_index] = 2 * lamda  # Quadratic term
             
-        for i in range(n_vars):
+        max_shifts_per_p = int(round(n_shifts/n_physicians+0.49999,1)) # TODO fix round
+        for p in range(n_physicians): # fairness: s per p <= S/P
+            qp.linear_constraint(
+                linear={f'x{p}{s}': 1 for s in range(n_shifts)},
+                sense='<=',
+                rhs= max_shifts_per_p,
+                name=f'fairness{p}')
+        
+        # Dummy quadratic constraint, did not work bc. not supported by QuadraticProgramToQubo()
+        '''for s in range(n_shifts): # not 2 docs on 1 shift (redundant for now but might use later)
+            for p in range(n_physicians):
+                qp.quadratic_constraint(
+                    quadratic={(f'x{p}{s}',f'x{p2}{s}'): 1 for p2 in range(p,n_physicians)}, # change range to all except p?
+                    sense='==',
+                    rhs= 0,
+                    name=f'no_doubles{p}{s}')'''
+        
+        # Attempt to penalize directly, did not work, probably bc. library misuse
+        ''' first_x in all_x:  # TODO Make automatic from objective, no if:s? 
+            for second_x in all_x:
+                p1, s1 = first_x # physician, shift
+                p2, s2  = second_x
+
+                if s1 == s2 and p1 != p2: # 2 p on same shift
+                    q = 2* lamda
+                    qp.minimize(quadratic={(f'x{p1}{s1}', f'x{p2}{s2}'): q})
+
+                elif s1 == s2 and p1 == p2: # linear term
+                    q = 1 * lamda
+                    qp.minimize(linear={f'x{p1}{s1}': q})'''
+
+        qubo = QuadraticProgramToQubo().convert(qp) # convert QP constraints to qubo penalties
+        return qubo
+            
+        '''for i in range(n_vars):
             for j in range(n_vars):
                 if Q[i, j] != 0:
+                    x_first, x_second = qToXIndex([i,j])
                     if i==j:
-                        qubo.minimize(linear={f'x{i}': Q[i, j]})
+                        qubo.minimize(linear={'x{}{}'.format(x_first[0], x_first[1]): Q[i, j]})
                     else:
-                        qubo.minimize(quadratic={(f'x{i}', f'x{j}'): Q[i, j]})
+                        qubo.minimize(quadratic={(f'x{x_first[0]}', f'x{j}'): Q[i, j]})'''
 
 
 
