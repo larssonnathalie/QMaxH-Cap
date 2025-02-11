@@ -10,43 +10,43 @@ from qiskit_algorithms.optimizers import COBYLA
 from qiskit.primitives import Sampler#StatevectorSampler, Estimator
 
 
-
 # construct empty calendar with work days, holidays etc
-def emptyCalendar(end_date, start_date, prints=True):
-    #current_year = datetime.now().year
+def emptyCalendar(end_date, start_date, cl, prints=True, include_weekdays=True):
+    all_dates = pd.date_range(start=start_date, end=end_date)
 
     years = list(range(int(start_date[:4]),int(end_date[:4])+1))
-    all_dates = pd.date_range(start=start_date, end=end_date)
-    swedish_holidays = holidays.Sweden(years=years) 
-    calendar_df = pd.DataFrame({'date': all_dates, 'is_holiday': all_dates.isin(swedish_holidays)}) # TODO add saturdays
+    #swedish_holidays = holidays.Sweden(years=years)
+    swedish_holidays = all_dates.isin(holidays.Sweden(years=years))
+    weekdays = all_dates.strftime('%A').values
+    saturdays = weekdays =='Saturday'
+    holidays_and_weekends = swedish_holidays+saturdays>= 1 # TODO replace bad solution with other OR function
+
+    calendar_df = pd.DataFrame({'date': all_dates, 'is_holiday': holidays_and_weekends}) 
+    if include_weekdays:
+        calendar_df['weekday']= weekdays
+    calendar_df.to_csv(f'data/empty_calendar_cl{cl}.csv', index=False)
     if prints:
         print(calendar_df)
-    return calendar_df
+    
 
 # Automatically generate data in "demand_clX.csv", following repeating demand rules based on weekdays/holidays
 # cl stands for complexity level
 def generateDemandData(empty_calendar, cl, prints=True):
     if cl == 1: 
         demand_col = [int(empty_calendar.loc[i,'is_holiday']==False) for i in range(len(empty_calendar))] #[1]*len(empty_calendar)             
-        df = pd.DataFrame({'date':empty_calendar['date'], 'demand': demand_col, 'is_holiday':empty_calendar['is_holiday']})
+        df = pd.DataFrame({'date':empty_calendar['date'], 'demand': demand_col})
 
     else:
         print('generateDemandData is not coded yet for cl', str(cl))
 
-    filename = 'data/demand_cl{}.csv'.format(str(cl))
-    if prints:
-        print(df)
-        print('filename:', filename)
-    df.to_csv(filename, index=False)
-
-
+    df.to_csv(f'data/demand_cl{cl}.csv', index=False)
 
 
 # construct objective functions for fairness, preference
 # and constraints such as 1 person per shift & max shifts per week
 def constructObjectives(empty_calendar_df, cl, preferences=True, prints=True):
-    physician_df = pd.read_csv('data/physician_cl{}.csv'.format(str(cl))) 
-    demand_df = pd.read_csv('data/demand_cl{}.csv'.format(str(cl)))
+    physician_df = pd.read_csv(f'data/physician_cl{cl}.csv') 
+    demand_df = pd.read_csv(f'data/demand_cl{cl}.csv')
     n_physicians, n_shifts = physician_df.shape[0], demand_df.shape[0]    # NOTE assuming 1 shift per row
     n_vars = n_physicians * n_shifts # n.o. decision variables 
 
@@ -72,9 +72,9 @@ def constructObjectives(empty_calendar_df, cl, preferences=True, prints=True):
 
     if cl <=1:
 
-        # USING qiskit QP and np matrix 
+        # USING qiskit QP
         qp = QuadraticProgram()     
-        # TODO Move section to makeQubo or add bitstring encoding
+        # TODO Change from QP to other module that supports quadratic constraints --> qubo
 
         all_x = []
         for p in range(n_physicians):        
@@ -125,42 +125,19 @@ def constructObjectives(empty_calendar_df, cl, preferences=True, prints=True):
 
         qubo = QuadraticProgramToQubo().convert(qp) # convert QP constraints to qubo penalties
         return qubo
-            
-        '''for i in range(n_vars):
-            for j in range(n_vars):
-                if Q[i, j] != 0:
-                    x_first, x_second = qToXIndex([i,j])
-                    if i==j:
-                        qubo.minimize(linear={'x{}{}'.format(x_first[0], x_first[1]): Q[i, j]})
-                    else:
-                        qubo.minimize(quadratic={(f'x{x_first[0]}', f'x{j}'): Q[i, j]})'''
-
-
-
-
-        # USING dictionary:
-        '''Q_oneEachDay = {}
-        for i in range(nVars):
-            for j in range(i,nVars):
-                if i==j:
-                    Q_oneEachDay[(i,j)] = -1  # Minimize diagonal variables (why -1?)
-                elif (j-i)%nShifts ==0:
-                    Q_oneEachDay[(i,j)] = 2   # Penalize 2 docs on same shift'''
         
-
     else: 
         print('constructObjectives is not coded yet for cl', str(cl))
-
+        
     if prints:
         print('Physicians:', n_physicians)
         print('Shifts:', n_shifts)
         print(qubo)
-
     return qubo
 
 
 # construct QUBO from objective functions
-def makeQubo(objectives,  lamda_fair = 1, lamda_pref=1, prints=True)->QuadraticProgram:
+def makeQubo(objectives,  lamda_fair = 1, lamda_pref=1, prints=True):
     encoding = []
-    qubo = [] # type QuadraticProgram
+    qubo = [] 
     return qubo, encoding

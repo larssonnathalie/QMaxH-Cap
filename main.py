@@ -18,8 +18,8 @@ initial_gammas = [np.pi/2]*n_layers
 cl = 1 # complexity level
 
 # Construct empty calendar with holidays etc.
-empty_calendar_df = emptyCalendar(end_date, start_date, prints=False)
-
+emptyCalendar(end_date, start_date, cl, prints=False)
+empty_calendar_df = pd.read_csv(f'data/empty_calendar_cl{cl}.csv')
 # Automatically generate demand per day based on weekday/holiday --> 'demand.csv'
 generateDemandData(empty_calendar_df, cl, prints=prints)
 
@@ -50,7 +50,7 @@ if cl==1:
     result_schedule_df = bitstringToSchedule(bitstring, empty_calendar_df, cl, encoding_not_used)
 
     demand_df = pd.read_csv('data/demand_cl1.csv')
-    controlSchedule(result_schedule_df, demand_df)
+    controlSchedule(result_schedule_df, demand_df, cl)
 
 
 if cl>1:

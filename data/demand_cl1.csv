@@ -1,4 +1,4 @@
-date,demand,is_holiday
-2025-02-15,1,False
-2025-02-16,0,True
-2025-02-17,1,False
+date,demand
+2025-02-15,0
+2025-02-16,0
+2025-02-17,1

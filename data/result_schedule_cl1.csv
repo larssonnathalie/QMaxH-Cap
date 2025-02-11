@@ -1,4 +1,4 @@
-,date,is_holiday,staff
-0,2025-02-15,False,['p1']
-1,2025-02-16,True,[]
-2,2025-02-17,False,['p0']
+date,is_holiday,weekday,staff
+2025-02-15,True,Saturday,[]
+2025-02-16,True,Sunday,[]
+2025-02-17,False,Monday,['p0']

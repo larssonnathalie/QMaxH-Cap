@@ -1,0 +1,4 @@
+date,demand,is_holiday,weekday,staff
+2025-02-15,0,True,Saturday,[]
+2025-02-16,0,True,Sunday,[]
+2025-02-17,1,False,Monday,['p0']
