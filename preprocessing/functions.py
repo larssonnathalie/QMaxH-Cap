@@ -28,7 +28,7 @@ def emptyCalendar(end_date, start_date, prints=True):
 def generateDemandData(empty_calendar, cl, prints=True):
     if cl == 1: 
         demand_col = [int(empty_calendar.loc[i,'is_holiday']==False) for i in range(len(empty_calendar))] #[1]*len(empty_calendar)             
-        df = pd.DataFrame({'date':empty_calendar['date'], 'demand': demand_col})
+        df = pd.DataFrame({'date':empty_calendar['date'], 'demand': demand_col, 'is_holiday':empty_calendar['is_holiday']})
 
     else:
         print('generateDemandData is not coded yet for cl', str(cl))
@@ -50,10 +50,9 @@ def constructObjectives(empty_calendar_df, cl, preferences=True, prints=True):
     n_physicians, n_shifts = physician_df.shape[0], demand_df.shape[0]    # NOTE assuming 1 shift per row
     n_vars = n_physicians * n_shifts # n.o. decision variables 
 
-    def xToQIndex(x_index): # [[i,j],[i,j]] --> [i,j]    # TODO test function
-        # Takes ij-indices of 2 x-variables that are combined in Q, 
-        # Returns ij-index of q-element (ij no longer represent shift & phys.)
-        # i = phys, j = shift                                       # TODO change to p and s as in report
+    def xToQIndex(x_index): # [[p,s],[p,s]] --> [i,j]    # TODO test function
+        # Takes ps-indices of 2 x-variables that are combined in Q, 
+        # Returns ij-index of q-element 
         first_x, second_x = x_index
         first_xp, first_xs, second_xp, second_xs = first_x, second_x
 
@@ -61,7 +60,7 @@ def constructObjectives(empty_calendar_df, cl, preferences=True, prints=True):
         j = second_xs + second_xp * n_shifts
         return [i, j]
     
-    def qToXIndex(q_index): #  [i,j] -->  [[i,j],[i,j]]   # TODO test function
+    def qToXIndex(q_index): #  [i,j] -->  [[p,s],[p,s]]   # TODO test function
         q_i, q_j = q_index
         first_xp = int(q_i/n_shifts)
         first_xs = q_i%n_shifts
@@ -76,7 +75,6 @@ def constructObjectives(empty_calendar_df, cl, preferences=True, prints=True):
         # USING qiskit QP and np matrix 
         qp = QuadraticProgram()     
         # TODO Move section to makeQubo or add bitstring encoding
-        # TODO Demand based on demand_df
 
         all_x = []
         for p in range(n_physicians):        

@@ -5,7 +5,7 @@ from postprocessing.functions import *
 
 
 # Parameters
-start_date = '2025-02-10' # including this date
+start_date = '2025-02-15' # including this date
 end_date = '2025-02-17' # including this date
 prints = True
 plots = True
@@ -18,7 +18,7 @@ initial_gammas = [np.pi/2]*n_layers
 cl = 1 # complexity level
 
 # Construct empty calendar with holidays etc.
-empty_calendar_df = emptyCalendar(end_date, start_date)
+empty_calendar_df = emptyCalendar(end_date, start_date, prints=False)
 
 # Automatically generate demand per day based on weekday/holiday --> 'demand.csv'
 generateDemandData(empty_calendar_df, cl, prints=prints)
@@ -38,12 +38,19 @@ if cl==1:
 
     qaoa_circuit = ansatz.assign_parameters(parameters=[0.5] * ansatz.num_parameters)
     transpiled_circuit = qiskit.transpile(qaoa_circuit, backend=backend, basis_gates=['u3', 'cx'])
-    print(transpiled_circuit.draw())
+    #print(transpiled_circuit.draw())
 
     qaoa = QAOA(sampler=sampler, optimizer=cybola )
     optimizer = MinimumEigenOptimizer(qaoa)
     result = optimizer.solve(qubo)
-    print(result)
+    #print(result)
+    bitstring = result.variables_dict # Seems to output constraints as variables if some is broken?
+    print(bitstring)
+    encoding_not_used = 1 # TODO: encoding?
+    result_schedule_df = bitstringToSchedule(bitstring, empty_calendar_df, cl, encoding_not_used)
+
+    demand_df = pd.read_csv('data/demand_cl1.csv')
+    controlSchedule(result_schedule_df, demand_df)
 
 
 if cl>1:
@@ -85,7 +92,7 @@ if cl>1:
     # (Evaluate & compare solution to classical methods)
 
     # Decode bitstring output to schedule
-    schedule_df = decodeBitstring(bitstringSolution, encoding, prints=prints)
+    schedule_df = bitstringToSchedule(bitstringSolution, encoding, prints=prints)
 
     # Export schedule as .csv or similar
     # schedule_df.to_csv('data/final_schedule')
