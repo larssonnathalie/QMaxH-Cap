@@ -3,28 +3,44 @@ from classical.functions import *
 from preprocessing.functions import *
 from postprocessing.functions import *
 
+# General TODO:s
+    # less look-ups, define ex. n_shifts, n_physicians only once
+    # less loops, more paralellism
+    # decision var. names --> handle more digits 
+    # decide universal way of storing list-like objects in csv
+    # divide data to input, intermediate, output DONE
 
 # Parameters
-start_date = '2025-02-15' # including this date
+start_date = '2025-02-14' # including this date
 end_date = '2025-02-17' # including this date
 prints = True
 plots = True
-preferences = False
+preferences = True
 lamda_fair = 0.5
 lamda_pref = 0.5
 n_layers = 5
 initial_betas = [np.pi/2]*n_layers
 initial_gammas = [np.pi/2]*n_layers
 cl = 1 # complexity level
+weekday_demand = 2
+holiday_demand = 1
 
 # Construct empty calendar with holidays etc.
 emptyCalendar(end_date, start_date, cl, prints=False)
-empty_calendar_df = pd.read_csv(f'data/empty_calendar_cl{cl}.csv')
+empty_calendar_df = pd.read_csv(f'data/intermediate/empty_calendar_cl{cl}.csv') # reading from file converts Datetime objects to str dates
+
 # Automatically generate demand per day based on weekday/holiday --> 'demand.csv'
-generateDemandData(empty_calendar_df, cl, prints=prints)
+generateDemandData(empty_calendar_df, cl, weekday_workers=weekday_demand, holiday_workers=holiday_demand, prints=prints)
+
+# Translate unprefered dates to unprefered decision variables
+if preferences:
+    generatePreferences(empty_calendar_df, cl)
+else:
+    physician_df = pd.read_csv(f'data/input/physician_cl{cl}.csv')
+    physician_df.to_csv(f'data/intermediate/physician_cl{cl}.csv', index=None)
 
 # Import problem data as objective functions
-objectives = constructObjectives(empty_calendar_df, cl, preferences=False, prints=prints)
+objectives = constructObjectives(cl, prints=True)
 
 if cl==1:
     qubo = objectives
@@ -43,15 +59,13 @@ if cl==1:
     qaoa = QAOA(sampler=sampler, optimizer=cybola )
     optimizer = MinimumEigenOptimizer(qaoa)
     result = optimizer.solve(qubo)
-    #print(result)
     bitstring = result.variables_dict # Seems to output constraints as variables if some is broken?
     print(bitstring)
     encoding_not_used = 1 # TODO: encoding?
     result_schedule_df = bitstringToSchedule(bitstring, empty_calendar_df, cl, encoding_not_used)
 
-    demand_df = pd.read_csv('data/demand_cl1.csv')
+    demand_df = pd.read_csv(f'data/intermediate/demand_cl{cl}.csv')
     controlSchedule(result_schedule_df, demand_df, cl)
-
 
 if cl>1:
     # Encode problem to QUBO  Y = x^T Qx
@@ -87,12 +101,10 @@ if cl>1:
     # (Find most probable solution)
     bitstringSolution =[] 
 
-    # (QUBO --> classical optimization algorithm, to compare)
-
     # (Evaluate & compare solution to classical methods)
 
     # Decode bitstring output to schedule
     schedule_df = bitstringToSchedule(bitstringSolution, encoding, prints=prints)
 
     # Export schedule as .csv or similar
-    # schedule_df.to_csv('data/final_schedule')
+    # schedule_df.to_csv('data/output/final_schedule')

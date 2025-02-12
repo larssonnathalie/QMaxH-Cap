@@ -12,7 +12,7 @@ def bitstringToSchedule(bitstring, empty_calendar_df, cl, encoding, prints=True)
     
         result_schedule_df = empty_calendar_df.copy()
         result_schedule_df['staff'] = staff_col
-        result_schedule_df.to_csv('data/result_schedule_cl1.csv', index=False)
+        result_schedule_df.to_csv(f'data/output/result_schedule_cl{cl}.csv', index=False)
         return result_schedule_df
 
     else:
@@ -29,5 +29,5 @@ def controlSchedule(result_schedule_df, demand_df, cl, prints=True):
         else:
             print(str(combined_df.loc[i, f'date'])+' NOT ok!')
     print(combined_df)
-    combined_df.to_csv(f'data/result_and_demand_cl{cl}.csv', index=False)
+    combined_df.to_csv(f'data/output/result_and_demand_cl{cl}.csv', index=False)
     
