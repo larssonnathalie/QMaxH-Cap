@@ -1,6 +1,5 @@
-from z3 import *
+from z3 import *        # Install using pip install z3-solver
 import pandas as pd
-
 
 def classical_optimization_z3(empty_calendar_df, demand_df, physician_df, max_shifts_per_p, prints=True):
     n_physicians = physician_df.shape[0]
