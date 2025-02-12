@@ -1,4 +1,4 @@
-from z3 import *        # Install using pip install z3-solver
+from z3 import *  # Install using pip install z3-solver
 import pandas as pd
 
 def classical_optimization_z3(empty_calendar_df, demand_df, physician_df, max_shifts_per_p, prints=True):
@@ -26,13 +26,11 @@ def classical_optimization_z3(empty_calendar_df, demand_df, physician_df, max_sh
         # Create the schedule from the model
         schedule = []
         for s in range(n_shifts):
-            assigned_physician = [
-                p for p in range(n_physicians) if model.evaluate(x[p][s], model_completion=True)
-            ]
-            schedule.append({"date": demand_df.loc[s, "date"], "staff": assigned_physician})
+            assigned_physicians = [p for p in range(n_physicians) if model.evaluate(x[p][s], model_completion=True)]
+            schedule.append({"date": demand_df.loc[s, "date"], "staff": assigned_physicians})
 
         result_schedule_df = pd.DataFrame(schedule)
-        result_schedule_df.to_csv("data/result_schedule_classical_z3.csv", index=False)
+        result_schedule_df.to_csv("result_schedule_classical_z3.csv", index=False)
 
         if prints:
             print("Optimized Schedule:")
@@ -46,21 +44,21 @@ def classical_optimization_z3(empty_calendar_df, demand_df, physician_df, max_sh
 
 # Main Function
 if __name__ == "__main__":
-    start_date = '2025-02-15'
+    start_date = '2025-02-10'
     end_date = '2025-02-17'
 
     # Create an example empty calendar
     empty_calendar_df = pd.DataFrame({
         "date": pd.date_range(start=start_date, end=end_date),
-        "is_holiday": [False, False, True]
+        "is_holiday": [False, False, False, False, False, True, True, False]
     })
 
     # Create example demand and physician data
-    demand_df = pd.DataFrame({"date": pd.date_range(start=start_date, end=end_date), "demand": [1, 1, 2]})
-    physician_df = pd.DataFrame({"physician_id": ["p1", "p2", "p3"]})
+    demand_df = pd.DataFrame({"date": pd.date_range(start=start_date, end=end_date), "demand": [4, 3, 2, 4, 3, 1, 1, 3]})
+    physician_df = pd.DataFrame({"physician_id": ["p1", "p2", "p3", "p4"]})
 
     # Maximum shifts per physician
-    max_shifts_per_p = int(round(len(demand_df) / len(physician_df) + 0.49999))
+    max_shifts_per_p = (demand_df["demand"].sum() + len(physician_df) - 1) // len(physician_df)
 
     # Run the classical optimization
     result_schedule_df = classical_optimization_z3(empty_calendar_df, demand_df, physician_df, max_shifts_per_p)
