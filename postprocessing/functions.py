@@ -7,7 +7,6 @@ def bitstringToSchedule(bitstring, empty_calendar_df, cl, encoding, prints=True)
         for x in list(bitstring.keys()): # TODO more efficient bitstring encodings, not dict?
             if bitstring[x] == 1:
                 p, s = x[1], int(x[2]) # TODO add digits, if more than 10 physicians
-                print(s)
                 staff_col[s].append('p'+p)
     
         result_schedule_df = empty_calendar_df.copy()
@@ -25,7 +24,7 @@ def controlSchedule(result_schedule_df, demand_df, cl, prints=True):
     for i in range(combined_df.shape[0]):
         if combined_df.loc[i,'demand'] == len(combined_df.loc[i,'staff']):
             if prints:
-                print(str(combined_df.loc[i, 'date'])+' is OK')
+                print(str(combined_df.loc[i, 'date'])+' is OK') # TODO add as column in df instead
         else:
             print(str(combined_df.loc[i, f'date'])+' NOT ok!')
     print(combined_df)

@@ -81,17 +81,10 @@ def qToXIndex(q_index, n_shifts): #  [i,j] -->  [[p,s],[p,s]]   # TODO test func
 
 # construct objective functions for fairness, preference
 # and constraints such as 1 person per shift & max shifts per week
-def constructObjectives(cl, prints=True):
+def constructObjectives(cl, n_physicians, n_shifts, max_shifts_per_p, preferences, prints=True):
     physician_df = pd.read_csv(f'data/intermediate/physician_cl{cl}.csv') 
     demand_df = pd.read_csv(f'data/intermediate/demand_cl{cl}.csv')
-    n_physicians, n_shifts = physician_df.shape[0], demand_df.shape[0]    # NOTE assuming 1 shift per row
-    n_jobs = sum(demand_df['demand'])# sum of each shift * its demanded workers
-    n_vars = n_physicians * n_shifts # n.o. decision variables 
 
-    print()
-    print('Physicians:', n_physicians)
-    print('Shifts:', n_shifts)
-    print('Jobs', n_jobs)
     if cl <=1:
 
         # USING qiskit QP
@@ -114,26 +107,25 @@ def constructObjectives(cl, prints=True):
                 rhs=demand, # right hand side
                 name=f'fill_shift{s}')
         
-            
-        max_shifts_per_p = int(round(n_jobs/n_physicians+0.49999,1)) # TODO fix round
         for p in range(n_physicians): # fairness: s per p <= S/P
             qp.linear_constraint(
                 linear={f'x{p}{s}': 1 for s in range(n_shifts)},
                 sense='<=',
                 rhs= max_shifts_per_p,
                 name=f'fairness{p}')
-
-        for p in range(n_physicians): # preferences: 
-            shifts = [int(s) for s in physician_df.loc[p,'preferences shifts'].strip('"').split(',')]
-            qp.linear_constraint(
-                linear={f'x{p}{s}': 1 for s in shifts},
-                sense='<=',
-                rhs= int(len(shifts)/2), # TODO decide max limit for preference dissatisfaction  
-                name=f'preference{p}')
-            # TODO decide rules for preferences. Examples:
-                # all p must have x prefered dates --> Maximize equal n.o. satisfied preferences
-                # all p have varying number of prefered dates --> maximize equal share of satisfied preference, over time
-                # other..?
+            
+        if preferences:
+            for p in range(n_physicians): # preferences: 
+                shifts = [int(s) for s in physician_df.loc[p,'preferences shifts'].strip('"').split(',')]
+                qp.linear_constraint(
+                    linear={f'x{p}{s}': 1 for s in shifts},
+                    sense='<=',
+                    rhs= int(len(shifts)/2), # TODO decide max limit for preference dissatisfaction  
+                    name=f'preference{p}')
+                # TODO decide rules for preferences. Examples:
+                    # all p must have x prefered dates --> Maximize equal n.o. satisfied preferences
+                    # all p have varying number of prefered dates --> maximize equal share of satisfied preference, over time
+                    # other..?
 
         # Dummy quadratic constraint, did not work bc. not supported by QuadraticProgramToQubo()
         '''for s in range(n_shifts): # not 2 docs on 1 shift (redundant for now but might use later)
