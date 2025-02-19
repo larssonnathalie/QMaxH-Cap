@@ -143,11 +143,11 @@ def constructObjectives(cl, n_physicians, n_shifts, max_shifts_per_p, preference
                 p2, s2  = second_x
 
                 if s1 == s2 and p1 != p2: # 2 p on same shift
-                    q = 2* lamda
+                    q = 2* lambda
                     qp.minimize(quadratic={(f'x{p1}{s1}', f'x{p2}{s2}'): q})
 
                 elif s1 == s2 and p1 == p2: # linear term
-                    q = 1 * lamda
+                    q = 1 * lambda
                     qp.minimize(linear={f'x{p1}{s1}': q})'''
 
         qubo = QuadraticProgramToQubo().convert(qp) # convert QP constraints to qubo penalties

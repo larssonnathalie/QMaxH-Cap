@@ -4,19 +4,23 @@ from preprocessing.functions import *
 from postprocessing.functions import *
 
 # General TODO:s
-    # less look-ups, define ex. n_shifts, n_physicians only once
+#DONE less look-ups, define ex. n_shifts, n_physicians only once
     # less loops, more paralellism
     # decision var. names --> handle more digits 
     # decide universal way of storing list-like objects in csv
-    # divide data to input, intermediate, output DONE
+    # (QAOA class instead of functions?)
+#DONE divide data to input, intermediate, output 
 
 # Parameters
 start_date = '2025-02-14' # including this date
 end_date = '2025-02-17' # including this date
-cl = 1 # complexity level
 weekday_demand = 2
 holiday_demand = 1
+cl = 1                 # complexity level  
+# cl1: demand, holidays, fairness, preferences
+# cl2: 
 
+automaticQuboTranslation = False
 prints = True
 plots = True
 preferences = False
@@ -24,8 +28,8 @@ classical = True
 draw_circuit = False
 
 # Not used yet:
-lamda_fair = 0.5
-lamda_pref = 0.5
+lambda_fair = 0.5
+lambda_pref = 0.5
 n_layers = 5
 initial_betas = [np.pi/2]*n_layers
 initial_gammas = [np.pi/2]*n_layers
@@ -59,7 +63,7 @@ else:
 # Import problem data as objective functions
 objectives = constructObjectives(cl, n_physicians, n_shifts, max_shifts_per_p, preferences, prints=True)
 
-if cl==1:
+if automaticQuboTranslation:
     qubo = objectives
     backend = Aer.get_backend('qasm_simulator') # QasmSimulator, aer_simulator, statevector_simulator
     sampler = Sampler()
@@ -84,16 +88,20 @@ if cl==1:
     demand_df = pd.read_csv(f'data/intermediate/demand_cl{cl}.csv')
     controlSchedule(result_schedule_df, demand_df, cl)
 
-if cl>1:
-    # Encode problem to QUBO  Y = x^T Qx
-    qubo, encoding = makeQubo(objectives, lamda_fair=lamda_fair, lamda_pref=lamda_pref, prints=prints)
+else:
+    # construct Qubo matrix
+    q_matrix = makeObjectiveFunctions(n_demand, n_shifts, n_physicians, cl, preferences, lambda_fair, lambda_pref) # NOTE does not handle preferences yet
+
+
+    # Encode problem to QUBO  Y = x^T Qx         # NOTE will probably remove
+    #qubo, encoding = makeQubo(objectives, lambda_fair=lambda_fair, lambda_pref=lambda_pref, prints=prints)
 
     # QUBO --> Cost Function Hamiltonian Hc      Y = z^T Qz + b^T z
         # x {0, 1}  --> z {-1, 1}
         # built from 
             # pauli-Z operators
             # and pauli-ZZ operators (enabling entanglement)
-    Hc = makeCostHamiltonian(qubo, prints=prints)
+    Hc = makeCostHamiltonian(q_matrix, prints=prints)
 
     # Hc --> QAOA Circuit (Ansatz)
     ansatz = makeAnsatz(Hc, prints=prints)
@@ -121,6 +129,6 @@ if cl>1:
     # (Evaluate & compare solution to classical methods)
 
     # Decode bitstring output to schedule
-    schedule_df = bitstringToSchedule(bitstringSolution, encoding, prints=prints)
+    #schedule_df = bitstringToSchedule(bitstringSolution, encoding, prints=prints)
 
     # Export schedule as .csv or similar
