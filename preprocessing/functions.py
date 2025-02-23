@@ -47,6 +47,7 @@ def generateDemandData(empty_calendar, cl, weekday_workers=2, holiday_workers=1,
 # TODO decide rules for preferences. Examples:
     # all p must have x prefered dates --> Maximize equal n.o. satisfied preferences
     # all p have varying number of prefered dates --> maximize equal share of satisfied preference, over time
+    # maximize over-all satisfaction, ex. someone has many easily solved preferences and someone else has one that is difficult to solve, go for many easy ones?
     # other..?
 def generatePreferences(empty_calendar_df, cl):
     date_to_s = {empty_calendar_df.loc[i,'date']:i for i in range(empty_calendar_df.shape[0])} # TODO more efficient coding
@@ -126,29 +127,6 @@ def constructObjectives(cl, n_physicians, n_shifts, max_shifts_per_p, preference
                     # all p must have x prefered dates --> Maximize equal n.o. satisfied preferences
                     # all p have varying number of prefered dates --> maximize equal share of satisfied preference, over time
                     # other..?
-
-        # Dummy quadratic constraint, did not work bc. not supported by QuadraticProgramToQubo()
-        '''for s in range(n_shifts): # not 2 docs on 1 shift (redundant for now but might use later)
-            for p in range(n_physicians):
-                qp.quadratic_constraint(
-                    quadratic={(f'x{p}{s}',f'x{p2}{s}'): 1 for p2 in range(p,n_physicians)}, # change range to all except p?
-                    sense='==',
-                    rhs= 0,
-                    name=f'no_doubles{p}{s}')'''
-        
-        # Attempt to penalize directly, did not work, probably bc. library misuse
-        ''' first_x in all_x:  # TODO Make automatic from objective, no if:s? 
-            for second_x in all_x:
-                p1, s1 = first_x # physician, shift
-                p2, s2  = second_x
-
-                if s1 == s2 and p1 != p2: # 2 p on same shift
-                    q = 2* lambda
-                    qp.minimize(quadratic={(f'x{p1}{s1}', f'x{p2}{s2}'): q})
-
-                elif s1 == s2 and p1 == p2: # linear term
-                    q = 1 * lambda
-                    qp.minimize(linear={f'x{p1}{s1}': q})'''
 
         qubo = QuadraticProgramToQubo().convert(qp) # convert QP constraints to qubo penalties
         

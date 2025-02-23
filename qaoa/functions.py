@@ -3,6 +3,7 @@ from qiskit_algorithms.optimizers import COBYLA
 from qiskit_optimization import QuadraticProgram
 from qiskit_optimization.algorithms import MinimumEigenOptimizer
 from qiskit.circuit.library import QAOAAnsatz
+from qiskit.quantum_info import SparsePauliOp
 import qiskit
 import pandas as pd
 import numpy as np
@@ -116,9 +117,48 @@ def makeObjectiveFunctions(n_demand, n_shifts, n_physicians, cl, preferences, la
     return Q # type np.array
 
 
-def makeCostHamiltonian(qubo:QuadraticProgram, prints=True):
+def makeCostHamiltonian(q_matrix, prints=True):
     # Takes qubo and returns ising hamiltonian
-    return []
+
+    # Expand Qubo:
+    # x^T Q x  =     ∑ᵢ Qᵢᵢxᵢ   +    ∑ᵢ<ⱼ   Qᵢⱼxᵢxⱼ        (1)
+    #                 ^diagonal^     ^upper half^
+    # Substitution:
+    # x_i = (1-z_i)/2        (z_i = Pauli-Z operator acting on qubit i)
+    #
+    # Put in eq. (1) -->   xᵢ = (1-zᵢ)/2
+    #                      xᵢxⱼ = (1-zᵢ)(1-zⱼ)/4  = 1/4(1 -zᵢ -zⱼ +zᵢzⱼ)
+    # eq (1) -->        Hc = ∑ᵢ cᵢZᵢ + ∑ᵢ<ⱼ cᵢⱼZᵢZⱼ
+    # where:
+    # ci = - Qii/2  -  ∑ᵢ≠ⱼ Qij/4
+    # cij = Qij/4
+    # Convert to Ising Hamiltonian
+
+    n_vars = q_matrix.shape[0]
+    pauli_terms = []
+    coeffs = []
+
+    for i in range(n_vars):
+        for j in range(n_vars):
+            if q_matrix[i, j] != 0:
+                if i == j:
+                    pauli_string = ['I'] * n_vars
+                    pauli_string[i] = 'Z'
+                    pauli_terms.append(''.join(pauli_string))
+                    coeffs.append(q_matrix[i, j])
+                else:
+                    pauli_string = ['I'] * n_vars
+                    pauli_string[i] = 'Z'
+                    pauli_string[j] = 'Z'
+                    pauli_terms.append(''.join(pauli_string))
+                    coeffs.append(q_matrix[i, j] / 2)
+
+    hamiltonian = SparsePauliOp(pauli_terms, coeffs)
+
+    # Print result
+    print("Cost Hamiltonian:\n", hamiltonian)
+
+    return hamiltonian
 
 def makeAnsatz(Hc, prints=True)->QAOAAnsatz:
     # use QAOAAnsatz
