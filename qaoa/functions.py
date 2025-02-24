@@ -33,8 +33,9 @@ def qToXIndex(q_index, n_shifts): #  [i,j] -->  [[p,s],[p,s]]   # TODO test func
     return [[first_xp, first_xs], [second_xp, second_xs]]
 
 
-def makeObjectiveFunctions(n_demand, n_shifts, n_physicians, cl, preferences, lambda_fair, lambda_pref):
+def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, preferences, lambda_fair, lambda_pref):
     # Both objective & constraints formulated as Hamiltonians to be combined to QUBO form
+    # Using sympy to simplify the H expressions
     # TODO remove constructObjectives when this is working
     physician_df = pd.read_csv(f'data/intermediate/physician_cl{cl}.csv') 
     demand_df = pd.read_csv(f'data/intermediate/demand_cl{cl}.csv')
@@ -50,11 +51,13 @@ def makeObjectiveFunctions(n_demand, n_shifts, n_physicians, cl, preferences, la
 
     # Objective: minimize unfairness, physicians work similar amount
     # Hfair = ∑ᵢ₌₁ᴾ (∑ⱼ₌₁ˢ xᵢⱼ − S/P)²                 S = n_demand, P = n_physicians
+    max_shifts_per_p = int((n_demand/n_physicians)+0.9999)  # fair distribution of shifts
+    print('\nmax s per p:', max_shifts_per_p)
     H_fair = 0
     for p in range(n_physicians):
-        H_fair_jsum_i = sum(x_symbols[p][s] for s in range(n_shifts))   
-        H_fair_i = (H_fair_jsum_i - (n_shifts/n_physicians))**2     #TODO use n_shifts_per_p? Find better expression?
-        H_fair += H_fair_i
+        H_fair_s_sum_p = sum(x_symbols[p][s] for s in range(n_shifts))   
+        H_fair_p = (H_fair_s_sum_p - max_shifts_per_p)**2     #TODO use n_shifts_per_p? Find better expression?
+        H_fair += H_fair_p
     #print(sp.expand(H_fair))
 
 
@@ -75,49 +78,56 @@ def makeObjectiveFunctions(n_demand, n_shifts, n_physicians, cl, preferences, la
 
     # Combine to one single H
     # H = λ₁Hfair + λ₂Hpref + λ₃HmeetDemand
-    H = sp.nsimplify(sp.expand(H_fair + H_meet_demand))
-    #print(H)
 
+    all_hamiltonians = sp.nsimplify(sp.expand(H_fair + H_meet_demand))
+    return all_hamiltonians, x_symbols
+   
+
+def hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl)->QuadraticProgram:
     # Extract Q matrix from terms in H
-    Q = np.zeros((n_vars,n_vars))
+    n_vars = n_physicians * n_shifts
+    Q = np.zeros((n_vars,n_vars)) #TODO remove steps, now we go from sp -> np -> QP. Should be possible to do sp -> QP
+
     for p in range(n_physicians):
-        for s in range(n_shifts):
-            x_ps = x_symbols[p][s]
-            print(x_ps)    
-            x_ps_terms = sum(term/x_ps for term in H.args if term.has(x_ps)) # extract the terms mutiplied by x_ps in H
-            for term in x_ps_terms.as_ordered_terms():
+        for s in range(n_shifts):                        # ps_1
+            x_ps_1st = x_symbols[p][s]
+            x_ps_1st_terms = sum(term/x_ps_1st for term in all_hamiltonians.args if term.has(x_ps_1st)) # extract the terms mutiplied by x_ps in H
+            for term in x_ps_1st_terms.as_ordered_terms():           # ps_2
                 coeff, variables = term.as_coeff_mul(rational=True)
                 #print(f"Term: {term}, Coefficient: {coeff}, Variables: {variables}")
-                
                 if len(variables)==0: # linear terms have no variable after /x_ps. Treated as diagonal terms
-                    x_ps_2nd = x_ps  #NOTE assuming x_ps = x_ps^2 bc. binary
+                    x_ps_2nd = x_ps_1st  
                 else:
                     x_ps_2nd = variables[0]
-
                 q_element = coeff      
-                
                 p2, s2 = str(x_ps_2nd).lstrip('x').split('_')
-
                 if int(p2)<p: #  bc. Q is symmetric, we only need half the matrix = each pairwise relation once
                     if int(s2)<s:
                         print('CONTINUE') # Not needed yet bc. not all pair-relations are covered by H-functions 
                         continue 
-                else:
-                    pass
-                    #print(int(p2), 'not <',p)
-                
                 q_i, q_j = xToQIndex([p, s], [int(p2), int(s2)], n_shifts)
-                Q[q_i,q_j] += q_element
+                Q[q_i,q_j] = q_element  # NOTE not 100% if it should be += or =
                 if q_i != q_j: # Mirror matrix, avoid diagonal
                     Q[q_j,q_i] += q_element
 
+    # Save Q to csv
     Q_df = pd.DataFrame(Q, index=None)
-    Q_df.to_csv(f'data/intermediate/Qubo_matrix_cl{cl}.csv',index=False,header=False)
+    Q_df.to_csv(f'data/intermediate/Qubo_matrix_cl{cl}.csv', index=False, header=False)
+    
+    # Convert Q  --> QuadraticProgram, without constraints (they are encoded in the objective)
+    qp = QuadraticProgram()
+    n_vars = Q.shape[0]
+    for i in range(n_vars):
+        qp.binary_var(f'x{i}') 
+    linear = {f'x{i}': Q[i, i] for i in range(n_vars)} 
+    quadratic = {(f'x{i}', f'x{j}'): Q[i, j] for i in range(n_vars) for j in range(i+1, n_vars) if Q[i, j] != 0}
+    # set objective
+    qp.minimize(linear=linear, quadratic=quadratic)
 
-    return Q # type np.array
+    return qp
 
 
-def makeCostHamiltonian(q_matrix, prints=True):
+def makeCostHamiltonian(q_matrix, prints=True):       # MIGHT REMOVE AND REPLACE WITH .to_ising()
     # Takes qubo and returns ising hamiltonian
 
     # Expand Qubo:
@@ -161,7 +171,6 @@ def makeCostHamiltonian(q_matrix, prints=True):
     return hamiltonian
 
 def makeAnsatz(Hc, prints=True)->QAOAAnsatz:
-    # use QAOAAnsatz
     return []
 
 def hardwareSetup(prints=True):

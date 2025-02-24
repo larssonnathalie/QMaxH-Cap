@@ -1,13 +1,26 @@
 import pandas as pd
 
-def bitstringToSchedule(bitstring, empty_calendar_df, cl, encoding, prints=True) -> pd.DataFrame:
+def variableNameToPS(var_name, n_shifts):
+    var_name = var_name.lstrip('x')
+    idx = int(var_name)
+    p = int(idx/n_shifts)
+    s = idx%n_shifts
+    return p,s
+
+def psVarNamesToI(xp_s, n_shifts): # Might not be needed
+        p,s = xp_s.lstrip('x').split('_')
+        i = int(p) * n_shifts + int(s)
+        return f'x{i}'
+
+def bitstringToSchedule(bitstring, empty_calendar_df, cl, n_shifts, prints=True) -> pd.DataFrame:
     if cl ==  1:
         staff_col = [[] for _ in range(empty_calendar_df.shape[0])]
  
-        for x in list(bitstring.keys()): # TODO more efficient bitstring encodings, not dict?
-            if bitstring[x] == 1:
-                p, s = x[1], int(x[2]) # TODO add digits, if more than 10 physicians
-                staff_col[s].append('p'+p)
+        for var_name in list(bitstring.keys()): # TODO more efficient bitstring encodings, not dict?
+            if bitstring[var_name] == 1:
+                #p, s = x[1], int(x[3]) # TODO add digits, if more than 10 physicians. ex split on "_"
+                p,s = variableNameToPS(var_name, n_shifts)
+                staff_col[s].append('p'+str(p))
     
         result_schedule_df = empty_calendar_df.copy()
         result_schedule_df['staff'] = staff_col
@@ -19,7 +32,7 @@ def bitstringToSchedule(bitstring, empty_calendar_df, cl, encoding, prints=True)
 
 
 
-def controlSchedule(result_schedule_df, demand_df, cl, prints=True):
+def controlSchedule(result_schedule_df, demand_df, cl, prints=False):
     combined_df = demand_df.merge(result_schedule_df, on='date', how='outer')
     for i in range(combined_df.shape[0]):
         if combined_df.loc[i,'demand'] == len(combined_df.loc[i,'staff']):

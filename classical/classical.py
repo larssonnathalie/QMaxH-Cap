@@ -30,7 +30,7 @@ def classical_optimization_z3(empty_calendar_df, demand_df, physician_df, max_sh
             schedule.append({"date": demand_df.loc[s, "date"], "staff": assigned_physicians})
 
         result_schedule_df = pd.DataFrame(schedule)
-        result_schedule_df.to_csv("result_schedule_classical_z3.csv", index=False)
+        result_schedule_df.to_csv("data/output/result_schedule_classical_z3.csv", index=False)
 
         if prints:
             print("Optimized Schedule:")
