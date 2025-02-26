@@ -1,7 +1,7 @@
-from qaoa.functions import *
+from qaoa.qaoa import *
 from classical.classical import *
-from preprocessing.functions import *
-from postprocessing.functions import *
+from preprocessing.preprocessing import *
+from postprocessing.postprocessing import *
 
 # General TODO:s
 #DONE less look-ups, define ex. n_shifts, n_physicians only once
