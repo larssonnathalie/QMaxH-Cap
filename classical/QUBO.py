@@ -1,15 +1,15 @@
-### QUBO Model for Physician Scheduling with CSV Input and Availability Constraint
+### QUBO Model for Physician Scheduling
 import numpy as np
 import dimod
 import pandas as pd
 import matplotlib.pyplot as plt
 
 # Set random seed for reproducibility
-np.random.seed(42)
+np.random.seed(313)
 
 # Load data from CSV file
-#csv_filename = "physician_schedule_data.csv"
-csv_filename = "expanded_physician_schedule_data.csv"
+csv_filename = "physician_schedule_data.csv"
+#csv_filename = "expanded_physician_schedule_data.csv"
 data = pd.read_csv(csv_filename)
 
 # Extract unique physicians and shifts
@@ -33,10 +33,10 @@ R = data.pivot(index="Physician", columns="Shift", values="Time_Off").fillna(0).
 Q = {}
 
 # Constraint Weights
-lambda_1 = 1  # Physician shift dissatisfaction penalty
+lambda_1 = 4  # Physician shift dissatisfaction penalty
 lambda_2 = 1  # Workload balance penalty
-lambda_3 = 1  # Minimum rest time penalty
-lambda_4 = 1  # Shift coverage constraint penalty
+lambda_3 = 2  # Minimum rest time penalty
+lambda_4 = 10  # Shift coverage constraint penalty
 
 # Objective function: Minimize dissatisfaction + penalties
 for p in P:
@@ -54,8 +54,8 @@ for s in S:
     for p in P:
         for p_prime in P:
             if p != p_prime:
-                Q[(p, s), (p_prime, s)] = lambda_4 * 2  # Penalize over-assignment
-    Q[(p, s), (p, s)] -= lambda_4 * 2 * D.get(s, 1)
+                Q[(p, s), (p_prime, s)] = lambda_4  # Penalize assignment of different physicians on the same shift
+    Q[(p, s), (p, s)] -= lambda_4 * D[s]  #
 
 # Workload balance constraint (Quadratic Formulation)
 for p in P:
