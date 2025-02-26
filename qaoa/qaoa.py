@@ -4,11 +4,18 @@ from qiskit_optimization import QuadraticProgram
 from qiskit_optimization.algorithms import MinimumEigenOptimizer
 from qiskit.circuit.library import QAOAAnsatz
 from qiskit.quantum_info import SparsePauliOp
+from qiskit_ibm_runtime import SamplerV2 as Sampler
+from qiskit_ibm_runtime import EstimatorV2 as Estimator
+from scipy.optimize import minimize
+from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
+from qiskit_aer import AerSimulator
+import matplotlib.pyplot as plt
 import qiskit
 import pandas as pd
 import numpy as np
 import sympy as sp
 
+Hc_values = []
 
 def xToQIndex(first_x, second_x, n_shifts, upper=True): # [[p,s],[p,s]] --> [i,j]    # TODO test function
     # Takes ps-indices of 2 x-variables that are combined in Q, 
@@ -33,7 +40,7 @@ def qToXIndex(q_index, n_shifts): #  [i,j] -->  [[p,s],[p,s]]   # TODO test func
     return [[first_xp, first_xs], [second_xp, second_xs]]
 
 
-def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, preferences, lambda_fair, lambda_pref):
+def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_fair, lambda_pref):
     # Both objective & constraints formulated as Hamiltonians to be combined to QUBO form
     # Using sympy to simplify the H expressions
     # TODO remove constructObjectives when this is working
@@ -52,7 +59,6 @@ def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, preferences, la
     # Objective: minimize unfairness, physicians work similar amount
     # Hfair = ∑ᵢ₌₁ᴾ (∑ⱼ₌₁ˢ xᵢⱼ − S/P)²                 S = n_demand, P = n_physicians
     max_shifts_per_p = int((n_demand/n_physicians)+0.9999)  # fair distribution of shifts
-    print('\nmax s per p:', max_shifts_per_p)
     H_fair = 0
     for p in range(n_physicians):
         H_fair_s_sum_p = sum(x_symbols[p][s] for s in range(n_shifts))   
@@ -60,8 +66,7 @@ def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, preferences, la
         H_fair += H_fair_p
     #print(sp.expand(H_fair))
 
-
-    if preferences:
+    if cl>1:
         print('makeObjectiveFunctions does not handle preferences yet')
         # TODO: preferences
         # Objective: minimize preference dissatisfaction
@@ -83,7 +88,7 @@ def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, preferences, la
     return all_hamiltonians, x_symbols
    
 
-def hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl)->QuadraticProgram:
+def hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='QP')->QuadraticProgram:
     # Extract Q matrix from terms in H
     n_vars = n_physicians * n_shifts
     Q = np.zeros((n_vars,n_vars)) #TODO remove steps, now we go from sp -> np -> QP. Should be possible to do sp -> QP
@@ -113,21 +118,43 @@ def hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols
     # Save Q to csv
     Q_df = pd.DataFrame(Q, index=None)
     Q_df.to_csv(f'data/intermediate/Qubo_matrix_cl{cl}.csv', index=False, header=False)
+
     
-    # Convert Q  --> QuadraticProgram, without constraints (they are encoded in the objective)
-    qp = QuadraticProgram()
-    n_vars = Q.shape[0]
-    for i in range(n_vars):
-        qp.binary_var(f'x{i}') 
-    linear = {f'x{i}': Q[i, i] for i in range(n_vars)} 
-    quadratic = {(f'x{i}', f'x{j}'): Q[i, j] for i in range(n_vars) for j in range(i+1, n_vars) if Q[i, j] != 0}
-    # set objective
-    qp.minimize(linear=linear, quadratic=quadratic)
+    if output_type == 'QP':
+        # Convert Q  --> QuadraticProgram, without constraints (they are encoded in the objective)
+        qp = QuadraticProgram()
+        n_vars = Q.shape[0]
+        for i in range(n_vars):
+            qp.binary_var(f'x{i}') 
+        linear = {f'x{i}': Q[i, i] for i in range(n_vars)} 
+        quadratic = {(f'x{i}', f'x{j}'): Q[i, j] for i in range(n_vars) for j in range(i+1, n_vars) if Q[i, j] != 0}
+        # set objective
+        qp.minimize(linear=linear, quadratic=quadratic)
+        q = qp
+    else:
+        q = Q
 
-    return qp
+    return q
 
 
-def makeCostHamiltonian(q_matrix, prints=True):       # MIGHT REMOVE AND REPLACE WITH .to_ising()
+def cost_func_estimator(parameters, ansatz, hamiltonian, estimator):# NOTE: COPIED THIS FUNCTION TO GET ESTIMATOR WORKING TODO: UNDERSTAND WHAT HAPPENS & rewrite
+
+    # transform the observable defined on virtual qubits to
+    # an observable defined on all physical qubits for the backend.
+    isa_hamiltonian = hamiltonian.apply_layout(ansatz.layout)
+
+    pub = (ansatz, isa_hamiltonian, parameters)
+    job = estimator.run([pub])
+
+    results = job.result()[0]
+    cost = results.data.evs
+
+    Hc_values.append(cost)
+    #objective_func_vals.append(cost)
+
+    return cost
+
+def QToHc(q_matrix):   # TODO add offset (b) as argument, as in nb  
     # Takes qubo and returns ising hamiltonian
 
     # Expand Qubo:
@@ -151,24 +178,23 @@ def makeCostHamiltonian(q_matrix, prints=True):       # MIGHT REMOVE AND REPLACE
     for i in range(n_vars):
         for j in range(n_vars):
             if q_matrix[i, j] != 0:
-                if i == j:
+                if i == j: # linear (diagonal) terms
                     pauli_string = ['I'] * n_vars
                     pauli_string[i] = 'Z'
                     pauli_terms.append(''.join(pauli_string))
                     coeffs.append(q_matrix[i, j])
-                else:
+                else: # quadratic terms
                     pauli_string = ['I'] * n_vars
                     pauli_string[i] = 'Z'
                     pauli_string[j] = 'Z'
                     pauli_terms.append(''.join(pauli_string))
                     coeffs.append(q_matrix[i, j] / 2)
 
-    hamiltonian = SparsePauliOp(pauli_terms, coeffs)
+    Hc = SparsePauliOp(pauli_terms, coeffs)
+    #print('Hc:', Hc)
 
-    # Print result
-    print("Cost Hamiltonian:\n", hamiltonian)
+    return Hc
 
-    return hamiltonian
 
 def makeAnsatz(Hc, prints=True)->QAOAAnsatz:
     return []

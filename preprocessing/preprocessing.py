@@ -4,9 +4,9 @@ import holidays
 from datetime import datetime
 from qiskit_optimization import QuadraticProgram
 from qiskit_optimization.converters import QuadraticProgramToQubo
-from qiskit_aer import Aer
+#from qiskit_aer import Aer
 from qiskit_algorithms.optimizers import COBYLA
-from qiskit.primitives import Sampler #StatevectorSampler, Estimator
+#from qiskit.primitives import Sampler, StatevectorSampler, Estimator   REPLACED WITH SAMPLERV2 FROM QISKIT_IBM_RUNTIME
 
 
 # construct empty calendar with work days, holidays etc
