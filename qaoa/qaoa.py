@@ -88,7 +88,7 @@ def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_fair, la
     return all_hamiltonians, x_symbols
    
 
-def hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='QP')->QuadraticProgram:
+def hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='QP')->np.ndarray:
     # Extract Q matrix from terms in H
     n_vars = n_physicians * n_shifts
     Q = np.zeros((n_vars,n_vars)) #TODO remove steps, now we go from sp -> np -> QP. Should be possible to do sp -> QP
@@ -196,24 +196,63 @@ def QToHc(q_matrix):   # TODO add offset (b) as argument, as in nb
     return Hc
 
 
-def makeAnsatz(Hc, prints=True)->QAOAAnsatz:
+def transpileAnsatz(ansatz:QAOAAnsatz, backend): # TODO do we need to transpile?
     return []
 
-def hardwareSetup(prints=True):
-    return []
+def findParameters(initial_parameters, circuit, backend, Hc, estimation_iterations, prints=True, plots=True): # TODO what job mode? (single, session, etc)
 
-def transpileAnsatz(ansatz:QAOAAnsatz, backend, prints=True): 
-    return []
+    estimator = Estimator(mode=backend,options={"default_shots": estimation_iterations})
 
-def findParameters(initial_betas, initial_gammas, quantumCircuit, prints=True, plots=True):
-    n_layers = len(initial_gammas)
-    # Using estimator primitive
-    # use parallelism job-mode
-    return []
+    bounds = [(0, np.pi) for _ in range(len(initial_parameters))] # TODO replace copied settings
+
+    result = minimize(  
+        cost_func_estimator,
+        initial_parameters,
+        args=(circuit, Hc, estimator),
+        method="COBYLA", # COBYLA is a classical OA: Constrained Optimization BY Linear Approximations
+        bounds=bounds,  
+        tol=1e-6#,                  # TODO replace copied settings
+        #options={"rhobeg": 1e-1}   # -||-
+    )
+    parameters = result.x
+    if prints:
+        print('\nEstimator iterations', len(Hc_values))
+
+    if plots:
+        plt.figure()
+        plt.plot(Hc_values)
+        plt.title('Hc costs while optimizing ßs and gammas')
+        plt.show()
+    if prints:
+        print('\nBest parameters (ß:s & gamma:s):', parameters)
+    return parameters
 
 
-def sampleSolutions(bestParameters, prints=True, plots=True):
-    # Using sampler primitive
-    # Use single job-mode
-    # returns distribution of solutions
-    return []
+def sampleSolutions(best_circuit, backend, sampling_iterations, prints=True, plots=True):
+    # TODO Use single job-mode?
+    sampler = Sampler(mode=backend, options={"default_shots": sampling_iterations})
+
+    # TODO circuit not transpiled? Check if needed
+    pub = (best_circuit,)
+    job = sampler.run([pub])
+    sampling_distribution = job.result()[0].data.meas.get_counts()
+
+    if plots:
+        plt.figure(figsize=(20,10))
+        plt.title('Solution distribution')
+        plt.bar([i for i in range(len(sampling_distribution))], sampling_distribution.values())
+        plt.xticks(ticks = [i for i in range(len(sampling_distribution))], labels=sampling_distribution.keys())
+        plt.xticks(rotation=90)
+        plt.show()
+    if prints:
+        print('\nSampling iterations:', sum(sampling_distribution.values()))
+    return sampling_distribution
+
+def findBestBitstring(sampling_distribution:dict, prints=True):
+    counts, bitstrings = list(sampling_distribution.values()), list(sampling_distribution.keys())
+    counts_np = np.array(counts)
+    max_idx = np.argmax(counts_np)
+    best_bitstring = bitstrings[max_idx]
+    if prints:
+        print('\nBest bitstring:', best_bitstring)
+    return best_bitstring
