@@ -7,6 +7,7 @@ from postprocessing.postprocessing import *
 #DONE less look-ups, define ex. n_shifts, n_physicians only once
     # move Quantum code from main to qaoa.py
     # Debug estimator & sampler (why 1 of each bitstring)
+    # implement al: how many physicians
     # find error in H -> Q or Q -> QP (H seems to work)
     # less loops, more paralellism
     # decision var. names --> handle more digits 
@@ -17,9 +18,10 @@ from postprocessing.postprocessing import *
 
 # Parameters
 start_date = '2025-03-03' # including this date
-end_date = '2025-03-09' # including this date
+end_date = '2025-03-05' # including this date
 weekday_demand = 2
 holiday_demand = 1
+al = 1 # amount level {1: 5 physicians, 2: } #TODO decide 
 cl = 1 # complexity level:
 # cl1: demand, fairness
 # cl2: demand, fairness, preferences
@@ -32,12 +34,15 @@ plots = True
 classical = False
 draw_circuit = False
 
-# Not used yet:
 lambda_fair = 0.5
 lambda_pref = 0.5
 n_layers = 2
-initial_betas = [np.pi/2]*n_layers
-initial_gammas = [np.pi/2]*n_layers
+initial_betas = [np.pi/2]*n_layers # TODO change?
+initial_gammas = [np.pi/2]*n_layers  # change?
+
+estimation_iterations = n_layers * 1000
+sampling_iterations = n_
+
 
 # Construct empty calendar with holidays etc.
 emptyCalendar(end_date, start_date, cl, prints=False)
@@ -103,16 +108,22 @@ best_circuit = circuit.assign_parameters(parameters=parameters)
 
 # Use sampler to find best bitstrings, given the found ßs and gammas
 sampler = Sampler(mode=backend, options={"default_shots": 400}) # TODO replace copied settings
+
+# TODO circuit not transpiled? Check if needed
 pub = (best_circuit,)
 job = sampler.run([pub])
 counts = job.result()[0].data.meas.get_counts()
 
+# Plot parameter optimization
 plt.plot(Hc_values)
 plt.title('Hc costs while optimizing ßs and gammas')
-plt.figure()
+plt.figure(figsize=(20,10))
+
+# Plot solution frequency
 plt.title('Solution distribution')
 plt.bar([i for i in range(len(counts))], counts.values())
 plt.xticks(ticks = [i for i in range(len(counts))], labels=counts.keys())
+plt.xticks(rotation=90)
 plt.show()
 #transpiled_circuit = qiskit.transpile(qaoa_circuit, backend=backend)#, basis_gates=['u3', 'cx'])
 '''if draw_circuit:
@@ -166,7 +177,7 @@ print('xTQx classic:', np.matmul(np.matmul(xcT,Q),xc))
 x, xT = x_quantum.reshape((12,1)), x_quantum.reshape((1,12))
 print('xTQx quantum:', np.matmul(np.matmul(xT,Q),x))'''
 
-#___________END TEST________________
+
 # Hc --> QAOA Circuit (Ansatz)
 #ansatz = makeAnsatz(Hc, prints=prints)
 
