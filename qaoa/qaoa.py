@@ -9,6 +9,7 @@ from qiskit_ibm_runtime import EstimatorV2 as Estimator
 from scipy.optimize import minimize
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit_aer import AerSimulator
+from qaoa.converters import *
 import matplotlib.pyplot as plt
 import qiskit
 import pandas as pd
@@ -17,30 +18,7 @@ import sympy as sp
 
 Hc_values = []
 
-def xToQIndex(first_x, second_x, n_shifts, upper=True): # [[p,s],[p,s]] --> [i,j]    # TODO test function
-    # Takes ps-indices of 2 x-variables that are combined in Q, 
-    # Returns ij-index of q-element 
-    p1, s1 = first_x
-    p2, s2 = second_x
-    i = s1 + p1 * n_shifts
-    j = s2 + p2 * n_shifts
-
-    if upper:  # Only cover upper half of matrix
-        if i>j:
-            i,j = j, i
-    return [i, j]
-
-def qToXIndex(q_index, n_shifts): #  [i,j] -->  [[p,s],[p,s]]   # TODO test function
-    q_i, q_j = q_index
-    first_xp = int(q_i/n_shifts)
-    first_xs = q_i%n_shifts
-    
-    second_xp = int(q_j/n_shifts)
-    second_xs = q_j%n_shifts
-    return [[first_xp, first_xs], [second_xp, second_xs]]
-
-
-def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_fair, lambda_pref):
+def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand, lambda_fair):
     # Both objective & constraints formulated as Hamiltonians to be combined to QUBO form
     # Using sympy to simplify the H expressions
     # TODO remove constructObjectives when this is working
@@ -84,11 +62,10 @@ def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_fair, la
     # Combine to one single H
     # H = λ₁Hfair + λ₂Hpref + λ₃HmeetDemand
 
-    all_hamiltonians = sp.nsimplify(sp.expand(H_fair + H_meet_demand))
+    all_hamiltonians = sp.nsimplify(sp.expand(H_meet_demand*lambda_demand + H_fair+lambda_fair  ))
     return all_hamiltonians, x_symbols
-   
 
-def hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='QP')->np.ndarray:
+def hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='QP', mirror=True)->np.ndarray:
     # Extract Q matrix from terms in H
     n_vars = n_physicians * n_shifts
     Q = np.zeros((n_vars,n_vars)) #TODO remove steps, now we go from sp -> np -> QP. Should be possible to do sp -> QP
@@ -112,16 +89,16 @@ def hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols
                         continue 
                 q_i, q_j = xToQIndex([p, s], [int(p2), int(s2)], n_shifts)
                 Q[q_i,q_j] = q_element  # NOTE not 100% if it should be += or =
-                if q_i != q_j: # Mirror matrix, avoid diagonal
-                    Q[q_j,q_i] += q_element
+                if mirror:
+                    if q_i != q_j: # Mirror matrix, avoid diagonal
+                        Q[q_j,q_i] += q_element
 
     # Save Q to csv
     Q_df = pd.DataFrame(Q, index=None)
     Q_df.to_csv(f'data/intermediate/Qubo_matrix_cl{cl}.csv', index=False, header=False)
 
     
-    if output_type == 'QP':
-        # Convert Q  --> QuadraticProgram, without constraints (they are encoded in the objective)
+    if output_type == 'QP':   # Convert Q  --> QuadraticProgram, without constraints (they are encoded in the objective)
         qp = QuadraticProgram()
         n_vars = Q.shape[0]
         for i in range(n_vars):
@@ -137,7 +114,8 @@ def hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols
     return q
 
 
-def cost_func_estimator(parameters, ansatz, hamiltonian, estimator):# NOTE: COPIED THIS FUNCTION TO GET ESTIMATOR WORKING TODO: UNDERSTAND WHAT HAPPENS & rewrite
+# NOTE: COPIED THIS FUNCTION TO GET ESTIMATOR WORKING 
+def cost_func_estimator(parameters, ansatz, hamiltonian, estimator): #TODO: UNDERSTAND WHAT HAPPENS & rewrite
 
     # transform the observable defined on virtual qubits to
     # an observable defined on all physical qubits for the backend.
@@ -154,7 +132,8 @@ def cost_func_estimator(parameters, ansatz, hamiltonian, estimator):# NOTE: COPI
 
     return cost
 
-def QToHc(q_matrix):   # TODO add offset (b) as argument, as in nb  
+# Replaced with QuboToIsing for now
+'''def QToHc(q_matrix):   # add offset (b) as argument, as in nb  
     # Takes qubo and returns ising hamiltonian
 
     # Expand Qubo:
@@ -193,7 +172,7 @@ def QToHc(q_matrix):   # TODO add offset (b) as argument, as in nb
     Hc = SparsePauliOp(pauli_terms, coeffs)
     #print('Hc:', Hc)
 
-    return Hc
+    return Hc'''
 
 
 def transpileAnsatz(ansatz:QAOAAnsatz, backend): # TODO do we need to transpile?
@@ -256,3 +235,72 @@ def findBestBitstring(sampling_distribution:dict, prints=True):
     if prints:
         print('\nBest bitstring:', best_bitstring)
     return best_bitstring
+
+def costOfBitstring(bitstring:str, Hc:SparsePauliOp):
+    bitstring_z = bitstringToPauliZ(bitstring)
+    cost = 0
+    for pauli, coeff in zip(Hc.paulis, Hc.coeffs):
+        term_value = 1
+        for i, p in enumerate(pauli.to_label()):  # Convert to string like "ZZ" or "Z "
+            if p == "Z":  # Only consider Z terms (ignore "I" terms)
+                term_value *= bitstring_z[i]
+        cost += coeff * term_value
+
+    print("Cost of bitstring:", cost)
+    return cost
+
+def QuboToIsing(Q_qubo:np.ndarray): #TODO include complex values
+    # Takes qubo matrix where variables are assumed to be (0,1) 
+    # returns corresponding ising Q matrix where variables assumed to be (-1,1)
+    # b is vector for linear elements, replacing diagonal in qubo matrix 
+    n_vars = Q_qubo.shape[0]
+    Q_ising = np.zeros((n_vars, n_vars))
+    b_ising = np.zeros(n_vars)
+
+    for i in range(n_vars-1): # TODO check correct index? stop at n_vars-1 instead?
+        j_sum_i = 0
+        for j in range(i,n_vars):
+            if i ==j:
+                j_sum_i += Q_qubo[i,j]*2
+            else:  
+                Q_ising[i,j] = Q_qubo[i,j]/4 #TODO add symmetry?
+        b_ising[i] = -j_sum_i/4
+    
+    return Q_ising, b_ising
+
+
+### THIS IS PONTUS'S FUNC TO COMPARE RESULTS:::
+def generate_pauli_terms(Q: np.ndarray, b: np.ndarray) -> list[tuple[str, float]]:
+    """Construct the cost Hamiltonian.
+
+    Args:
+        Q (ndarray): NxN symmetric matrix of coefficients for Z_i Z_j terms.
+        b (ndarray): N-dimensional array coefficients for Z_i terms.
+
+    Returns:
+        pauli_list: List of (Pauli string, coefficient) pairs representing the Hamiltonian terms.
+    """
+    N = len(b) # number of qubits
+
+    pauli_list = []
+
+    # Two-qubit terms
+    for i in range(N-1):                       #NOTE    why N-1????????????????
+        for j in range(i + 1, N):
+            if Q[i, j] != 0:
+                # Create a Pauli string with "Z" at positions i and j
+                paulis = ["I"] * N
+                paulis[i], paulis[j] = "Z", "Z"
+                coeff = 2 * Q[i, j] / 4 # multiply by a factor 2 since we are only summing the upper triangular of Q
+                pauli_list.append(("".join(paulis)[::-1], coeff))
+
+    # Single-qubit terms
+    for i in range(N):
+        if b[i] != 0: 
+            # Create a Pauli string with "Z" at position i
+            paulis = ["I"] * N
+            paulis[i] = "Z"
+            coeff = b[i] / 4
+            pauli_list.append(("".join(paulis)[::-1], coeff))
+    
+    return pauli_list

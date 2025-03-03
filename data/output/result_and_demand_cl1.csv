@@ -1,4 +1,4 @@
 date,demand,is_holiday,weekday,staff,Shift covered
-2025-03-03,2,False,Monday,[], NOT ok!
-2025-03-04,2,False,Tuesday,[], NOT ok!
-2025-03-05,2,False,Wednesday,[], NOT ok!
+2025-03-03,4,False,Monday,"['1', '2', '3']", NOT ok!
+2025-03-04,4,False,Tuesday,"['0', '1', '2', '3']",ok
+2025-03-05,4,False,Wednesday,"['0', '1', '2', '3']",ok

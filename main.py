@@ -6,8 +6,12 @@ from postprocessing.postprocessing import *
 # General TODO:s
 #DONE less look-ups, define ex. n_shifts, n_physicians only once
 #DONE Debug estimator & sampler (why 1 of each bitstring)
+    # Hc differs & all are wrong. Find error & compare to theory (Q, b etc)
+        # Handle complex numbers correctly?
+        # Q, b as input to p func correct?
+        # balance in lambdas?
+        # mirror Q and Hc or not? double values in conversion?
     # pref. levels 1-5
-    # Sampler seems to choose only-0-bitstrings, error in Hc, & findParameters?
     # implement al: how many physicians
     # less loops, more paralellism
     # Remove unused code
@@ -19,9 +23,9 @@ from postprocessing.postprocessing import *
 # Parameters
 start_date = '2025-03-03' # including this date
 end_date = '2025-03-05' # including this date
-weekday_demand = 2
+weekday_demand = 4
 holiday_demand = 1
-al = 1 # amount level {1: 5 physicians, 2: } #TODO decide 
+al = 1 # amount level {1: 5 physicians, 2: } #TODO decide numbers
 cl = 1 # complexity level:
 # cl1: demand, fairness
 # cl2: demand, fairness, preferences
@@ -34,14 +38,15 @@ plots = True
 classical = False
 draw_circuit = False
 
+lambda_demand = 2
 lambda_fair = 0.5
 lambda_pref = 0.5
-n_layers = 3
+n_layers = 5
 initial_betas = [np.pi/2]*n_layers # TODO change?
 initial_gammas = [np.pi/2]*n_layers  # change?
 
 estimation_iterations = n_layers * 1000 #  seems to stop after ~100 iterations. Adjust "tol"=tolerance in findParameters
-sampling_iterations = 1000
+sampling_iterations = 4000
 
 # Construct empty calendar with holidays etc.
 emptyCalendar(end_date, start_date, cl, prints=False)
@@ -53,11 +58,17 @@ generateDemandData(empty_calendar_df, cl, weekday_workers=weekday_demand, holida
 # Get n.o. workers, shifts & total demand
 demand_df = pd.read_csv(f'data/intermediate/demand_cl{cl}.csv')
 physician_df = pd.read_csv(f'data/input/physician_cl{cl}.csv')
+
 n_physicians = physician_df.shape[0]
 n_shifts = empty_calendar_df.shape[0] # NOTE assuming 1 shift per row
 n_demand = sum(demand_df['demand']) # sum of workers demanded on all shifts
 max_shifts_per_p = int((n_demand/n_physicians)+0.9999)  # fair distribution of shifts
-print('\nMax shifts per p:', max_shifts_per_p)
+
+if prints:
+    print('\nn physicians:', n_physicians)
+    print('n shifts:', n_shifts)
+    print('n variables:', n_physicians*n_shifts)
+    print('Max shifts per p:', max_shifts_per_p,'\n')
 
 # Classical optimization (BILP, solver: z3), for comparison
 if classical:
@@ -71,13 +82,42 @@ else:
     physician_df.to_csv(f'data/intermediate/physician_cl{cl}.csv', index=None)
 
 # Make, sum and simplify all hamiltonians and enforce penatlies (lambdas)
-all_hamiltonians, x_symbols = makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_fair, lambda_pref) # NOTE does not handle preferences yet
+all_hamiltonians, x_symbols = makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand=lambda_demand, lambda_fair=lambda_fair) # NOTE does not handle preferences yet
 
 # Extract Qubo Q-matrix from hamiltonians           Y = x^T Qx
-Q = hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='np')
+Q = hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='np', mirror=False)
 
 # Q-matrix --> pauli operators --> cost hamiltonian (Hc)
-Hc = QToHc(Q)
+# My Hc
+#Hc_m = QToHc(Q) 
+'''print('\nMY HC')
+print(Hc_m.paulis)
+print(Hc_m.coeffs)
+HcPaulisToQ(Hc_m)
+
+# qp -> to ising Hc
+Qqp = hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='QP')
+Hc_qp, offset = Qqp.to_ising()
+print('\n QP HC')
+print(Hc_qp.paulis)
+print(Hc_qp.coeffs)
+HcPaulisToQ(Hc_qp)'''
+
+
+# TEST W PONTUS FUNC
+
+#b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
+#b = - (2 * np.diag(Q) + np.sum(Q, axis=1)) / 4
+Q_ising, b_ising = QuboToIsing(Q) 
+print('Q ising', Q_ising)
+print('b', b_ising)
+
+pauli_terms = generate_pauli_terms(Q_ising, b_ising)
+Hc_p = SparsePauliOp.from_list(pauli_terms)
+#print(Hc_p.paulis)
+#print(Hc_p.coeffs)
+
+Hc = Hc_p
 
 # Set up hardware
 backend = AerSimulator() 
@@ -95,30 +135,14 @@ best_parameters = findParameters(initial_parameters, circuit, backend, Hc, estim
 best_circuit = circuit.assign_parameters(parameters=best_parameters)
 
 # Use sampler to find solution bitstrings
-sampling_distribution = sampleSolutions(best_circuit, backend, sampling_iterations)
+sampling_distribution = sampleSolutions(best_circuit, backend, sampling_iterations, plots=plots)
 best_bitstring = findBestBitstring(sampling_distribution, prints=True)
+best_cost = costOfBitstring(best_bitstring, Hc)
+
+print('\nHc',best_cost)
 result_schedule_df = bitstringToSchedule(best_bitstring, empty_calendar_df, cl, n_shifts)
 controlSchedule(result_schedule_df, demand_df, cl, prints=True)
 
 
-
-
-
-# Transpile
-    # using function in qiskit
-    # adapted to specific hardware
-#quantumCircuit = transpileAnsatz(ansatz, backend, prints=prints)
-
-
-# Use best gamma & ß to sample solutions using sampler primitive
-#distribution = sampleSolutions(bestParameters, prints=prints, plots=plots)
-
-# (Find most probable solution)
-#bitstringSolution =[] 
-
 # (Evaluate & compare solution to classical methods)
 
-# Decode bitstring output to schedule
-#schedule_df = bitstringToSchedule(bitstringSolution, encoding, prints=prints)
-
-# Export schedule as .csv or similar
