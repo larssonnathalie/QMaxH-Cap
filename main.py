@@ -21,9 +21,9 @@ from postprocessing.postprocessing import *
 #DONE divide data to input, intermediate, output 
 
 # Parameters
-start_date = '2025-03-03' # including this date
-end_date = '2025-03-05' # including this date
-weekday_demand = 4
+start_date = '2025-03-07' # including this date
+end_date = '2025-03-10' # including this date
+weekday_demand = 2
 holiday_demand = 1
 al = 1 # amount level {1: 5 physicians, 2: } #TODO decide numbers
 cl = 1 # complexity level:
@@ -34,14 +34,14 @@ cl = 1 # complexity level:
 # cl5: demand, fairness, preferences, time off, shift type, rest
 
 prints = True
-plots = True
+plots = False
 classical = False
 draw_circuit = False
 
-lambda_demand = 2
-lambda_fair = 0.5
+lambda_demand = 10
+lambda_fair = 0.4
 lambda_pref = 0.5
-n_layers = 5
+n_layers = 4
 initial_betas = [np.pi/2]*n_layers # TODO change?
 initial_gammas = [np.pi/2]*n_layers  # change?
 
@@ -62,13 +62,13 @@ physician_df = pd.read_csv(f'data/input/physician_cl{cl}.csv')
 n_physicians = physician_df.shape[0]
 n_shifts = empty_calendar_df.shape[0] # NOTE assuming 1 shift per row
 n_demand = sum(demand_df['demand']) # sum of workers demanded on all shifts
-max_shifts_per_p = int((n_demand/n_physicians)+0.9999)  # fair distribution of shifts
+#max_shifts_per_p = int((n_demand/n_physicians)+0.9999)  # fair distribution of shifts
 
 if prints:
     print('\nn physicians:', n_physicians)
     print('n shifts:', n_shifts)
     print('n variables:', n_physicians*n_shifts)
-    print('Max shifts per p:', max_shifts_per_p,'\n')
+    #print('Max shifts per p:', max_shifts_per_p,'\n')
 
 # Classical optimization (BILP, solver: z3), for comparison
 if classical:
@@ -85,8 +85,8 @@ else:
 all_hamiltonians, x_symbols = makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand=lambda_demand, lambda_fair=lambda_fair) # NOTE does not handle preferences yet
 
 # Extract Qubo Q-matrix from hamiltonians           Y = x^T Qx
-Q = hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='np', mirror=False)
-
+Q = hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='np', mirror=True)
+#Q = makeQuboNathaliesSolution(n_demand, n_physicians, n_shifts, cl, lambda_demand=lambda_demand, lambda_fair=lambda_fair)
 # Q-matrix --> pauli operators --> cost hamiltonian (Hc)
 # My Hc
 #Hc_m = QToHc(Q) 
@@ -104,12 +104,12 @@ print(Hc_qp.coeffs)
 HcPaulisToQ(Hc_qp)'''
 
 
-# TEST W PONTUS FUNC
+# TEST WITH PONTUS FUNC FOR COMPARISON
 
-#b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
+b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
 #b = - (2 * np.diag(Q) + np.sum(Q, axis=1)) / 4
-Q_ising, b_ising = QuboToIsing(Q) 
-print('Q ising', Q_ising)
+Q_ising, b_ising = QuboToIsing(Q)
+print('Q ising\n', Q_ising)
 print('b', b_ising)
 
 pauli_terms = generate_pauli_terms(Q_ising, b_ising)
@@ -124,7 +124,7 @@ backend = AerSimulator()
 
 # Make initial circuit
 circuit = QAOAAnsatz(cost_operator=Hc, reps=n_layers)
-circuit.measure_all() # not needed?
+circuit.measure_all() 
 pass_manager = generate_preset_pass_manager(optimization_level=0, backend=backend) # TODO replace copied settings
 circuit = pass_manager.run(circuit) # -||-
 

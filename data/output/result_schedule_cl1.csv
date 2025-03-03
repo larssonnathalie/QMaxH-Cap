@@ -1,4 +1,5 @@
 date,is_holiday,weekday,staff
-2025-03-03,False,Monday,"['1', '2', '3']"
-2025-03-04,False,Tuesday,"['0', '1', '2', '3']"
-2025-03-05,False,Wednesday,"['0', '1', '2', '3']"
+2025-03-07,False,Friday,"['1', '2', '3']"
+2025-03-08,True,Saturday,"['1', '3']"
+2025-03-09,True,Sunday,"['1', '3']"
+2025-03-10,False,Monday,"['1', '3']"

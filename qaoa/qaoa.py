@@ -18,14 +18,42 @@ import sympy as sp
 
 Hc_values = []
 
+def makeQuboNathaliesSolution(n_demand, n_physicians, n_shifts, cl, lambda_demand, lambda_fair):
+    demand_df = pd.read_csv(f'data/intermediate/demand_cl{cl}.csv')
+
+    Q = {}
+
+    # Objective function: Minimize dissatisfaction + penalties
+    for p in range(n_physicians):
+        for s in range(n_shifts):
+            Q[(p, s), (p, s)] = 1
+
+    # Meet demand constraint
+    for s in range(n_shifts):
+        demand_s  = demand_df['demand'].iloc[s]
+        for p in range(n_physicians):
+            for p_prime in range(n_physicians):
+                if p != p_prime:
+                    Q[(p, s), (p_prime, s)] = lambda_demand  # Penalize assignment of different physicians on the same shift
+        Q[(p, s), (p, s)] -= lambda_demand * demand_s  #
+    
+    # Convert dict to np
+    n_vars = n_physicians * n_shifts
+    Q_np = np.zeros((n_vars,n_vars))
+    for key in Q.keys():
+        i,j = xToQIndex(key[0],key[1], n_shifts=n_shifts)
+        Q_np[i,j]=Q[key]
+    print(Q_np)
+
+    return Q_np
+
+
+
 def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand, lambda_fair):
     # Both objective & constraints formulated as Hamiltonians to be combined to QUBO form
     # Using sympy to simplify the H expressions
-    # TODO remove constructObjectives when this is working
-    physician_df = pd.read_csv(f'data/intermediate/physician_cl{cl}.csv') 
+
     demand_df = pd.read_csv(f'data/intermediate/demand_cl{cl}.csv')
-    n_vars = n_shifts * n_physicians
-    #x_matrix = np.zeros((n_physicians, n_shifts))  # decision variables
 
     # define decision variables (a list of lists)
     x_symbols = []
@@ -33,16 +61,14 @@ def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand, 
         x_symbols_p = [sp.symbols(f'x{p}_{s}') for s in range(n_shifts)]
         x_symbols.append(x_symbols_p)
 
-
     # Objective: minimize unfairness, physicians work similar amount
     # Hfair = ∑ᵢ₌₁ᴾ (∑ⱼ₌₁ˢ xᵢⱼ − S/P)²                 S = n_demand, P = n_physicians
-    max_shifts_per_p = int((n_demand/n_physicians)+0.9999)  # fair distribution of shifts
+    max_shifts_per_p = int((n_demand/n_physicians)+0.999 ) # fair distribution of shifts
     H_fair = 0
     for p in range(n_physicians):
         H_fair_s_sum_p = sum(x_symbols[p][s] for s in range(n_shifts))   
-        H_fair_p = (H_fair_s_sum_p - max_shifts_per_p)**2     #TODO use n_shifts_per_p? Find better expression?
+        H_fair_p = (H_fair_s_sum_p - max_shifts_per_p)**2   
         H_fair += H_fair_p
-    #print(sp.expand(H_fair))
 
     if cl>1:
         print('makeObjectiveFunctions does not handle preferences yet')
@@ -62,8 +88,10 @@ def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand, 
     # Combine to one single H
     # H = λ₁Hfair + λ₂Hpref + λ₃HmeetDemand
 
-    all_hamiltonians = sp.nsimplify(sp.expand(H_meet_demand*lambda_demand + H_fair+lambda_fair  ))
+    all_hamiltonians = sp.nsimplify(sp.expand(H_meet_demand*lambda_demand + H_fair*lambda_fair))
     return all_hamiltonians, x_symbols
+
+
 
 def hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='QP', mirror=True)->np.ndarray:
     # Extract Q matrix from terms in H
@@ -77,21 +105,23 @@ def hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols
             for term in x_ps_1st_terms.as_ordered_terms():           # ps_2
                 coeff, variables = term.as_coeff_mul(rational=True)
                 #print(f"Term: {term}, Coefficient: {coeff}, Variables: {variables}")
-                if len(variables)==0: # linear terms have no variable after /x_ps. Treated as diagonal terms
-                    x_ps_2nd = x_ps_1st  
-                else:
-                    x_ps_2nd = variables[0]
+                #if len(variables)==0: # linear terms have no variable after /x_ps. Treated as diagonal terms
+                    #x_ps_2nd = x_ps_1st  
+                x_ps_2nd = x_ps_1st if len(variables) == 0 else variables[-1]
+
+                #else:
+                   # x_ps_2nd = variables[0]
                 q_element = coeff      
                 p2, s2 = str(x_ps_2nd).lstrip('x').split('_')
-                if int(p2)<p: #  bc. Q is symmetric, we only need half the matrix = each pairwise relation once
-                    if int(s2)<s:
-                        print('CONTINUE') # Not needed yet bc. not all pair-relations are covered by H-functions 
-                        continue 
+                #if (int(p2), int(s2)) < (p, s):  #  bc. Q is symmetric, we only need half the matrix = each pairwise relation once
+                    #print('CONTINUE') # Not needed yet bc. not all pair-relations are covered by H-functions
+                    #continue 
                 q_i, q_j = xToQIndex([p, s], [int(p2), int(s2)], n_shifts)
-                Q[q_i,q_j] = q_element  # NOTE not 100% if it should be += or =
+                
+                Q[q_i,q_j] += q_element  # NOTE not 100% if it should be += or =
                 if mirror:
                     if q_i != q_j: # Mirror matrix, avoid diagonal
-                        Q[q_j,q_i] += q_element
+                        Q[q_j,q_i] = q_element
 
     # Save Q to csv
     Q_df = pd.DataFrame(Q, index=None)
@@ -182,7 +212,7 @@ def findParameters(initial_parameters, circuit, backend, Hc, estimation_iteratio
 
     estimator = Estimator(mode=backend,options={"default_shots": estimation_iterations})
 
-    bounds = [(0, np.pi) for _ in range(len(initial_parameters))] # TODO replace copied settings
+    bounds = [(0, 2*np.pi) for _ in range(len(initial_parameters))] 
 
     result = minimize(  
         cost_func_estimator,
@@ -190,8 +220,8 @@ def findParameters(initial_parameters, circuit, backend, Hc, estimation_iteratio
         args=(circuit, Hc, estimator),
         method="COBYLA", # COBYLA is a classical OA: Constrained Optimization BY Linear Approximations
         bounds=bounds,  
-        tol=1e-6#,                  # TODO replace copied settings
-        #options={"rhobeg": 1e-1}   # -||-
+        tol=1e-6,           
+        options={"rhobeg": 1e-1}   # TODO replace copied settings
     )
     parameters = result.x
     if prints:
@@ -253,18 +283,22 @@ def QuboToIsing(Q_qubo:np.ndarray): #TODO include complex values
     # Takes qubo matrix where variables are assumed to be (0,1) 
     # returns corresponding ising Q matrix where variables assumed to be (-1,1)
     # b is vector for linear elements, replacing diagonal in qubo matrix 
+
+    print('Q qubo\n',Q_qubo)
     n_vars = Q_qubo.shape[0]
     Q_ising = np.zeros((n_vars, n_vars))
     b_ising = np.zeros(n_vars)
 
-    for i in range(n_vars-1): # TODO check correct index? stop at n_vars-1 instead?
+    for i in range(n_vars): # TODO check correct index? 
         j_sum_i = 0
-        for j in range(i,n_vars):
-            if i ==j:
-                j_sum_i += Q_qubo[i,j]*2
-            else:  
+        for j in range(i+1,n_vars):
+            #if i ==j:
+                #j_sum_i += Q_qubo[i,j]*2
+            #else:  
                 Q_ising[i,j] = Q_qubo[i,j]/4 #TODO add symmetry?
-        b_ising[i] = -j_sum_i/4
+        #b_ising[i] = -j_sum_i/4
+    b_ising = -np.sum(Q_qubo, axis=1) / 4 
+
     
     return Q_ising, b_ising
 
