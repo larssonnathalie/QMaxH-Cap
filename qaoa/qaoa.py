@@ -49,7 +49,7 @@ def makeQuboNathaliesSolution(n_demand, n_physicians, n_shifts, cl, lambda_deman
 
 
 
-def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand, lambda_fair):
+def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand, lambda_fair, substitution, prints=False):
     # Both objective & constraints formulated as Hamiltonians to be combined to QUBO form
     # Using sympy to simplify the H expressions
 
@@ -80,14 +80,19 @@ def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand, 
     H_meet_demand = 0
     for s in range(n_shifts): 
         demand_s = demand_df['demand'].iloc[s]
-        workers_s = sum(x_symbols[p][s] for p in range(n_physicians))    
-        H_meet_demand_s = (demand_s-workers_s)**2
+        workers_s = sum(x_symbols[p][s] for p in range(n_physicians))   
+        if prints:
+            print(f'workers on shift {s}:',workers_s.subs(substitution),'demand',demand_s, '\tSum: ',(workers_s.subs(substitution)-demand_s)**2)
+            print()
+        H_meet_demand_s = (sp.Integer(demand_s)-workers_s)**2
         H_meet_demand += H_meet_demand_s
     #print(sp.expand(H_meet_demand))
 
     # Combine to one single H
     # H = λ₁Hfair + λ₂Hpref + λ₃HmeetDemand
-
+    if prints:
+        print('Hdemand', sp.nsimplify(sp.expand(H_meet_demand*lambda_demand)).subs(substitution))
+        print('Hfair', sp.nsimplify(sp.expand(H_fair*lambda_fair)).subs(substitution))
     all_hamiltonians = sp.nsimplify(sp.expand(H_meet_demand*lambda_demand + H_fair*lambda_fair))
     return all_hamiltonians, x_symbols
 
@@ -142,6 +147,33 @@ def hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols
         q = Q
 
     return q
+
+def makeQuboNew(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='QP', mirror=True):
+    x_list = [x_symbols[p][s] for p in range(n_physicians) for s in range(n_shifts)]
+    n_vars = n_physicians*n_shifts
+    Q = np.zeros((n_vars,n_vars))
+
+    for term in all_hamiltonians.as_ordered_terms():
+        coeff, variables = term.as_coeff_mul()
+
+        if len(variables) == 1: # Linear terms
+            var = variables[0]
+            if var in x_list:
+                idx = x_list.index(var) #TODO remove index
+                Q[idx, idx] += coeff  
+
+        elif len(variables) == 2: # Quadratic terms
+            var1, var2 = variables
+            if var1 in x_list and var2 in x_list:
+                idx1 = x_list.index(var1)
+                idx2 = x_list.index(var2)
+                if idx1 != idx2:
+                    Q[idx1, idx2] += coeff  # Off-diagonal terms
+                    Q[idx2, idx1] += coeff  # Symmetric QUBO matrix
+                else:
+                    Q[idx1, idx1] += coeff  # Self-interaction terms
+
+    return Q
 
 
 # NOTE: COPIED THIS FUNCTION TO GET ESTIMATOR WORKING 
@@ -205,7 +237,7 @@ def cost_func_estimator(parameters, ansatz, hamiltonian, estimator): #TODO: UNDE
     return Hc'''
 
 
-def transpileAnsatz(ansatz:QAOAAnsatz, backend): # TODO do we need to transpile?
+def transpileAnsatz(ansatz:QAOAAnsatz, backend): # TODO do we need to transpile? Passmanager transpiles
     return []
 
 def findParameters(initial_parameters, circuit, backend, Hc, estimation_iterations, prints=True, plots=True): # TODO what job mode? (single, session, etc)

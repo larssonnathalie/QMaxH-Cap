@@ -23,7 +23,7 @@ from postprocessing.postprocessing import *
 # Parameters
 start_date = '2025-03-07' # including this date
 end_date = '2025-03-10' # including this date
-weekday_demand = 2
+weekday_demand = 1
 holiday_demand = 1
 al = 1 # amount level {1: 5 physicians, 2: } #TODO decide numbers
 cl = 1 # complexity level:
@@ -38,9 +38,9 @@ plots = False
 classical = False
 draw_circuit = False
 
-lambda_demand = 10
-lambda_fair = 0.4
-lambda_pref = 0.5
+lambda_demand = 1
+lambda_fair = 1
+lambda_pref = 1 
 n_layers = 4
 initial_betas = [np.pi/2]*n_layers # TODO change?
 initial_gammas = [np.pi/2]*n_layers  # change?
@@ -81,16 +81,64 @@ if cl>1:
 else:
     physician_df.to_csv(f'data/intermediate/physician_cl{cl}.csv', index=None)
 
-# Make, sum and simplify all hamiltonians and enforce penatlies (lambdas)
-all_hamiltonians, x_symbols = makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand=lambda_demand, lambda_fair=lambda_fair) # NOTE does not handle preferences yet
+###############################################TEST###########################
+ # define decision variables (a list of lists)
+    x_symbols = []
+    for p in range(n_physicians):
+        x_symbols_p = [sp.symbols(f'x{p}_{s}') for s in range(n_shifts)]
+        x_symbols.append(x_symbols_p)
 
+def assignVariables(bitstring:str)->dict:
+    substitution = {}
+    i=0
+    for p in x_symbols:
+        for x_ps in p:
+            substitution[x_ps] = bitstring[i]
+            i+=1
+    return substitution
+
+
+STRING = '10100101'
+substitution = assignVariables(STRING)
+
+#print('Variables:', substitution)
+
+##############################################################################
+    
+# Make, sum and simplify all hamiltonians and enforce penatlies (lambdas)
+all_hamiltonians, x_symbols = makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand=lambda_demand, lambda_fair=lambda_fair, substitution=substitution) # NOTE does not handle preferences yet
+
+hsum = all_hamiltonians.subs(substitution)
+print('Hsum',hsum)
+print('H expression\n', all_hamiltonians)
 # Extract Qubo Q-matrix from hamiltonians           Y = x^T Qx
-Q = hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='np', mirror=True)
-#Q = makeQuboNathaliesSolution(n_demand, n_physicians, n_shifts, cl, lambda_demand=lambda_demand, lambda_fair=lambda_fair)
+Q = makeQuboNew(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='np', mirror=False)
+
+x_string = np.zeros((len(STRING),1))
+i=0
+for s in STRING:
+    x_string[i] = int(s)
+    i+=1
+
+x_sym= sp.Matrix(np.zeros((len(STRING),1)))
+i=0
+for p in range(n_physicians):
+    for s in range(n_shifts):
+        x_sym[i] = x_symbols[p][s]
+        i+=1
+#print('string', STRING, x_string)
+xTQx_expr = sp.expand(sp.simplify(x_sym.T* sp.Matrix(Q)*x_sym))[0]
+print('\nx^T Q x expr\n', xTQx_expr) #xtQx expr
+print('\ndiff:\n', sp.simplify(hsum- xTQx_expr))
+#print('x^T Q x', s(sp.(x_sym.T, Q),x_sym)) #xtQx
+
+#print(x_symbols, sp.Matrix(Q))
+
+'''#Q = makeQuboNathaliesSolution(n_demand, n_physicians, n_shifts, cl, lambda_demand=lambda_demand, lambda_fair=lambda_fair)
 # Q-matrix --> pauli operators --> cost hamiltonian (Hc)
 # My Hc
 #Hc_m = QToHc(Q) 
-'''print('\nMY HC')
+print('\nMY HC')
 print(Hc_m.paulis)
 print(Hc_m.coeffs)
 HcPaulisToQ(Hc_m)
@@ -101,7 +149,7 @@ Hc_qp, offset = Qqp.to_ising()
 print('\n QP HC')
 print(Hc_qp.paulis)
 print(Hc_qp.coeffs)
-HcPaulisToQ(Hc_qp)'''
+HcPaulisToQ(Hc_qp)
 
 
 # TEST WITH PONTUS FUNC FOR COMPARISON
@@ -144,5 +192,5 @@ result_schedule_df = bitstringToSchedule(best_bitstring, empty_calendar_df, cl, 
 controlSchedule(result_schedule_df, demand_df, cl, prints=True)
 
 
-# (Evaluate & compare solution to classical methods)
+# (Evaluate & compare solution to classical methods)'''
 
