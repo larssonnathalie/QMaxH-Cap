@@ -1,1 +1,0 @@
-# classical optimization algorithm for comparison
