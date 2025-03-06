@@ -49,7 +49,7 @@ def makeQuboNathaliesSolution(n_demand, n_physicians, n_shifts, cl, lambda_deman
 
 
 
-def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand, lambda_fair, substitution, prints=False):
+def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand, lambda_fair, prints=False):
     # Both objective & constraints formulated as Hamiltonians to be combined to QUBO form
     # Using sympy to simplify the H expressions
 
@@ -158,20 +158,29 @@ def makeQuboNew(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_
 
         if len(variables) == 1: # Linear terms
             var = variables[0]
-            if var in x_list:
-                idx = x_list.index(var) #TODO remove index
-                Q[idx, idx] += coeff  
+            term_powers = term.as_powers_dict()
+            if term_powers[var] ==0:  # Handle x^2 terms
+                #print('=0',term.as_powers_dict()) 
+                #print(var)
+                var = list(term_powers.keys())[1] # TODO better solution
+            idx = x_list.index(var) #TODO remove index
+            Q[idx, idx] += coeff  
 
         elif len(variables) == 2: # Quadratic terms
             var1, var2 = variables
+
             if var1 in x_list and var2 in x_list:
                 idx1 = x_list.index(var1)
                 idx2 = x_list.index(var2)
                 if idx1 != idx2:
+                    if idx1>idx2: # upper triangular
+                        idx1, idx2 = idx2, idx1
                     Q[idx1, idx2] += coeff  # Off-diagonal terms
-                    Q[idx2, idx1] += coeff  # Symmetric QUBO matrix
+                    if mirror:
+                        Q[idx2, idx1] += coeff  # Symmetric QUBO matrix
                 else:
-                    Q[idx1, idx1] += coeff  # Self-interaction terms
+                    #Q[idx1, idx1] = coeff  # Self-interaction terms #NOTE removed +=
+                    print('THIS SHOULD NOT OCCUR')
 
     return Q
 
@@ -292,11 +301,13 @@ def sampleSolutions(best_circuit, backend, sampling_iterations, prints=True, plo
 def findBestBitstring(sampling_distribution:dict, prints=True):
     counts, bitstrings = list(sampling_distribution.values()), list(sampling_distribution.keys())
     counts_np = np.array(counts)
-    max_idx = np.argmax(counts_np)
-    best_bitstring = bitstrings[max_idx]
+    max_count = np.max(counts_np)  
+    max_idcs = np.where(counts_np == max_count)[0]
+    print('max index = ', max_idcs, len(max_idcs))
+    best_bitstrings = [bitstrings[idx] for idx in max_idcs]
     if prints:
-        print('\nBest bitstring:', best_bitstring)
-    return best_bitstring
+        print('\nBest bitstring:', best_bitstrings)
+    return best_bitstrings
 
 def costOfBitstring(bitstring:str, Hc:SparsePauliOp):
     bitstring_z = bitstringToPauliZ(bitstring)

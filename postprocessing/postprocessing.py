@@ -28,8 +28,6 @@ def bitstringToSchedule(bitstring:str, empty_calendar_df, cl, n_shifts, prints=T
     else:
         print('BitstringToSchedule not done for cl'+str(cl))
 
-
-
 def controlSchedule(result_schedule_df, demand_df, cl, prints=True):
     combined_df = demand_df.merge(result_schedule_df, on='date', how='outer')
     ok_col = []
