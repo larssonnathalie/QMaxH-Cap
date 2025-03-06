@@ -18,38 +18,7 @@ import sympy as sp
 
 Hc_values = []
 
-def makeQuboNathaliesSolution(n_demand, n_physicians, n_shifts, cl, lambda_demand, lambda_fair):
-    demand_df = pd.read_csv(f'data/intermediate/demand_cl{cl}.csv')
-
-    Q = {}
-
-    # Objective function: Minimize dissatisfaction + penalties
-    for p in range(n_physicians):
-        for s in range(n_shifts):
-            Q[(p, s), (p, s)] = 1
-
-    # Meet demand constraint
-    for s in range(n_shifts):
-        demand_s  = demand_df['demand'].iloc[s]
-        for p in range(n_physicians):
-            for p_prime in range(n_physicians):
-                if p != p_prime:
-                    Q[(p, s), (p_prime, s)] = lambda_demand  # Penalize assignment of different physicians on the same shift
-        Q[(p, s), (p, s)] -= lambda_demand * demand_s  #
-    
-    # Convert dict to np
-    n_vars = n_physicians * n_shifts
-    Q_np = np.zeros((n_vars,n_vars))
-    for key in Q.keys():
-        i,j = xToQIndex(key[0],key[1], n_shifts=n_shifts)
-        Q_np[i,j]=Q[key]
-    print(Q_np)
-
-    return Q_np
-
-
-
-def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand, lambda_fair):
+def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand, lambda_fair, prints=False):
     # Both objective & constraints formulated as Hamiltonians to be combined to QUBO form
     # Using sympy to simplify the H expressions
 
@@ -80,20 +49,21 @@ def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand, 
     H_meet_demand = 0
     for s in range(n_shifts): 
         demand_s = demand_df['demand'].iloc[s]
-        workers_s = sum(x_symbols[p][s] for p in range(n_physicians))    
-        H_meet_demand_s = (demand_s-workers_s)**2
+        workers_s = sum(x_symbols[p][s] for p in range(n_physicians))   
+        H_meet_demand_s = (sp.Integer(demand_s)-workers_s)**2
         H_meet_demand += H_meet_demand_s
-    #print(sp.expand(H_meet_demand))
 
     # Combine to one single H
     # H = λ₁Hfair + λ₂Hpref + λ₃HmeetDemand
-
+    if prints:
+        print('Hdemand', sp.nsimplify(sp.expand(H_meet_demand*lambda_demand)))
+        print('Hfair', sp.nsimplify(sp.expand(H_fair*lambda_fair)))
     all_hamiltonians = sp.nsimplify(sp.expand(H_meet_demand*lambda_demand + H_fair*lambda_fair))
     return all_hamiltonians, x_symbols
 
 
 
-def hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='QP', mirror=True)->np.ndarray:
+def objectivesToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='QP', mirror=True)->np.ndarray:
     # Extract Q matrix from terms in H
     n_vars = n_physicians * n_shifts
     Q = np.zeros((n_vars,n_vars)) #TODO remove steps, now we go from sp -> np -> QP. Should be possible to do sp -> QP
@@ -143,6 +113,86 @@ def hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols
 
     return q
 
+def makeQuboNew(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='QP', mirror=True):
+    x_list = [x_symbols[p][s] for p in range(n_physicians) for s in range(n_shifts)]
+    n_vars = n_physicians*n_shifts
+    Q = np.zeros((n_vars,n_vars))
+
+    for term in all_hamiltonians.as_ordered_terms():
+        coeff, variables = term.as_coeff_mul()
+
+        if len(variables) == 1: # Linear terms
+            var = variables[0]
+            term_powers = term.as_powers_dict()
+            if term_powers[var] ==0:  # Handle x^2 terms
+                #print('=0',term.as_powers_dict()) 
+                #print(var)
+                var = list(term_powers.keys())[1] # TODO better solution
+            idx = x_list.index(var) #TODO remove index
+            Q[idx, idx] += coeff  
+
+        elif len(variables) == 2: # Quadratic terms
+            var1, var2 = variables
+
+            if var1 in x_list and var2 in x_list:
+                idx1 = x_list.index(var1)
+                idx2 = x_list.index(var2)
+                if idx1 != idx2:
+                    if idx1>idx2: # upper triangular
+                        idx1, idx2 = idx2, idx1
+                    Q[idx1, idx2] += coeff  # Off-diagonal terms
+                    if mirror:
+                        Q[idx2, idx1] += coeff  # Symmetric QUBO matrix
+                else:
+                    print('THIS SHOULD NOT OCCUR')   #Q[idx1, idx1] += coeff  # Self-interaction terms
+
+    return Q
+
+
+def QToHc(Q, b):
+    # Takes qubo and returns ising hamiltonian
+
+    # Expand Qubo:
+    # x^T Q x  =     ∑ᵢ Qᵢᵢxᵢ   +    ∑ᵢ<ⱼ   Qᵢⱼxᵢxⱼ        (1)
+                   # ^diagonal^       ^upper half^
+
+    # Substitution x ∈ {0,1}  --> z ∈ {-1,1}:
+    # xᵢ = (1-zᵢ)/2        (zᵢ = Pauli-Z operator acting on qubit i)
+    
+    # Put in eq. (1) -->   xᵢ = (1-zᵢ)/2
+    #                -->   xᵢxⱼ = (1-zᵢ)(1-zⱼ)/4  = 1/4(1 -zᵢ -zⱼ +zᵢzⱼ)
+
+    # eq (1) -->        Hc = ∑ᵢ cᵢZᵢ + ∑ᵢ<ⱼ cᵢⱼZᵢZⱼ
+        # where:
+        # cᵢ = - Qᵢᵢ/2  -  ∑ᵢ≠ⱼ Qᵢ/4
+        # cᵢⱼ = Qᵢⱼ/4
+
+    n_vars = Q.shape[0]
+    pauli_list = []
+
+    # Upper half
+    for i in range(n_vars-1):    # n_vars-1 bc. skip diagonal
+        for j in range(i + 1, n_vars):
+            if Q[i, j] != 0:
+                pauli_string = ['I'] * n_vars
+                pauli_string[i], pauli_string[j] = 'Z', 'Z'     # "Z" at positions i and j
+                coeff = 2 * Q[i, j] / 4                         # "*2" compensates for exclusion of lower half
+                pauli_string.reverse()
+                pauli_list.append(("".join(pauli_string), coeff))
+
+    # "b"terms
+    for i in range(n_vars):
+        if b[i] != 0: 
+            pauli_string = ['I'] * n_vars
+            pauli_string[i] = 'Z'
+            coeff = b[i] / 4
+            pauli_string.reverse()
+            pauli_list.append(("".join(pauli_string), coeff))
+    
+    Hc = SparsePauliOp.from_list(pauli_list)
+
+    return Hc
+
 
 # NOTE: COPIED THIS FUNCTION TO GET ESTIMATOR WORKING 
 def cost_func_estimator(parameters, ansatz, hamiltonian, estimator): #TODO: UNDERSTAND WHAT HAPPENS & rewrite
@@ -158,61 +208,14 @@ def cost_func_estimator(parameters, ansatz, hamiltonian, estimator): #TODO: UNDE
     cost = results.data.evs
 
     Hc_values.append(cost)
-    #objective_func_vals.append(cost)
 
     return cost
 
-# Replaced with QuboToIsing for now
-'''def QToHc(q_matrix):   # add offset (b) as argument, as in nb  
-    # Takes qubo and returns ising hamiltonian
-
-    # Expand Qubo:
-    # x^T Q x  =     ∑ᵢ Qᵢᵢxᵢ   +    ∑ᵢ<ⱼ   Qᵢⱼxᵢxⱼ        (1)
-    #                 ^diagonal^     ^upper half^
-    # Substitution:
-    # x_i = (1-z_i)/2        (z_i = Pauli-Z operator acting on qubit i)
-    #
-    # Put in eq. (1) -->   xᵢ = (1-zᵢ)/2
-    #                      xᵢxⱼ = (1-zᵢ)(1-zⱼ)/4  = 1/4(1 -zᵢ -zⱼ +zᵢzⱼ)
-    # eq (1) -->        Hc = ∑ᵢ cᵢZᵢ + ∑ᵢ<ⱼ cᵢⱼZᵢZⱼ
-    # where:
-    # ci = - Qii/2  -  ∑ᵢ≠ⱼ Qij/4
-    # cij = Qij/4
-    # Convert to Ising Hamiltonian
-
-    n_vars = q_matrix.shape[0]
-    pauli_terms = []
-    coeffs = []
-
-    for i in range(n_vars):
-        for j in range(n_vars):
-            if q_matrix[i, j] != 0:
-                if i == j: # linear (diagonal) terms
-                    pauli_string = ['I'] * n_vars
-                    pauli_string[i] = 'Z'
-                    pauli_terms.append(''.join(pauli_string))
-                    coeffs.append(q_matrix[i, j])
-                else: # quadratic terms
-                    pauli_string = ['I'] * n_vars
-                    pauli_string[i] = 'Z'
-                    pauli_string[j] = 'Z'
-                    pauli_terms.append(''.join(pauli_string))
-                    coeffs.append(q_matrix[i, j] / 2)
-
-    Hc = SparsePauliOp(pauli_terms, coeffs)
-    #print('Hc:', Hc)
-
-    return Hc'''
-
-
-def transpileAnsatz(ansatz:QAOAAnsatz, backend): # TODO do we need to transpile?
-    return []
-
 def findParameters(initial_parameters, circuit, backend, Hc, estimation_iterations, prints=True, plots=True): # TODO what job mode? (single, session, etc)
-
     estimator = Estimator(mode=backend,options={"default_shots": estimation_iterations})
 
-    bounds = [(0, 2*np.pi) for _ in range(len(initial_parameters))] 
+    bounds = [(0, 2*np.pi) for _ in range(len(initial_parameters)//2)] # gammas have period = 2 pi, given integer penalties
+    bounds += [(0, np.pi) for _ in range(len(initial_parameters)//2)] # betas have period = 1 pi
 
     result = minimize(  
         cost_func_estimator,
@@ -241,7 +244,6 @@ def sampleSolutions(best_circuit, backend, sampling_iterations, prints=True, plo
     # TODO Use single job-mode?
     sampler = Sampler(mode=backend, options={"default_shots": sampling_iterations})
 
-    # TODO circuit not transpiled? Check if needed
     pub = (best_circuit,)
     job = sampler.run([pub])
     sampling_distribution = job.result()[0].data.meas.get_counts()
@@ -260,11 +262,13 @@ def sampleSolutions(best_circuit, backend, sampling_iterations, prints=True, plo
 def findBestBitstring(sampling_distribution:dict, prints=True):
     counts, bitstrings = list(sampling_distribution.values()), list(sampling_distribution.keys())
     counts_np = np.array(counts)
-    max_idx = np.argmax(counts_np)
-    best_bitstring = bitstrings[max_idx]
+    max_count = np.max(counts_np)  
+    max_idcs = np.where(counts_np == max_count)[0]
+    print('max index = ', max_idcs, len(max_idcs))
+    best_bitstrings = [bitstrings[idx] for idx in max_idcs]
     if prints:
-        print('\nBest bitstring:', best_bitstring)
-    return best_bitstring
+        print('\nBest bitstring:', best_bitstrings)
+    return best_bitstrings
 
 def costOfBitstring(bitstring:str, Hc:SparsePauliOp):
     bitstring_z = bitstringToPauliZ(bitstring)
@@ -279,62 +283,3 @@ def costOfBitstring(bitstring:str, Hc:SparsePauliOp):
     print("Cost of bitstring:", cost)
     return cost
 
-def QuboToIsing(Q_qubo:np.ndarray): #TODO include complex values
-    # Takes qubo matrix where variables are assumed to be (0,1) 
-    # returns corresponding ising Q matrix where variables assumed to be (-1,1)
-    # b is vector for linear elements, replacing diagonal in qubo matrix 
-
-    print('Q qubo\n',Q_qubo)
-    n_vars = Q_qubo.shape[0]
-    Q_ising = np.zeros((n_vars, n_vars))
-    b_ising = np.zeros(n_vars)
-
-    for i in range(n_vars): # TODO check correct index? 
-        j_sum_i = 0
-        for j in range(i+1,n_vars):
-            #if i ==j:
-                #j_sum_i += Q_qubo[i,j]*2
-            #else:  
-                Q_ising[i,j] = Q_qubo[i,j]/4 #TODO add symmetry?
-        #b_ising[i] = -j_sum_i/4
-    b_ising = -np.sum(Q_qubo, axis=1) / 4 
-
-    
-    return Q_ising, b_ising
-
-
-### THIS IS PONTUS'S FUNC TO COMPARE RESULTS:::
-def generate_pauli_terms(Q: np.ndarray, b: np.ndarray) -> list[tuple[str, float]]:
-    """Construct the cost Hamiltonian.
-
-    Args:
-        Q (ndarray): NxN symmetric matrix of coefficients for Z_i Z_j terms.
-        b (ndarray): N-dimensional array coefficients for Z_i terms.
-
-    Returns:
-        pauli_list: List of (Pauli string, coefficient) pairs representing the Hamiltonian terms.
-    """
-    N = len(b) # number of qubits
-
-    pauli_list = []
-
-    # Two-qubit terms
-    for i in range(N-1):                       #NOTE    why N-1????????????????
-        for j in range(i + 1, N):
-            if Q[i, j] != 0:
-                # Create a Pauli string with "Z" at positions i and j
-                paulis = ["I"] * N
-                paulis[i], paulis[j] = "Z", "Z"
-                coeff = 2 * Q[i, j] / 4 # multiply by a factor 2 since we are only summing the upper triangular of Q
-                pauli_list.append(("".join(paulis)[::-1], coeff))
-
-    # Single-qubit terms
-    for i in range(N):
-        if b[i] != 0: 
-            # Create a Pauli string with "Z" at position i
-            paulis = ["I"] * N
-            paulis[i] = "Z"
-            coeff = b[i] / 4
-            pauli_list.append(("".join(paulis)[::-1], coeff))
-    
-    return pauli_list
