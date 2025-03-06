@@ -38,7 +38,7 @@ Q = makeQuboNew(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_
 hsum = all_hamiltonians.subs(substitution)
 print('Hsum',hsum)
 #print('H expression\n', all_hamiltonians)
-# Extract Qubo Q-matrix from hamiltonians           Y = x^T Qx'''
+# Extract Qubo Q-matrix from hamiltonians           Y = x^T Qx
 
 x_string = np.zeros((len(STRING),1))
 i=0
@@ -82,4 +82,4 @@ xQx = np.matmul(np.matmul(x_string.T, Q),x_string)[0][0]
 print('xQx', xQx) #xtQx
 print(xQx + difference_expr, hsum)
 print('xQx + C = Hsum:', int(xQx + difference_expr) == hsum)
-#print(x_symbols, sp.Matrix(Q))
+#print(x_symbols, sp.Matrix(Q))'''
