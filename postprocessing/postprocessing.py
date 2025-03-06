@@ -1,7 +1,8 @@
 import pandas as pd
 
-def bitstringIndexToPS(idx, n_shifts):
-    idx=int(idx)
+def bitstringIndexToPS(idx, n_vars, n_shifts):
+
+    idx=int((n_vars-1)-idx) # NOTE assuming strings are reversed 
     p = int(idx/n_shifts)
     s = idx%n_shifts
     return p,s
@@ -14,10 +15,12 @@ def psVarNamesToI(xp_s, n_shifts): # Might not be needed
 def bitstringToSchedule(bitstring:str, empty_calendar_df, cl, n_shifts, prints=True) -> pd.DataFrame:
     if cl == 1:
         staff_col = [[] for _ in range(empty_calendar_df.shape[0])]
- 
-        for i, bit in enumerate(bitstring):
+
+        n_vars = len(bitstring)
+        for i in range(n_vars): 
+            bit = bitstring[i]
             if bit == '1':
-                p,s = bitstringIndexToPS(i, n_shifts)
+                p,s = bitstringIndexToPS(i, n_vars=n_vars, n_shifts=n_shifts)
                 staff_col[s].append(str(p))
     
         result_schedule_df = empty_calendar_df.copy()
@@ -27,8 +30,6 @@ def bitstringToSchedule(bitstring:str, empty_calendar_df, cl, n_shifts, prints=T
 
     else:
         print('BitstringToSchedule not done for cl'+str(cl))
-
-
 
 def controlSchedule(result_schedule_df, demand_df, cl, prints=True):
     combined_df = demand_df.merge(result_schedule_df, on='date', how='outer')

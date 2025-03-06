@@ -4,8 +4,6 @@ from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
 
 # General TODO:s
-#DONE less look-ups, define ex. n_shifts, n_physicians only once
-#DONE Debug estimator & sampler (why 1 of each bitstring)
     # Hc differs & all are wrong. Find error & compare to theory (Q, b etc)
         # Handle complex numbers correctly?
         # Q, b as input to p func correct?
@@ -17,12 +15,10 @@ from postprocessing.postprocessing import *
     # Remove unused code
     # decide universal way of storing list-like objects in csv
     # QAOA class instead of functions
-#DONE solve deprecation warning on sampler
-#DONE divide data to input, intermediate, output 
 
 # Parameters
 start_date = '2025-03-07' # including this date
-end_date = '2025-03-10' # including this date
+end_date = '2025-03-12' # including this date
 weekday_demand = 2
 holiday_demand = 1
 al = 1 # amount level {1: 5 physicians, 2: } #TODO decide numbers
@@ -38,12 +34,12 @@ plots = False
 classical = False
 draw_circuit = False
 
-lambda_demand = 10
-lambda_fair = 0.4
-lambda_pref = 0.5
-n_layers = 4
-initial_betas = [np.pi/2]*n_layers # TODO change?
-initial_gammas = [np.pi/2]*n_layers  # change?
+lambda_demand = 2 # penalties, should be integers
+lambda_fair = 1
+lambda_pref = 1 
+n_layers = 3
+initial_betas = [np.pi/2]*n_layers 
+initial_gammas = [np.pi]*n_layers  
 
 estimation_iterations = n_layers * 1000 #  seems to stop after ~100 iterations. Adjust "tol"=tolerance in findParameters
 sampling_iterations = 4000
@@ -81,68 +77,42 @@ if cl>1:
 else:
     physician_df.to_csv(f'data/intermediate/physician_cl{cl}.csv', index=None)
 
+    
 # Make, sum and simplify all hamiltonians and enforce penatlies (lambdas)
-all_hamiltonians, x_symbols = makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand=lambda_demand, lambda_fair=lambda_fair) # NOTE does not handle preferences yet
+all_objectives, x_symbols = makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand=lambda_demand, lambda_fair=lambda_fair) # NOTE does not handle preferences yet
 
-# Extract Qubo Q-matrix from hamiltonians           Y = x^T Qx
-Q = hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='np', mirror=True)
-#Q = makeQuboNathaliesSolution(n_demand, n_physicians, n_shifts, cl, lambda_demand=lambda_demand, lambda_fair=lambda_fair)
+# Extract Qubo Q-matrix from objectives           Y = x^T Qx
+Q = makeQuboNew(all_objectives, n_physicians, n_shifts, x_symbols, cl, output_type='np', mirror=False)
+
 # Q-matrix --> pauli operators --> cost hamiltonian (Hc)
-# My Hc
-#Hc_m = QToHc(Q) 
-'''print('\nMY HC')
-print(Hc_m.paulis)
-print(Hc_m.coeffs)
-HcPaulisToQ(Hc_m)
-
-# qp -> to ising Hc
-Qqp = hamiltoniansToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='QP')
-Hc_qp, offset = Qqp.to_ising()
-print('\n QP HC')
-print(Hc_qp.paulis)
-print(Hc_qp.coeffs)
-HcPaulisToQ(Hc_qp)'''
-
-
-# TEST WITH PONTUS FUNC FOR COMPARISON
-
+# 
 b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
-#b = - (2 * np.diag(Q) + np.sum(Q, axis=1)) / 4
-Q_ising, b_ising = QuboToIsing(Q)
-print('Q ising\n', Q_ising)
-print('b', b_ising)
-
-pauli_terms = generate_pauli_terms(Q_ising, b_ising)
-Hc_p = SparsePauliOp.from_list(pauli_terms)
-#print(Hc_p.paulis)
-#print(Hc_p.coeffs)
-
-Hc = Hc_p
+Hc = QToHc(Q, b) 
 
 # Set up hardware
 backend = AerSimulator() 
 
 # Make initial circuit
-circuit = QAOAAnsatz(cost_operator=Hc, reps=n_layers)
+circuit = QAOAAnsatz(cost_operator=Hc, reps=n_layers) # Using a standard mixer hamiltonian 
 circuit.measure_all() 
-pass_manager = generate_preset_pass_manager(optimization_level=0, backend=backend) # TODO replace copied settings
-circuit = pass_manager.run(circuit) # -||-
+pass_manager = generate_preset_pass_manager(optimization_level=0, backend=backend) # pass manager transpiles circuit # TODO replace copied settings 
+circuit = pass_manager.run(circuit) 
 
 # Use estimator and COBYLA  to find best ß and gammas, with Hc
-initial_parameters = initial_betas + initial_gammas
+initial_parameters =  initial_gammas + initial_betas 
 best_parameters = findParameters(initial_parameters, circuit, backend, Hc, estimation_iterations, prints=True, plots=plots)
 
 best_circuit = circuit.assign_parameters(parameters=best_parameters)
 
 # Use sampler to find solution bitstrings
 sampling_distribution = sampleSolutions(best_circuit, backend, sampling_iterations, plots=plots)
-best_bitstring = findBestBitstring(sampling_distribution, prints=True)
-best_cost = costOfBitstring(best_bitstring, Hc)
-
+best_bitstrings = findBestBitstring(sampling_distribution, prints=True)
+best_cost = costOfBitstring(best_bitstrings[0], Hc)
 print('\nHc',best_cost)
-result_schedule_df = bitstringToSchedule(best_bitstring, empty_calendar_df, cl, n_shifts)
-controlSchedule(result_schedule_df, demand_df, cl, prints=True)
 
+for bitstring in best_bitstrings:
+    result_schedule_df = bitstringToSchedule(bitstring, empty_calendar_df, cl, n_shifts)
+    controlSchedule(result_schedule_df, demand_df, cl, prints=True)
 
 # (Evaluate & compare solution to classical methods)
 
