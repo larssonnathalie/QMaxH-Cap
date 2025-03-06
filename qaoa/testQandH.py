@@ -1,6 +1,6 @@
 import sympy as sp
 import numpy as np
-from qaoa.qaoa import *
+from qaoa import *
 
 
 STRING = '101100110001011010'
