@@ -2,12 +2,7 @@ import pandas as pd
 import numpy as np
 import holidays
 from datetime import datetime
-from qiskit_optimization import QuadraticProgram
-from qiskit_optimization.converters import QuadraticProgramToQubo
-#from qiskit_aer import Aer
 from qiskit_algorithms.optimizers import COBYLA
-#from qiskit.primitives import Sampler, StatevectorSampler, Estimator   REPLACED WITH SAMPLERV2 FROM QISKIT_IBM_RUNTIME
-
 
 # construct empty calendar with work days, holidays etc
 def emptyCalendar(end_date, start_date, cl, prints=True, include_weekdays=True):
@@ -49,17 +44,43 @@ def generateDemandData(empty_calendar, cl, weekday_workers=2, holiday_workers=1,
     # all p have varying number of prefered dates --> maximize equal share of satisfied preference, over time
     # maximize over-all satisfaction, ex. someone has many easily solved preferences and someone else has one that is difficult to solve, go for many easy ones?
     # other..?
-def generatePreferences(empty_calendar_df, cl):
-    date_to_s = {empty_calendar_df.loc[i,'date']:i for i in range(empty_calendar_df.shape[0])} # TODO more efficient coding
-    physician_df = pd.read_csv(f'data/input/physician_cl{cl}.csv')
-    preferences_shifts_col = []
-    for p in range(physician_df.shape[0]):  # TODO paralellism?
-        shifts = []
-        dates = physician_df.loc[p,'preferences'].split(' ') #TODO better way to interpret csv list-like object?
-        shifts.append(list(date_to_s[date] for date in dates))
-        preferences_shifts_col.append(str(shifts).rstrip(']').lstrip('['))
-    physician_df['preferences shifts'] = preferences_shifts_col
-    physician_df.to_csv(f'data/intermediate/physician_cl{cl}.csv', index=None)
+def convertPreferences(empty_calendar_df, cl):
+    # Converts preferences from dates to shift numbers, if the dates are in the schedule
+    date_to_s = {empty_calendar_df.loc[i,'date']:i for i in range(empty_calendar_df.shape[0])} 
+    included_dates = list(empty_calendar_df['date'])
+    physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
+    n_physicians = physician_df.shape[0]
+
+    prefer_shifts_col = ['']*n_physicians
+    prefer_not_shifts_col = ['']*n_physicians
+    unavailable_shifts_col = ['']*n_physicians
+
+    for p in range(n_physicians): 
+        prefer_dates = physician_df.loc[p,'Prefer']
+        prefer_shifts = []
+        if type(prefer_dates) != float: # if not empty
+            prefer_dates = prefer_dates.split(',')
+            prefer_shifts.append([date_to_s[date] for date in prefer_dates if date in included_dates])
+            prefer_shifts_col[p]=prefer_shifts[0] #TODO remove brackets in csv
+
+        prefer_not_dates = physician_df.loc[p,'Prefer Not']
+        prefer_not_shifts =[]
+        if type(prefer_not_dates) != float: # if not empty
+            prefer_not_dates = prefer_not_dates.split(',') 
+            prefer_not_shifts.append([date_to_s[date] for date in prefer_not_dates if date in included_dates])
+            prefer_not_shifts_col[p]= prefer_not_shifts[0] # TODO remove brackets in csv
+        
+        unavailable_dates = physician_df.loc[p,'Unavailable']
+        unavailable_shifts =[]
+        if type(unavailable_dates) != float: # if not empty
+            unavailable_dates = unavailable_dates.split(',') 
+            unavailable_shifts.append([date_to_s[date] for date in unavailable_dates if date in included_dates])
+            unavailable_shifts_col[p]= unavailable_shifts[0] # TODO remove brackets in csv
+
+    physician_df['Prefer'] = prefer_shifts_col
+    physician_df['Prefer Not'] = prefer_not_shifts_col
+    physician_df['Unavailable'] = unavailable_shifts_col
+    physician_df.to_csv(f'data/intermediate/physician_data.csv', index=None)
 
 def xToQIndex(x_index, n_shifts): # [[p,s],[p,s]] --> [i,j]    # TODO test function
     # Takes ps-indices of 2 x-variables that are combined in Q, 

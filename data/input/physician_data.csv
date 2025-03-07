@@ -1,0 +1,11 @@
+Physician,Percentage,Prefer,Prefer Not,Unavailable,Role
+Physician1,100,"2025-03-07,2025-03-08",2025-03-09,2025-03-10,Chef
+Physician2,100,2025-03-08,"2025-03-07,2025-03-09",,ÖL
+Physician3,50,2025-03-09,,,ST
+Physician4,100,2025-03-10,,,AT
+Physician5,100,,,,UL
+Physician6,75,,,,ÖL
+Physician7,100,,,,ST
+Physician8,25,,,,AT
+Physician9,100,,,,Chef
+Physician10,100,,,,ST

@@ -1,19 +1,17 @@
 from qaoa.qaoa import *
-from classical.classical import *
+#from classical.classical import *
 from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
 
 # General TODO:s
-    # Hc differs & all are wrong. Find error & compare to theory (Q, b etc)
-        # Handle complex numbers correctly?
-        # Q, b as input to p func correct?
-        # balance in lambdas?
-        # mirror Q and Hc or not? double values in conversion?
-    # pref. levels 1-5
+    # preferences in Objectives
+    # shift_data.csv as Nathalies, adapt generateDemand()
+    # rest-time in objectives
+    # Same data files & QUBO for classic & quantum
     # implement al: how many physicians
     # less loops, more paralellism
     # Remove unused code
-    # decide universal way of storing list-like objects in csv
+    # Fix universal way of storing list-like objects in csv
     # QAOA class instead of functions
 
 # Parameters
@@ -21,6 +19,7 @@ start_date = '2025-03-07' # including this date
 end_date = '2025-03-12' # including this date
 weekday_demand = 2
 holiday_demand = 1
+n_physicians = 3#TODO should depend on al
 al = 1 # amount level {1: 5 physicians, 2: } #TODO decide numbers
 cl = 1 # complexity level:
 # cl1: demand, fairness
@@ -53,9 +52,10 @@ generateDemandData(empty_calendar_df, cl, weekday_workers=weekday_demand, holida
 
 # Get n.o. workers, shifts & total demand
 demand_df = pd.read_csv(f'data/intermediate/demand_cl{cl}.csv')
-physician_df = pd.read_csv(f'data/input/physician_cl{cl}.csv')
+physician_df = pd.read_csv(f'data/input/physician_data.csv') # TODO add "usecols=" depending on cl 
+physician_df = physician_df.iloc[:n_physicians,:] # only use n_physician rows 
+physician_df.to_csv(f'data/intermediate/physician_data.csv', index=None)
 
-n_physicians = physician_df.shape[0]
 n_shifts = empty_calendar_df.shape[0] # NOTE assuming 1 shift per row
 n_demand = sum(demand_df['demand']) # sum of workers demanded on all shifts
 #max_shifts_per_p = int((n_demand/n_physicians)+0.9999)  # fair distribution of shifts
@@ -68,24 +68,20 @@ if prints:
 
 # Classical optimization (BILP, solver: z3), for comparison
 if classical:
-    result_classical = classical_optimization_z3(empty_calendar_df, demand_df, physician_df, max_shifts_per_p, prints=False)
-    print('Classical (z3):\n',result_classical)
+    #result_classical = classical_optimization_z3(empty_calendar_df, demand_df, physician_df, max_shifts_per_p, prints=False)
+    #print('Classical (z3):\n',result_classical)
+    pass
 
 # Translate unprefered dates to unprefered shift-numbers
-if cl>1:
-    generatePreferences(empty_calendar_df, cl)
-else:
-    physician_df.to_csv(f'data/intermediate/physician_cl{cl}.csv', index=None)
+convertPreferences(empty_calendar_df, cl)
 
-    
-# Make, sum and simplify all hamiltonians and enforce penatlies (lambdas)
+# Make sum of all objective functions and enforce penatlies (lambdas)
 all_objectives, x_symbols = makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand=lambda_demand, lambda_fair=lambda_fair) # NOTE does not handle preferences yet
 
 # Extract Qubo Q-matrix from objectives           Y = x^T Qx
 Q = makeQuboNew(all_objectives, n_physicians, n_shifts, x_symbols, cl, output_type='np', mirror=False)
 
 # Q-matrix --> pauli operators --> cost hamiltonian (Hc)
-# 
 b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
 Hc = QToHc(Q, b) 
 
@@ -114,5 +110,5 @@ for bitstring in best_bitstrings:
     result_schedule_df = bitstringToSchedule(bitstring, empty_calendar_df, cl, n_shifts)
     controlSchedule(result_schedule_df, demand_df, cl, prints=True)
 
-# (Evaluate & compare solution to classical methods)
+# (Evaluate & compare solution to classical methods)'''
 
