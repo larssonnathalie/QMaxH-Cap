@@ -1,57 +1,70 @@
 from qaoa.qaoa import *
-#from classical.classical import *
+#from classical.classical import * 
 from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
 
+
 # General TODO:s
-    # preferences in Objectives
     # shift_data.csv as Nathalies, adapt generateDemand()
     # rest-time in objectives
     # Same data files & QUBO for classic & quantum
     # implement al: how many physicians
     # less loops, more paralellism
-    # Remove unused code
     # Fix universal way of storing list-like objects in csv
     # QAOA class instead of functions
+    # Bugfix in postprocessing, missing rows in output schedules!
+
 
 # Parameters
-start_date = '2025-03-07' # including this date
-end_date = '2025-03-12' # including this date
+start_date = '2025-03-17' # including this date
+end_date = '2025-03-19' # including this date
 weekday_demand = 2
 holiday_demand = 1
-n_physicians = 3#TODO should depend on al
+n_physicians = 4   #TODO should depend on al
 al = 1 # amount level {1: 5 physicians, 2: } #TODO decide numbers
-cl = 1 # complexity level:
+cl = 2 # complexity level:
 # cl1: demand, fairness
 # cl2: demand, fairness, preferences
-# cl3: demand, fairness, preferences, time off 
-# cl4: demand, fairness, preferences, time off, shift type
-# cl5: demand, fairness, preferences, time off, shift type, rest
+# cl3: demand, fairness, preferences, unavailable, extent 
+# cl4: demand, fairness, preferences, unavailable, extent, shift_type
+# cl5: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles
+# cl6: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles, side_tasks
 
 prints = True
 plots = False
 classical = False
 draw_circuit = False
 
-lambda_demand = 2 # penalties, should be integers
-lambda_fair = 1
-lambda_pref = 1 
-n_layers = 3
+
+n_layers = 2
 initial_betas = [np.pi/2]*n_layers 
 initial_gammas = [np.pi]*n_layers  
 
 estimation_iterations = n_layers * 1000 #  seems to stop after ~100 iterations. Adjust "tol"=tolerance in findParameters
-sampling_iterations = 4000
+sampling_iterations = 1000
+
+lambda_demand = 2 # lambdas = penalties, should be integers
+lambda_fair = 1
+lambda_pref = 1 
+
+# Include relevant constraint penalties
+all_constraints = ['demand', 'fair', 'pref', 'unavail', 'extent', 'shift_type', 'rest', 'titles', 'side_tasks']
+all_penalties = [lambda_demand, lambda_fair, lambda_pref, 10,10,10,10,11,12]
+include_idx_for_cl ={1:2, 2:3, 3:5, 4:6, 5:8, 6:9}
+penalties = [0]*len(all_penalties)
+penalties[:include_idx_for_cl[cl]] = all_penalties[:include_idx_for_cl[cl]]    # ensure all deactivated lambdas are 0 
+lambdas = {all_constraints[i]:penalties[i] for i in range(len(all_constraints))}
+
 
 # Construct empty calendar with holidays etc.
 emptyCalendar(end_date, start_date, cl, prints=False)
-empty_calendar_df = pd.read_csv(f'data/intermediate/empty_calendar_cl{cl}.csv') # reading from file converts Datetime objects to str dates
+empty_calendar_df = pd.read_csv(f'data/intermediate/empty_calendar.csv') # reading from file converts Datetime objects to str dates
 
 # Automatically generate demand per day based on weekday/holiday --> 'demand.csv'
 generateDemandData(empty_calendar_df, cl, weekday_workers=weekday_demand, holiday_workers=holiday_demand, prints=False)
 
 # Get n.o. workers, shifts & total demand
-demand_df = pd.read_csv(f'data/intermediate/demand_cl{cl}.csv')
+demand_df = pd.read_csv(f'data/intermediate/demand.csv')
 physician_df = pd.read_csv(f'data/input/physician_data.csv') # TODO add "usecols=" depending on cl 
 physician_df = physician_df.iloc[:n_physicians,:] # only use n_physician rows 
 physician_df.to_csv(f'data/intermediate/physician_data.csv', index=None)
@@ -73,13 +86,13 @@ if classical:
     pass
 
 # Translate unprefered dates to unprefered shift-numbers
-convertPreferences(empty_calendar_df, cl)
+convertPreferences(empty_calendar_df)
 
 # Make sum of all objective functions and enforce penatlies (lambdas)
-all_objectives, x_symbols = makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand=lambda_demand, lambda_fair=lambda_fair) # NOTE does not handle preferences yet
+all_objectives, x_symbols = makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambdas=lambdas) # NOTE does not handle preferences yet
 
 # Extract Qubo Q-matrix from objectives           Y = x^T Qx
-Q = makeQuboNew(all_objectives, n_physicians, n_shifts, x_symbols, cl, output_type='np', mirror=False)
+Q = objectivesToQubo(all_objectives, n_physicians, n_shifts, x_symbols, cl, output_type='np', mirror=False)
 
 # Q-matrix --> pauli operators --> cost hamiltonian (Hc)
 b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
@@ -99,16 +112,21 @@ initial_parameters =  initial_gammas + initial_betas
 best_parameters = findParameters(initial_parameters, circuit, backend, Hc, estimation_iterations, prints=True, plots=plots)
 
 best_circuit = circuit.assign_parameters(parameters=best_parameters)
+if draw_circuit:
+    #plt.figure(figsize=(10,10))
+    print(best_circuit.decompose().draw()) # output='mpl' requires pip install pylatexenc, horizontal: fold=-1
+    #plt.show()
 
 # Use sampler to find solution bitstrings
 sampling_distribution = sampleSolutions(best_circuit, backend, sampling_iterations, plots=plots)
 best_bitstrings = findBestBitstring(sampling_distribution, prints=True)
 best_cost = costOfBitstring(best_bitstrings[0], Hc)
-print('\nHc',best_cost)
+print('\nHc', best_cost)
 
 for bitstring in best_bitstrings:
     result_schedule_df = bitstringToSchedule(bitstring, empty_calendar_df, cl, n_shifts)
-    controlSchedule(result_schedule_df, demand_df, cl, prints=True)
+    result_ok_df = controlSchedule(result_schedule_df, demand_df, cl, prints=True)
 
+controlPlot(result_ok_df)
 # (Evaluate & compare solution to classical methods)'''
 

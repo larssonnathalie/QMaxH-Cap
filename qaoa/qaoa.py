@@ -18,35 +18,55 @@ import sympy as sp
 
 Hc_values = []
 
-def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand, lambda_fair, prints=False):
+def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambdas, prints=False):
     # Both objective & constraints formulated as Hamiltonians to be combined to QUBO form
     # Using sympy to simplify the H expressions
 
-    demand_df = pd.read_csv(f'data/intermediate/demand_cl{cl}.csv')
-
+    demand_df = pd.read_csv(f'data/intermediate/demand.csv')
+    physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
+    
     # define decision variables (a list of lists)
     x_symbols = []
     for p in range(n_physicians):
         x_symbols_p = [sp.symbols(f'x{p}_{s}') for s in range(n_shifts)]
         x_symbols.append(x_symbols_p)
+    
+    H_fair = 0
+    H_meet_demand = 0
+    H_pref = 0
+    H_unavail = 0
 
-    # Objective: minimize unfairness, physicians work similar amount
+    # Objective: minimize UNFAIRNESS
     # Hfair = ∑ᵢ₌₁ᴾ (∑ⱼ₌₁ˢ xᵢⱼ − S/P)²                 S = n_demand, P = n_physicians
     max_shifts_per_p = int((n_demand/n_physicians)+0.999 ) # fair distribution of shifts
-    H_fair = 0
     for p in range(n_physicians):
         H_fair_s_sum_p = sum(x_symbols[p][s] for s in range(n_shifts))   
         H_fair_p = (H_fair_s_sum_p - max_shifts_per_p)**2   
         H_fair += H_fair_p
 
     if cl>1:
-        print('makeObjectiveFunctions does not handle preferences yet')
-        # TODO: preferences
-        # Objective: minimize preference dissatisfaction
+        # Objective: minimize PREFERENCE dissatisfaction
+        for p in range(n_physicians): 
+            H_pref_p = 0
+            prefer_p = physician_df['Prefer'].iloc[p]
+            if type(prefer_p) == str:
+                prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')  #TODO fix csv list handling
+                H_pref_p -= sum(x_symbols[p][int(s)] for s in prefer_shifts_p) # Reward prefered shifts (negative penalties)
 
-    # Constraint: Meet demand
+            prefer_not_p = physician_df['Prefer Not'].iloc[p]
+            if type(prefer_not_p) == str:
+                prefer_not_shifts_p = prefer_not_p.strip('[').strip(']').split(',')  
+                H_pref_p += sum(x_symbols[p][int(s)] for s in prefer_not_shifts_p) # Penalize unprefered shifts
+            H_pref += H_pref_p
+
+            # UNAVAILABLE constraint
+            if cl>2:
+                unavail_shifts_p = physician_df['Unavailable'].iloc[p]
+                H_unavail_p = sum(x_symbols[p][s] for s in unavail_shifts_p)
+                H_unavail += H_unavail_p
+
+    # Constraint: Meet DEMAND
     # ∑s=1 (demanded – (∑p=1  x_ps))^2
-    H_meet_demand = 0
     for s in range(n_shifts): 
         demand_s = demand_df['demand'].iloc[s]
         workers_s = sum(x_symbols[p][s] for p in range(n_physicians))   
@@ -54,66 +74,14 @@ def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand, 
         H_meet_demand += H_meet_demand_s
 
     # Combine to one single H
-    # H = λ₁Hfair + λ₂Hpref + λ₃HmeetDemand
+    # H = λ₁H_fair + λ₂H_pref + λ₃H_meetDemand
     if prints:
-        print('Hdemand', sp.nsimplify(sp.expand(H_meet_demand*lambda_demand)))
-        print('Hfair', sp.nsimplify(sp.expand(H_fair*lambda_fair)))
-    all_hamiltonians = sp.nsimplify(sp.expand(H_meet_demand*lambda_demand + H_fair*lambda_fair))
+        print('Hdemand', sp.nsimplify(sp.expand(H_meet_demand*lambdas['demand'])))
+        print('Hfair', sp.nsimplify(sp.expand(H_fair*lambdas['fair'])))
+    all_hamiltonians = sp.nsimplify(sp.expand(H_meet_demand*lambdas['demand'] + H_fair*lambdas['fair'] + H_pref*lambdas['pref'] + H_unavail * lambdas['unavail']))
     return all_hamiltonians, x_symbols
 
-
-
-def objectivesToQuboMatrix(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='QP', mirror=True)->np.ndarray:
-    # Extract Q matrix from terms in H
-    n_vars = n_physicians * n_shifts
-    Q = np.zeros((n_vars,n_vars)) #TODO remove steps, now we go from sp -> np -> QP. Should be possible to do sp -> QP
-
-    for p in range(n_physicians):
-        for s in range(n_shifts):                        # ps_1
-            x_ps_1st = x_symbols[p][s]
-            x_ps_1st_terms = sum(term/x_ps_1st for term in all_hamiltonians.args if term.has(x_ps_1st)) # extract the terms mutiplied by x_ps in H
-            for term in x_ps_1st_terms.as_ordered_terms():           # ps_2
-                coeff, variables = term.as_coeff_mul(rational=True)
-                #print(f"Term: {term}, Coefficient: {coeff}, Variables: {variables}")
-                #if len(variables)==0: # linear terms have no variable after /x_ps. Treated as diagonal terms
-                    #x_ps_2nd = x_ps_1st  
-                x_ps_2nd = x_ps_1st if len(variables) == 0 else variables[-1]
-
-                #else:
-                   # x_ps_2nd = variables[0]
-                q_element = coeff      
-                p2, s2 = str(x_ps_2nd).lstrip('x').split('_')
-                #if (int(p2), int(s2)) < (p, s):  #  bc. Q is symmetric, we only need half the matrix = each pairwise relation once
-                    #print('CONTINUE') # Not needed yet bc. not all pair-relations are covered by H-functions
-                    #continue 
-                q_i, q_j = xToQIndex([p, s], [int(p2), int(s2)], n_shifts)
-                
-                Q[q_i,q_j] += q_element  # NOTE not 100% if it should be += or =
-                if mirror:
-                    if q_i != q_j: # Mirror matrix, avoid diagonal
-                        Q[q_j,q_i] = q_element
-
-    # Save Q to csv
-    Q_df = pd.DataFrame(Q, index=None)
-    Q_df.to_csv(f'data/intermediate/Qubo_matrix_cl{cl}.csv', index=False, header=False)
-
-    
-    if output_type == 'QP':   # Convert Q  --> QuadraticProgram, without constraints (they are encoded in the objective)
-        qp = QuadraticProgram()
-        n_vars = Q.shape[0]
-        for i in range(n_vars):
-            qp.binary_var(f'x{i}') 
-        linear = {f'x{i}': Q[i, i] for i in range(n_vars)} 
-        quadratic = {(f'x{i}', f'x{j}'): Q[i, j] for i in range(n_vars) for j in range(i+1, n_vars) if Q[i, j] != 0}
-        # set objective
-        qp.minimize(linear=linear, quadratic=quadratic)
-        q = qp
-    else:
-        q = Q
-
-    return q
-
-def makeQuboNew(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='QP', mirror=True):
+def objectivesToQubo(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='QP', mirror=True):
     x_list = [x_symbols[p][s] for p in range(n_physicians) for s in range(n_shifts)]
     n_vars = n_physicians*n_shifts
     Q = np.zeros((n_vars,n_vars))
@@ -144,7 +112,11 @@ def makeQuboNew(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_
                     if mirror:
                         Q[idx2, idx1] += coeff  # Symmetric QUBO matrix
                 else:
-                    print('THIS SHOULD NOT OCCUR')   #Q[idx1, idx1] += coeff  # Self-interaction terms
+                    print('THIS SHOULD NOT OCCUR, SOMETHING WRONG IN MAKEQUBO()')   #Q[idx1, idx1] += coeff  # Self-interaction terms
+
+    # Save Q to csv
+    Q_df = pd.DataFrame(Q, index=None)
+    Q_df.to_csv(f'data/intermediate/Qubo_matrix_cl{cl}.csv', index=False, header=False)
 
     return Q
 
@@ -264,7 +236,12 @@ def findBestBitstring(sampling_distribution:dict, prints=True):
     counts_np = np.array(counts)
     max_count = np.max(counts_np)  
     max_idcs = np.where(counts_np == max_count)[0]
-    print('max index = ', max_idcs, len(max_idcs))
+    n_best = len(max_idcs)
+    print('max index = ', max_idcs, n_best)
+
+    if n_best > 5: # TODO remove this, compare all solutions 
+        max_idcs = max_idcs[:5]
+
     best_bitstrings = [bitstrings[idx] for idx in max_idcs]
     if prints:
         print('\nBest bitstring:', best_bitstrings)

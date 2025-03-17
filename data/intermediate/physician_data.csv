@@ -1,4 +1,5 @@
-Physician,Percentage,Prefer,Prefer Not,Unavailable,Role
-Physician1,100,"[0, 1]",[2],[3],Chef
+Physician,Percentage,Prefer,Prefer Not,Unavailable,Title
+Physician1,100,"[0, 1]",[2],,Chef
 Physician2,100,[1],"[0, 2]",,ÖL
 Physician3,50,[2],,,ST
+Physician4,100,[0],,,AT
