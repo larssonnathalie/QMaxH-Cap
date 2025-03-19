@@ -1,5 +1,4 @@
-Physician,Percentage,Prefer,Prefer Not,Unavailable,Title
-Physician1,100,"[0, 1]",[2],,Chef
-Physician2,100,[1],"[0, 2]",,ÖL
-Physician3,50,[2],,,ST
-Physician4,100,[0],,,AT
+Name,Extent,Prefer,Prefer Not,Unavailable,Title
+Physician0,50,[2],[],[],AT
+Physician1,75,[2],[],[],UL
+Physician2,75,[2],[0],[],Chef

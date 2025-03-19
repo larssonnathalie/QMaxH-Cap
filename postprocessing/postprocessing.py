@@ -59,44 +59,51 @@ def controlPlot(result_df): #TODO compare with ok column
     prefer_matrix = np.zeros((n_physicians,n_shifts))
     for p in range(n_physicians):
         prefer_p = physician_df['Prefer'].iloc[p]
-        if type(prefer_p) == str:
+        if prefer_p != '[]':
             prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')  #TODO fix csv list handling
             for s in prefer_shifts_p:
                 prefer_matrix[p][int(s)] = 1
 
         prefer_not_p = physician_df['Prefer Not'].iloc[p]
-        if type(prefer_not_p) == str:
-            prefer_not_shifts_p = prefer_not_p.strip('[').strip(']').split(',')  #TODO fix csv list handling
+        if prefer_not_p != '[]':
+            prefer_not_shifts_p = prefer_not_p.strip('[').strip(']').split(',')  
             for s in prefer_not_shifts_p:
                 prefer_matrix[p][int(s)] = -1
-    
+
+        unavail_p = physician_df['Unavailable'].iloc[p]
+        if unavail_p != '[]':
+            unavail_shifts_p = unavail_p.strip('[').strip(']').split(',')  
+            for s in unavail_shifts_p:
+                prefer_matrix[p][int(s)] = -2
+
+    ok_row = np.zeros((1,n_shifts))
+    ok_row[0,:] = result_df['Shift covered']=='ok'
+
     #TODO add rest of constraints
    
-
-    fig, ax = plt.subplots()
-
-    prefer_colors = np.where(prefer_matrix.flatten()==1,'green',prefer_matrix.flatten())
-    prefer_colors = np.where(prefer_matrix.flatten()==-1,'red',prefer_colors)
-    prefer_colors = np.where(prefer_matrix.flatten()==0,'white',prefer_colors)
-
-
-    im = ax.imshow(result_matrix, cmap="Blues", interpolation="nearest")
-
-    pc = ax.pcolor(np.arange(n_shifts), np.arange(n_physicians), np.zeros((n_physicians,n_shifts)), 
-              cmap="grey", linewidths=7, edgecolors=prefer_colors, alpha=0.5) #
+    #fig, ax = plt.subplots()
+    x_size = 5
+    y_size = n_physicians/n_shifts * x_size
+    plt.figure(figsize=(x_size,y_size))
+    prefer_colors = np.where(prefer_matrix.flatten()==1,'green',prefer_matrix.flatten()) # prefer
+    prefer_colors = np.where(prefer_matrix.flatten()==-1,'pink',prefer_colors) # prefer not
+    prefer_colors = np.where(prefer_matrix.flatten()==0,'none',prefer_colors) # neutral
+    prefer_colors = np.where(prefer_matrix.flatten()==-2,'red',prefer_colors) # unavailable
     
-    #pc = ax.pcolor([0,1,2,3], [1,2,3], np.zeros((3,4)), 
-               #linewidths=7, edgecolors='red', alpha=0.5)
+    plt.pcolor(np.arange(n_shifts+1)-0.5, np.arange(n_physicians+1)-0.5,result_matrix, 
+              cmap="Greens")
+    x, y = np.meshgrid(np.arange(n_shifts), np.arange(n_physicians))  
+    plt.scatter(x.ravel(), y.ravel(), s=(50*(x_size/n_shifts))**2, c='none',marker='s', linewidths=9,edgecolors=prefer_colors)
+    plt.pcolor(np.arange(n_shifts+1)-0.5,[n_physicians-0.5,n_physicians-0.4],ok_row, cmap='RdYlGn', vmin=0,vmax=1) 
 
-    # Remove axis ticks for clarity
-    ax.set_xticks(ticks=np.arange(n_shifts), labels=[date for date in result_df['date']])
-    ax.set_yticks(ticks=np.arange(n_physicians), labels=[phys for phys in physician_df['Physician']])
-
-    plt.colorbar(im, ax=ax, label="Fill Color Scale")
-    plt.figure()
+    plt.xticks(ticks=np.arange(n_shifts), labels=[date for date in result_df['date']])
+    yticks = [i for i in np.arange(n_physicians)]+[n_physicians-0.4]
+    plt.yticks(ticks=yticks, labels=[phys[-1] for phys in physician_df['Name']]+['OK n.o.\nworkers'])
+    plt.show()
+    '''plt.figure()
     plt.title('Result')
     plt.imshow(result_matrix, cmap='Blues')
     plt.figure()
     plt.title('Preferences')
-    plt.imshow(-prefer_matrix,cmap='coolwarm')
-    plt.show()
+    plt.imshow(-prefer_matrix,cmap='coolwarm', vmin=-1, vmax=1)
+    plt.show()'''

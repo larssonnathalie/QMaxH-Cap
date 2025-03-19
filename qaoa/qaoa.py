@@ -6,7 +6,7 @@ from qiskit.circuit.library import QAOAAnsatz
 from qiskit.quantum_info import SparsePauliOp
 from qiskit_ibm_runtime import SamplerV2 as Sampler
 from qiskit_ibm_runtime import EstimatorV2 as Estimator
-from scipy.optimize import minimize
+from scipy.optimize import minimize, brute
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit_aer import AerSimulator
 from qaoa.converters import *
@@ -35,35 +35,49 @@ def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambdas, prints
     H_meet_demand = 0
     H_pref = 0
     H_unavail = 0
+    H_extent = 0
 
-    # Objective: minimize UNFAIRNESS
-    # Hfair = ∑ᵢ₌₁ᴾ (∑ⱼ₌₁ˢ xᵢⱼ − S/P)²                 S = n_demand, P = n_physicians
-    max_shifts_per_p = int((n_demand/n_physicians)+0.999 ) # fair distribution of shifts
-    for p in range(n_physicians):
-        H_fair_s_sum_p = sum(x_symbols[p][s] for s in range(n_shifts))   
-        H_fair_p = (H_fair_s_sum_p - max_shifts_per_p)**2   
-        H_fair += H_fair_p
+    if True:#cl<=2:
+        # Objective: minimize UNFAIRNESS
+        # Hfair = ∑ᵢ₌₁ᴾ (∑ⱼ₌₁ˢ xᵢⱼ − S/P)²                 S = n_demand, P = n_physicians
+        max_shifts_per_p = int((n_demand/n_physicians)+0.999 ) # fair distribution of shifts
+        for p in range(n_physicians):
+            H_fair_s_sum_p = sum(x_symbols[p][s] for s in range(n_shifts))   
+            H_fair_p = (H_fair_s_sum_p - max_shifts_per_p)**2   
+            H_fair += H_fair_p
+    
+    if False:#cl>2:
+        # EXTENT (work percentage) constraint
+        for p in range(n_physicians):
+            percentage = physician_df['Extent'].iloc[p]/100
+            n_shifts_target_p = int(n_demand*percentage) # TODO Change to correct n.o. hours per week
+            H_extent_s_sum_p = sum(x_symbols[p][s] for s in range(n_shifts))   
+            H_extent_p = (H_extent_s_sum_p - n_shifts_target_p)**2   
+            H_extent += H_extent_p
 
     if cl>1:
         # Objective: minimize PREFERENCE dissatisfaction
         for p in range(n_physicians): 
-            H_pref_p = 0
             prefer_p = physician_df['Prefer'].iloc[p]
-            if type(prefer_p) == str:
+            if prefer_p != '[]':
                 prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')  #TODO fix csv list handling
-                H_pref_p -= sum(x_symbols[p][int(s)] for s in prefer_shifts_p) # Reward prefered shifts (negative penalties)
+                H_pref_p = sum(x_symbols[p][int(s)] for s in prefer_shifts_p) # Reward prefered shifts (negative penalties)
+                H_pref -= H_pref_p 
 
             prefer_not_p = physician_df['Prefer Not'].iloc[p]
-            if type(prefer_not_p) == str:
+            if prefer_not_p != '[]':
                 prefer_not_shifts_p = prefer_not_p.strip('[').strip(']').split(',')  
-                H_pref_p += sum(x_symbols[p][int(s)] for s in prefer_not_shifts_p) # Penalize unprefered shifts
-            H_pref += H_pref_p
+                H_pref_not_p = sum(x_symbols[p][int(s)] for s in prefer_not_shifts_p) # Penalize unprefered shifts
+                H_pref += H_pref_not_p
 
-            # UNAVAILABLE constraint
             if cl>2:
+                # UNAVAILABLE constraint
                 unavail_shifts_p = physician_df['Unavailable'].iloc[p]
-                H_unavail_p = sum(x_symbols[p][s] for s in unavail_shifts_p)
-                H_unavail += H_unavail_p
+                if unavail_shifts_p != '[]':
+                    unavail_shifts_p = unavail_shifts_p.strip('[').strip(']').split(',')  
+                    H_unavail_p = sum(x_symbols[p][int(s)] for s in unavail_shifts_p)
+                    H_unavail += H_unavail_p
+                
 
     # Constraint: Meet DEMAND
     # ∑s=1 (demanded – (∑p=1  x_ps))^2
@@ -72,13 +86,14 @@ def makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambdas, prints
         workers_s = sum(x_symbols[p][s] for p in range(n_physicians))   
         H_meet_demand_s = (sp.Integer(demand_s)-workers_s)**2
         H_meet_demand += H_meet_demand_s
+    
 
     # Combine to one single H
     # H = λ₁H_fair + λ₂H_pref + λ₃H_meetDemand
     if prints:
         print('Hdemand', sp.nsimplify(sp.expand(H_meet_demand*lambdas['demand'])))
         print('Hfair', sp.nsimplify(sp.expand(H_fair*lambdas['fair'])))
-    all_hamiltonians = sp.nsimplify(sp.expand(H_meet_demand*lambdas['demand'] + H_fair*lambdas['fair'] + H_pref*lambdas['pref'] + H_unavail * lambdas['unavail']))
+    all_hamiltonians = sp.nsimplify(sp.expand(H_meet_demand*lambdas['demand'] + H_fair*lambdas['fair'] + H_pref*lambdas['pref'] + H_unavail * lambdas['unavail'] + H_extent*lambdas['extent']))
     return all_hamiltonians, x_symbols
 
 def objectivesToQubo(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='QP', mirror=True):
@@ -166,42 +181,54 @@ def QToHc(Q, b):
     return Hc
 
 
-# NOTE: COPIED THIS FUNCTION TO GET ESTIMATOR WORKING 
-def cost_func_estimator(parameters, ansatz, hamiltonian, estimator): #TODO: UNDERSTAND WHAT HAPPENS & rewrite
+def cost_func_estimator(parameters, ansatz, hamiltonian, estimator): 
 
-    # transform the observable defined on virtual qubits to
-    # an observable defined on all physical qubits for the backend.
     isa_hamiltonian = hamiltonian.apply_layout(ansatz.layout)
-
     pub = (ansatz, isa_hamiltonian, parameters)
     job = estimator.run([pub])
-
     results = job.result()[0]
     cost = results.data.evs
-
-    Hc_values.append(cost)
+    Hc_values.append(cost) # NOTE global list
 
     return cost
 
-def findParameters(initial_parameters, circuit, backend, Hc, estimation_iterations, prints=True, plots=True): # TODO what job mode? (single, session, etc)
+def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search_iterations, seed=True, prints=True, plots=True): # TODO what job mode? (single, session, etc)
     estimator = Estimator(mode=backend,options={"default_shots": estimation_iterations})
+    bounds = [(0, 2*np.pi) for _ in range(n_layers)] # gammas have period = 2 pi, given integer penalties
+    bounds += [(0, np.pi) for _ in range(n_layers)] # betas have period = 1 pi
 
-    bounds = [(0, 2*np.pi) for _ in range(len(initial_parameters)//2)] # gammas have period = 2 pi, given integer penalties
-    bounds += [(0, np.pi) for _ in range(len(initial_parameters)//2)] # betas have period = 1 pi
+    # test plot of energy landscape
+    '''brute_result = brute(cost_func_estimator, bounds, args=(circuit, Hc, estimator), Ns=30, disp=True, workers=1, full_output=True)
+    plt.imshow(brute_result[2][0])
+    plt.figure()
+    plt.imshow(brute_result[2][1])
+    plt.show()
+    print('\nBRUTE:',brute_result[0])
+    Hc_values.clear()'''
 
-    result = minimize(  
-        cost_func_estimator,
-        initial_parameters,
-        args=(circuit, Hc, estimator),
-        method="COBYLA", # COBYLA is a classical OA: Constrained Optimization BY Linear Approximations
-        bounds=bounds,  
-        tol=1e-6,           
-        options={"rhobeg": 1e-1}   # TODO replace copied settings
-    )
-    parameters = result.x
-    if prints:
-        print('\nEstimator iterations', len(Hc_values))
-
+    candidates, costs = [],[]
+    for i in range(search_iterations):
+        if seed:
+            np.random.seed(i*10)
+        initial_betas = np.random.random(size=n_layers)*np.pi # Random initial angles [np.pi/2]*n_layers 
+        initial_gammas = np.random.random(size=n_layers)*np.pi*2  #[np.pi]*n_layers  
+        initial_parameters = np.concatenate([initial_gammas, initial_betas])
+        result = minimize(  
+            cost_func_estimator,
+            initial_parameters,
+            args=(circuit, Hc, estimator),
+            method="COBYLA", # COBYLA is a classical OA: Constrained Optimization BY Linear Approximations
+            bounds=bounds,  
+            tol=1e-3,           
+            options={"rhobeg": 2}   # Sets initial step size (manages exploration)
+        )
+        candidates.append(result.x)
+        costs.append(cost_func_estimator(result.x, circuit, Hc, estimator))
+    
+    #print('costs',costs) 
+    #print('min',costs[np.argmin(costs)])
+    parameters = candidates[np.argmin(costs)]
+    print('COBYLA:', parameters)
     if plots:
         plt.figure()
         plt.plot(Hc_values)
@@ -209,6 +236,11 @@ def findParameters(initial_parameters, circuit, backend, Hc, estimation_iteratio
         plt.show()
     if prints:
         print('\nBest parameters (ß:s & gamma:s):', parameters)
+        print('Estimated cost', cost_func_estimator(parameters, circuit, Hc, estimator))
+        print('\nEstimator iterations', len(Hc_values))
+
+    Hc_values.clear()
+
     return parameters
 
 
@@ -221,7 +253,7 @@ def sampleSolutions(best_circuit, backend, sampling_iterations, prints=True, plo
     sampling_distribution = job.result()[0].data.meas.get_counts()
 
     if plots:
-        plt.figure(figsize=(20,10))
+        plt.figure(figsize=(10,8))
         plt.title('Solution distribution')
         plt.bar([i for i in range(len(sampling_distribution))], sampling_distribution.values())
         plt.xticks(ticks = [i for i in range(len(sampling_distribution))], labels=sampling_distribution.keys())
@@ -231,21 +263,6 @@ def sampleSolutions(best_circuit, backend, sampling_iterations, prints=True, plo
         print('\nSampling iterations:', sum(sampling_distribution.values()))
     return sampling_distribution
 
-def findBestBitstring(sampling_distribution:dict, prints=True):
-    counts, bitstrings = list(sampling_distribution.values()), list(sampling_distribution.keys())
-    counts_np = np.array(counts)
-    max_count = np.max(counts_np)  
-    max_idcs = np.where(counts_np == max_count)[0]
-    n_best = len(max_idcs)
-    print('max index = ', max_idcs, n_best)
-
-    if n_best > 5: # TODO remove this, compare all solutions 
-        max_idcs = max_idcs[:5]
-
-    best_bitstrings = [bitstrings[idx] for idx in max_idcs]
-    if prints:
-        print('\nBest bitstring:', best_bitstrings)
-    return best_bitstrings
 
 def costOfBitstring(bitstring:str, Hc:SparsePauliOp):
     bitstring_z = bitstringToPauliZ(bitstring)
@@ -253,10 +270,20 @@ def costOfBitstring(bitstring:str, Hc:SparsePauliOp):
     for pauli, coeff in zip(Hc.paulis, Hc.coeffs):
         term_value = 1
         for i, p in enumerate(pauli.to_label()):  # Convert to string like "ZZ" or "Z "
-            if p == "Z":  # Only consider Z terms (ignore "I" terms)
+            if p == "Z":  # ignore "I" terms
                 term_value *= bitstring_z[i]
         cost += coeff * term_value
-
-    print("Cost of bitstring:", cost)
     return cost
 
+def findBestBitstring(sampling_distribution:dict, Hc, n_candidates=20, prints=True, worst_solutions=False):
+    reverse= not worst_solutions
+    sorted_distribution = dict(sorted(sampling_distribution.items(), key=lambda item:item[1], reverse=reverse)) #NOTE might be memory demanding
+    best_bitstrings = list(sorted_distribution.keys())[:n_candidates]
+    
+    costs = [costOfBitstring(bitstring, Hc) for bitstring in best_bitstrings]
+    best_bitstring = best_bitstrings[np.argmin(costs)]
+
+    if prints:
+        print('\nBest bitstring:', best_bitstring)
+        print('cost', costOfBitstring(best_bitstring, Hc))
+    return best_bitstring

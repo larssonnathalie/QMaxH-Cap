@@ -1,4 +1,4 @@
 date,is_holiday,weekday
-2025-03-17,False,Monday
-2025-03-18,False,Tuesday
-2025-03-19,False,Wednesday
+2025-03-21,False,Friday
+2025-03-22,True,Saturday
+2025-03-23,True,Sunday
