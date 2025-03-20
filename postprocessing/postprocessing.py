@@ -31,15 +31,15 @@ def bitstringToSchedule(bitstring:str, empty_calendar_df, cl, n_shifts, prints=T
     return result_schedule_df
 
 
-def controlSchedule(result_schedule_df, demand_df, cl, prints=True):
-    combined_df = demand_df.merge(result_schedule_df, on='date', how='outer')
+def controlSchedule(result_schedule_df, shift_data_df, cl, prints=True):
+    combined_df = shift_data_df.merge(result_schedule_df, on='date', how='outer')
     ok_col = []
     for i in range(combined_df.shape[0]):
         if combined_df.loc[i,'demand'] == len(combined_df.loc[i,'staff']):
             ok_col.append('ok')
         else:
-           ok_col.append(' NOT ok!')
-    combined_df['Shift covered']=ok_col
+           ok_col.append('NOT ok!')
+    combined_df['shift covered']=ok_col
     if prints:
         print(combined_df)
     combined_df.to_csv(f'data/results/result_and_demand_cl{cl}.csv', index=False)
@@ -58,26 +58,26 @@ def controlPlot(result_df): #TODO compare with ok column
 
     prefer_matrix = np.zeros((n_physicians,n_shifts))
     for p in range(n_physicians):
-        prefer_p = physician_df['Prefer'].iloc[p]
+        prefer_p = physician_df['prefer'].iloc[p]
         if prefer_p != '[]':
             prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')  #TODO fix csv list handling
             for s in prefer_shifts_p:
                 prefer_matrix[p][int(s)] = 1
 
-        prefer_not_p = physician_df['Prefer Not'].iloc[p]
+        prefer_not_p = physician_df['prefer not'].iloc[p]
         if prefer_not_p != '[]':
             prefer_not_shifts_p = prefer_not_p.strip('[').strip(']').split(',')  
             for s in prefer_not_shifts_p:
                 prefer_matrix[p][int(s)] = -1
 
-        unavail_p = physician_df['Unavailable'].iloc[p]
+        unavail_p = physician_df['unavailable'].iloc[p]
         if unavail_p != '[]':
             unavail_shifts_p = unavail_p.strip('[').strip(']').split(',')  
             for s in unavail_shifts_p:
                 prefer_matrix[p][int(s)] = -2
 
     ok_row = np.zeros((1,n_shifts))
-    ok_row[0,:] = result_df['Shift covered']=='ok'
+    ok_row[0,:] = result_df['shift covered']=='ok'
 
     #TODO add rest of constraints
    
@@ -85,7 +85,7 @@ def controlPlot(result_df): #TODO compare with ok column
     x_size = 5
     y_size = n_physicians/n_shifts * x_size
     plt.figure(figsize=(x_size,y_size))
-    prefer_colors = np.where(prefer_matrix.flatten()==1,'green',prefer_matrix.flatten()) # prefer
+    prefer_colors = np.where(prefer_matrix.flatten()==1,'lightgreen',prefer_matrix.flatten()) # prefer
     prefer_colors = np.where(prefer_matrix.flatten()==-1,'pink',prefer_colors) # prefer not
     prefer_colors = np.where(prefer_matrix.flatten()==0,'none',prefer_colors) # neutral
     prefer_colors = np.where(prefer_matrix.flatten()==-2,'red',prefer_colors) # unavailable
@@ -98,7 +98,7 @@ def controlPlot(result_df): #TODO compare with ok column
 
     plt.xticks(ticks=np.arange(n_shifts), labels=[date for date in result_df['date']])
     yticks = [i for i in np.arange(n_physicians)]+[n_physicians-0.4]
-    plt.yticks(ticks=yticks, labels=[phys[-1] for phys in physician_df['Name']]+['OK n.o.\nworkers'])
+    plt.yticks(ticks=yticks, labels=[phys[-1] for phys in physician_df['name']]+['OK n.o.\nworkers'])
     plt.show()
     '''plt.figure()
     plt.title('Result')
