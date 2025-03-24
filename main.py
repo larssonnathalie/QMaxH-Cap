@@ -36,7 +36,7 @@ plots = True
 classical = False
 draw_circuit = False
 
-n_layers = 2 
+n_layers = 1 
 search_iterations = 30
 estimation_iterations = n_layers * 100 
 sampling_iterations = 4000
@@ -85,7 +85,12 @@ if classical:
 b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
 Hc = QToHc(Q, b) 
 
-# Set up hardware
+qaoa = Qaoa(Hc, n_layers, True, True, backend='ibm')
+qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
+best_bitstring = qaoa.sampleSolutions(sampling_iterations, n_candidates, return_worst_solution=False)
+
+
+'''# Set up hardware
 backend = AerSimulator() 
 
 # Make initial circuit
@@ -107,7 +112,7 @@ if draw_circuit:
 
 # Use sampler to find solution bitstrings
 sampling_distribution = sampleSolutions(best_circuit, backend, sampling_iterations, plots=plots)
-best_bitstring = findBestBitstring(sampling_distribution, Hc, n_candidates, prints=True, worst_solutions=False)
+best_bitstring = findBestBitstring(sampling_distribution, Hc, n_candidates, prints=True, worst_solutions=False)'''
 
 result_schedule_df = bitstringToSchedule(best_bitstring, empty_calendar_df, cl, n_shifts)
 if len(result_schedule_df)!= n_shifts:

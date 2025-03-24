@@ -1,4 +1,5 @@
 from qiskit_algorithms.minimum_eigensolvers import QAOA
+from qiskit_ibm_runtime import QiskitRuntimeService
 from qiskit_algorithms.optimizers import COBYLA
 from qiskit_optimization import QuadraticProgram
 from qiskit_optimization.algorithms import MinimumEigenOptimizer
@@ -63,10 +64,12 @@ def QToHc(Q, b):
     return Hc
 
 
-def cost_func_estimator(parameters, ansatz, hamiltonian, estimator): 
+def estimateHc(parameters, ansatz, hamiltonian, estimator:Estimator): 
     #print('estimation start')
     isa_hamiltonian = hamiltonian.apply_layout(ansatz.layout)
     pub = (ansatz, isa_hamiltonian, parameters)
+    circuit, observable, params = pub  
+    #job = estimator.run([circuit], observables=[observable], parameter_values=[params])
     job = estimator.run([pub])
     results = job.result()[0] # why does this take time
     cost = results.data.evs
@@ -75,19 +78,16 @@ def cost_func_estimator(parameters, ansatz, hamiltonian, estimator):
 
     return cost
 
-def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search_iterations, seed=True, prints=True, plots=True): # TODO what job mode? (single, session, etc)
-    estimator = Estimator(mode=backend,options={"default_shots": estimation_iterations})
+def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search_iterations, backend_name, service, seed=True, prints=True, plots=True): # TODO what job mode? (single, session, etc)
+    if backend_name == 'aer':
+        estimator = Estimator(mode=backend,options={"default_shots": estimation_iterations})
+    else: #ibm
+        #QiskitRuntimeService()
+        estimator = Estimator(mode=backend, options={"default_shots": estimation_iterations})
+
     bounds = [(0, 2*np.pi) for _ in range(n_layers)] # gammas have period = 2 pi, given integer penalties
     bounds += [(0, np.pi) for _ in range(n_layers)] # betas have period = 1 pi
 
-    # Plot energy landscape
-    '''brute_result = brute(cost_func_estimator, bounds, args=(circuit, Hc, estimator), Ns=30, disp=True, workers=1, full_output=True)
-    plt.imshow(brute_result[2][0])
-    plt.figure()
-    plt.imshow(brute_result[2][1])
-    plt.show()
-    print('\nBRUTE:',brute_result[0])
-    Hc_values.clear()'''
 
     candidates, costs = [],[]
     for i in range(search_iterations):
@@ -99,7 +99,7 @@ def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search
         initial_parameters = np.concatenate([initial_gammas, initial_betas])
 
         result = minimize(  
-            cost_func_estimator,
+            estimateHc,
             initial_parameters,
             args=(circuit, Hc, estimator),
             method="COBYLA", # COBYLA is a classical OA: Constrained Optimization BY Linear Approximations
@@ -108,7 +108,7 @@ def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search
             options={"rhobeg": 1}   # Sets initial step size (manages exploration)
         )
         candidates.append(result.x)
-        costs.append(cost_func_estimator(result.x, circuit, Hc, estimator))
+        costs.append(estimateHc(result.x, circuit, Hc, estimator))
     
     #print('costs',costs) 
     #print('min',costs[np.argmin(costs)])
@@ -121,7 +121,7 @@ def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search
         plt.show()
     #if prints:
         #print('\nBest parameters (ß:s & gamma:s):', parameters)
-        print('Estimated cost of best parameters', cost_func_estimator(parameters, circuit, Hc, estimator))
+        print('Estimated cost of best parameters', estimateHc(parameters, circuit, Hc, estimator))
         print('Estimator iterations', len(Hc_values))
 
     Hc_values.clear()
@@ -161,15 +161,64 @@ def costOfBitstring(bitstring:str, Hc:SparsePauliOp):
         cost += coeff * term_value
     return cost
 
-def findBestBitstring(sampling_distribution:dict, Hc, n_candidates=20, prints=True, worst_solutions=False):
-    reverse = (worst_solutions==False)
+def findBestBitstring(sampling_distribution:dict, Hc, n_candidates=20, prints=True, worst_solution=False):
+    reverse = (worst_solution==False)
     sorted_distribution = dict(sorted(sampling_distribution.items(), key=lambda item:item[1], reverse=reverse)) #NOTE sorting might be memory expensive
     frequent_bitstrings = list(sorted_distribution.keys())[:n_candidates]
     
     costs = [costOfBitstring(bitstring, Hc) for bitstring in frequent_bitstrings]
-    best_bitstring = frequent_bitstrings[np.argmin(costs)]
+    if worst_solution:
+        best_bitstring = frequent_bitstrings[np.argmax(costs)]
+    else:
+        best_bitstring = frequent_bitstrings[np.argmin(costs)]
 
     if prints:
         #print('\nBest bitstring:', best_bitstring)
         print('best cost', costOfBitstring(best_bitstring, Hc))
     return best_bitstring
+
+
+class Qaoa:
+    def __init__(self, Hc:np.ndarray, n_layers:int, seed:bool, plots:bool, backend:str='ibm', instance:str='open'):
+        self.Hc = Hc
+        self.n_layers = n_layers
+        self.seed = seed
+        self.plots = plots
+        self.backend_name = backend
+
+        # Initialize backend
+        if backend == 'ibm':
+            if instance=='premium':
+                'wacqt/partners/scheduling-of-me' # maybe add me"dical-doctors"
+            else:
+                instance = 'ibm-q/open/main'
+            token = open('../token.txt').readline().strip()
+
+            service = QiskitRuntimeService(
+            channel='ibm_quantum',
+            instance=instance,
+            token=token)
+            self.service =service
+            self.backend = service.least_busy(min_num_qubits=127)
+
+        else:
+            self.backend = AerSimulator() 
+            self.service=''
+        print('Quantum backend set to:', self.backend)
+    
+    def findOptimalCircuit(self, estimation_iterations=2000, search_iterations=20):
+        # Make initial circuit
+        circuit = QAOAAnsatz(cost_operator=self.Hc, reps=self.n_layers) # Using a standard mixer hamiltonian 
+        circuit.measure_all() 
+        pass_manager = generate_preset_pass_manager(optimization_level=3, backend=self.backend) # pass manager transpiles circuit
+        circuit = pass_manager.run(circuit) 
+
+        # Find best betas and gammas using estimator on initial circuit
+        best_parameters = findParameters(self.n_layers, circuit, self.backend, self.Hc, estimation_iterations, search_iterations, self.backend_name, self.service, seed=self.seed, plots=self.plots)
+        best_circuit = circuit.assign_parameters(parameters=best_parameters)
+        self.optimized_circuit = best_circuit
+    
+    def sampleSolutions(self, sampling_iterations=4000, n_candidates=20, return_worst_solution=False):
+        sampling_distribution = sampleSolutions(self.optimized_circuit, self.backend, sampling_iterations, plots=self.plots)
+        best_bitstring = findBestBitstring(sampling_distribution, self.Hc, n_candidates, prints=True, worst_solution=return_worst_solution)
+        return best_bitstring
