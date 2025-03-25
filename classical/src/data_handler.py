@@ -9,14 +9,10 @@ def load_data(shifts_file, physicians_file):
     shifts = list(shifts_df["Shift"])
     demand = dict(zip(shifts_df["Shift"], shifts_df["Demand"]))
 
-    # Extract Shift columns (1-21)
-    shift_columns = [col for col in physicians_df.columns if "Shift" in col]
-
     # Convert to preference dictionary
     preference = {}
     for _, row in physicians_df.iterrows():
         physician_name = row["Physician"]
-        shift_prefs = {shift: row[shift] for shift in shift_columns}
-        preference[physician_name] = shift_prefs
+        preference[physician_name] = {shift: row[shift] for shift in shifts}
 
     return physicians, shifts, demand, preference

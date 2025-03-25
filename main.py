@@ -1,5 +1,5 @@
 from qaoa.qaoa import *
-#from classical.classical import * 
+from classical.src.scheduler import solve_and_save_results
 from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
 
@@ -8,7 +8,7 @@ from postprocessing.postprocessing import *
         # fixed for now by comparing many random initialization outcomes & taking the best
         # should we change to a global optimizer instead? Or is something wrong?
     # Implement on real IBM backend
-    # How maximize fairness when workers have different percentages? 
+    # How maximize fairness when workers have different percentages?
         # Focus on fairness of shift type/weekday/holidays?
         # How adapt demand to extent?
             # Soften demand-constraint so it is a minimum but more is ok? Impossible for constant Q-matrix (without slack vars)
@@ -33,12 +33,12 @@ cl = 2 # complexity level:
 
 prints = True
 plots = True
-classical = False
+classical = True
 draw_circuit = False
 
-n_layers = 2 
+n_layers = 2
 search_iterations = 30
-estimation_iterations = n_layers * 100 
+estimation_iterations = n_layers * 100
 sampling_iterations = 4000
 n_candidates = 20 # compare top X most common solutions
 
@@ -55,7 +55,7 @@ generatePhysicianData(empty_calendar_df,n_physicians,seed=True)
 
 shifts_df = pd.read_csv(f'data/intermediate/shift_data.csv')
 n_shifts=len(shifts_df)
-n_dates = empty_calendar_df.shape[0] 
+n_dates = empty_calendar_df.shape[0]
 n_demand = sum(shifts_df['demand']) # sum of workers demanded on all shifts
 
 if prints:
@@ -68,31 +68,34 @@ if prints:
 convertPreferences(empty_calendar_df)
 
 # Make sum of all objective functions and enforce penatlies (lambdas)
-all_objectives, x_symbols = makeObjectiveFunctions(n_demand, cl, lambdas=lambdas) 
+all_objectives, x_symbols = makeObjectiveFunctions(n_demand, cl, lambdas=lambdas)
 
 # Extract Qubo Q-matrix from objectives           Y = x^T Qx
 Q = objectivesToQubo(all_objectives, x_symbols, cl, mirror=False)
 
 # TODO test passing Q matrix to classical
 # Classical optimization (BILP, solver: z3), for comparison
+# Solve using classical solvers
 if classical:
-    #result_classical = classical_optimization_z3(empty_calendar_df, demand_df, physician_df, max_shifts_per_p, prints=False)
-    #print('Classical (z3):\n',result_classical)
-    pass
+    print("\nSolving with Z3 (QUBO-based)...")
+    solve_and_save_results("classical/data/shifts_test.csv", "classical/data/physicians_test.csv", solver_type="z3", Q=Q)
+
+    print("\nSolving with Gurobi (QUBO-based)...")
+    solve_and_save_results("classical/data/shifts_test.csv", "classical/data/physicians_test.csv", solver_type="z3", Q=Q)
 
 
 # Q-matrix --> pauli operators --> cost hamiltonian (Hc)
 b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
-Hc = QToHc(Q, b) 
+Hc = QToHc(Q, b)
 
 # Set up hardware
-backend = AerSimulator() 
+backend = AerSimulator()
 
 # Make initial circuit
-circuit = QAOAAnsatz(cost_operator=Hc, reps=n_layers) # Using a standard mixer hamiltonian 
-circuit.measure_all() 
+circuit = QAOAAnsatz(cost_operator=Hc, reps=n_layers) # Using a standard mixer hamiltonian
+circuit.measure_all()
 pass_manager = generate_preset_pass_manager(optimization_level=3, backend=backend) # pass manager transpiles circuit
-circuit = pass_manager.run(circuit) 
+circuit = pass_manager.run(circuit)
 
 # Use estimator and COBYLA to find best ß and gammas, with Hc
 # initial_parameters =  np.concatenate([initial_gammas,initial_betas])
@@ -117,4 +120,3 @@ controled_result_df = controlSchedule(result_schedule_df, shifts_df, cl, prints=
 controlPlot(controled_result_df)
 
 # (Evaluate & compare solution to classical methods)'''
-
