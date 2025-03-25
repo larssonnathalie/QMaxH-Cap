@@ -5,6 +5,7 @@ from qiskit_optimization import QuadraticProgram
 from qiskit_optimization.algorithms import MinimumEigenOptimizer
 from qiskit.circuit.library import QAOAAnsatz
 from qiskit.quantum_info import SparsePauliOp
+from qiskit_ibm_runtime import Session
 from qiskit_ibm_runtime import SamplerV2 as Sampler
 from qiskit_ibm_runtime import EstimatorV2 as Estimator
 from scipy.optimize import minimize, brute
@@ -79,11 +80,11 @@ def estimateHc(parameters, ansatz, hamiltonian, estimator:Estimator):
     return cost
 
 def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search_iterations, backend_name, service, seed=True, prints=True, plots=True): # TODO what job mode? (single, session, etc)
-    if backend_name == 'aer':
+    '''if backend_name == 'aer':
         estimator = Estimator(mode=backend,options={"default_shots": estimation_iterations})
-    else: #ibm
+    else: #ibm'''
         #QiskitRuntimeService()
-        estimator = Estimator(mode=backend, options={"default_shots": estimation_iterations})
+
 
     bounds = [(0, 2*np.pi) for _ in range(n_layers)] # gammas have period = 2 pi, given integer penalties
     bounds += [(0, np.pi) for _ in range(n_layers)] # betas have period = 1 pi
@@ -97,18 +98,19 @@ def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search
         initial_betas = np.random.random(size=n_layers)*np.pi # Random initial angles [np.pi/2]*n_layers 
         initial_gammas = np.random.random(size=n_layers)*np.pi*2  #[np.pi]*n_layers  
         initial_parameters = np.concatenate([initial_gammas, initial_betas])
-
-        result = minimize(  
-            estimateHc,
-            initial_parameters,
-            args=(circuit, Hc, estimator),
-            method="COBYLA", # COBYLA is a classical OA: Constrained Optimization BY Linear Approximations
-            bounds=bounds,  
-            tol=1e-3, #NOTE should be 1e-3 or smaller          
-            options={"rhobeg": 1}   # Sets initial step size (manages exploration)
-        )
-        candidates.append(result.x)
-        costs.append(estimateHc(result.x, circuit, Hc, estimator))
+        with Session(backend=backend) as session:
+            estimator = Estimator(mode=session, options={"default_shots": estimation_iterations})
+            result = minimize(
+                estimateHc,
+                initial_parameters,
+                args=(circuit, Hc, estimator),
+                method="COBYLA", # COBYLA is a classical OA: Constrained Optimization BY Linear Approximations
+                bounds=bounds,
+                tol=1e-3, #NOTE should be 1e-3 or smaller
+                options={"rhobeg": 1}   # Sets initial step size (manages exploration)
+            )
+            candidates.append(result.x)
+            costs.append(estimateHc(result.x, circuit, Hc, estimator))
     
     #print('costs',costs) 
     #print('min',costs[np.argmin(costs)])
@@ -189,7 +191,7 @@ class Qaoa:
         # Initialize backend
         if backend == 'ibm':
             if instance=='premium':
-                'wacqt/partners/scheduling-of-me' # maybe add me"dical-doctors"
+                instance='wacqt/partners/scheduling-of-me' # maybe add me"dical-doctors"
             else:
                 instance = 'ibm-q/open/main'
             token = open('../token.txt').readline().strip()

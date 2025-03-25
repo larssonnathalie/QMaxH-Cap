@@ -36,7 +36,7 @@ plots = True
 classical = False
 draw_circuit = False
 
-n_layers = 1 
+n_layers = 1
 search_iterations = 30
 estimation_iterations = n_layers * 100 
 sampling_iterations = 4000
@@ -85,8 +85,8 @@ if classical:
 b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
 Hc = QToHc(Q, b) 
 
-qaoa = Qaoa(Hc, n_layers, True, True, backend='ibm')
-qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
+qaoa = Qaoa(Hc, n_layers, True, True, backend='ibm', instance='premium')
+qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=1)
 best_bitstring = qaoa.sampleSolutions(sampling_iterations, n_candidates, return_worst_solution=False)
 
 

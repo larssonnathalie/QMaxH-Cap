@@ -1,4 +1,4 @@
 name,extent,prefer,prefer not,unavailable,title,competence
-physician0,100,[],[1],[],ÖL,0.2
-physician1,100,[],[],[0],AT,0.6
-physician2,75,[1],[],[],ST,0.1
+physician0,100,[],[],[],ÖL,0.2
+physician1,100,[],[],[],AT,0.6
+physician2,75,[],[],[],ST,0.1
