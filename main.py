@@ -1,5 +1,8 @@
 from qaoa.qaoa import *
 from classical.src.scheduler import solve_and_save_results
+from classical.src.qubo_solvers import solve_qubo_z3, solve_qubo_gurobi
+from postprocessing.postprocessing import bitstringToSchedule, controlSchedule, controlPlot
+
 from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
 
@@ -77,11 +80,40 @@ Q = objectivesToQubo(all_objectives, x_symbols, cl, mirror=False)
 # Classical optimization (BILP, solver: z3), for comparison
 # Solve using classical solvers
 if classical:
-    print("\nSolving with Z3 (QUBO-based)...")
-    solve_and_save_results("classical/data/shifts_test.csv", "classical/data/physicians_test.csv", solver_type="z3", Q=Q)
+    # Classical Z3 (without QUBO)
+    print("\nSolving with Z3 (Classical)...")
+    solve_and_save_results("classical/data/shifts_test.csv", "classical/data/physicians_test.csv", solver_type="z3",
+                           Q=None)
 
-    print("\nSolving with Gurobi (QUBO-based)...")
-    solve_and_save_results("classical/data/shifts_test.csv", "classical/data/physicians_test.csv", solver_type="z3", Q=Q)
+    # Classical Gurobi (without QUBO)
+    print("\nSolving with Gurobi (Classical)...")
+    solve_and_save_results("classical/data/shifts_test.csv", "classical/data/physicians_test.csv", solver_type="gurobi",
+                           Q=None)
+
+# Then, solve using classical solvers with QUBO
+if classical:
+    print("\nSolving QUBO with Z3...")
+    z3_qubo_solution, z3_qubo_value = solve_qubo_z3(Q, timeout_ms=10000)
+    if z3_qubo_solution:
+        print(f"Z3 (QUBO) value: {z3_qubo_value}")
+        calendar_df = pd.read_csv("data/intermediate/empty_calendar.csv")
+        shifts_df = pd.read_csv("data/intermediate/shift_data.csv")
+        n_shifts = len(shifts_df)
+        z3_schedule_df = bitstringToSchedule(z3_qubo_solution, calendar_df, cl, n_shifts)
+        z3_schedule_df = controlSchedule(z3_schedule_df, shifts_df, cl, prints=True)
+        controlPlot(z3_schedule_df)
+    else:
+        print("Z3 (QUBO) failed or timed out.")
+
+    print("\nSolving QUBO with Gurobi...")
+    gurobi_qubo_solution, gurobi_qubo_value = solve_qubo_gurobi(Q, timeout_sec=10)
+    if gurobi_qubo_solution:
+        print(f"Gurobi (QUBO) value: {gurobi_qubo_value}")
+        gurobi_schedule_df = bitstringToSchedule(gurobi_qubo_solution, calendar_df, cl, n_shifts)
+        gurobi_schedule_df = controlSchedule(gurobi_schedule_df, shifts_df, cl, prints=True)
+        controlPlot(gurobi_schedule_df)
+    else:
+        print("Gurobi (QUBO) failed or timed out.")
 
 
 # Q-matrix --> pauli operators --> cost hamiltonian (Hc)
