@@ -1,4 +1,3 @@
-name,extent,prefer,prefer not,unavailable,title,competence
-physician0,100,[],[],[],ÖL,0.2
-physician1,100,[],[],[],AT,0.6
-physician2,75,[],[],[],ST,0.1
+name,title,competence,extent,prefer,prefer not,unavailable,prefer w0,prefer not w0,unavailable w0,prefer w1,prefer not w1,unavailable w1
+physician0,Chef,0.0,100,"['2025-04-04', '2025-04-05', '2025-03-28']","['2025-03-29', '2025-03-27']","['2025-03-31', '2025-04-06', '2025-03-24']",[],[5],[],[4],[],[0]
+physician1,AT,0.0,75,"['2025-04-06', '2025-04-03']",[],"['2025-04-01', '2025-03-25', '2025-03-31', '2025-03-30']",[],[],[],[6],[],[1]

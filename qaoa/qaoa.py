@@ -80,26 +80,21 @@ def estimateHc(parameters, ansatz, hamiltonian, estimator:Estimator):
     return cost
 
 def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search_iterations, backend_name, service, seed=True, prints=True, plots=True): # TODO what job mode? (single, session, etc)
-    '''if backend_name == 'aer':
+    if backend_name == 'aer':
         estimator = Estimator(mode=backend,options={"default_shots": estimation_iterations})
-    else: #ibm'''
-        #QiskitRuntimeService()
-
-
     bounds = [(0, 2*np.pi) for _ in range(n_layers)] # gammas have period = 2 pi, given integer penalties
     bounds += [(0, np.pi) for _ in range(n_layers)] # betas have period = 1 pi
 
-
     candidates, costs = [],[]
     for i in range(search_iterations):
-        #print('search it:', i)
         if seed:
             np.random.seed(i*10)
-        initial_betas = np.random.random(size=n_layers)*np.pi # Random initial angles [np.pi/2]*n_layers 
-        initial_gammas = np.random.random(size=n_layers)*np.pi*2  #[np.pi]*n_layers  
+        initial_betas = np.random.random(size=n_layers)*np.pi # Random initial angles 
+        initial_gammas = np.random.random(size=n_layers)*np.pi*2   
         initial_parameters = np.concatenate([initial_gammas, initial_betas])
         with Session(backend=backend) as session:
-            estimator = Estimator(mode=session, options={"default_shots": estimation_iterations})
+            if backend_name == 'ibm':
+                estimator = Estimator(mode=session, options={"default_shots": estimation_iterations})
             result = minimize(
                 estimateHc,
                 initial_parameters,
@@ -125,11 +120,9 @@ def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search
         #print('\nBest parameters (ß:s & gamma:s):', parameters)
         print('Estimated cost of best parameters', estimateHc(parameters, circuit, Hc, estimator))
         print('Estimator iterations', len(Hc_values))
-
     Hc_values.clear()
 
     return parameters
-
 
 def sampleSolutions(best_circuit, backend, sampling_iterations, prints=True, plots=True):
     # TODO Use single job-mode?
