@@ -39,6 +39,8 @@ def QToHc(Q, b):
         # cᵢⱼ = Qᵢⱼ/4
 
     n_vars = Q.shape[0]
+    print()
+    print('n vars:\t\t',n_vars)
     pauli_list = []
 
     # Upper half

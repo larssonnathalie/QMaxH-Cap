@@ -35,7 +35,7 @@ def emptyCalendar(end_date, start_date):
     return n_weeks, total_holidays
 
 # Automatically generate physicians_data with random preferences on relevant dates
-def generatePhysicianData(empty_calendar, n_physicians, seed=True):
+def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True):
     
     #TODO look over all probabilities in random choices and set realistic values
 
@@ -47,11 +47,12 @@ def generatePhysicianData(empty_calendar, n_physicians, seed=True):
 
     name_col = []
     extent_col=[]
-    prefer_col = []
-    prefer_not_col = []
-    unavail_col = []
+    prefer_col = [[] for _ in range(n_physicians)]
+    prefer_not_col = [[] for _ in range(n_physicians)]
+    unavail_col = [[] for _ in range(n_physicians)]
     title_col = [] 
     competence_col = []
+    satisfaction_col = [0 for _ in range(n_physicians)] # maybe change initial scores
 
     if seed:
         np.random.seed(56)
@@ -63,23 +64,25 @@ def generatePhysicianData(empty_calendar, n_physicians, seed=True):
         competence_col.append(np.random.choice(possible_competences))
         title_col.append(possible_titles[p]) 
 
-        # RANDOM PREFERENCES
-        size = np.random.randint(0, n_dates//2)
-        prefer_not_p = np.random.choice(remaining_dates_p, size=size, replace=False) # NOTE maybe change upper size limit 
-        prefer_not_col.append(list(prefer_not_p))
-        for s in prefer_not_p:
-            remaining_dates_p.remove(s)
+        if cl >=2:
+            # RANDOM PREFERENCES
+            size = np.random.randint(0, n_dates//2)
+            prefer_not_p = np.random.choice(remaining_dates_p, size=size, replace=False) # NOTE maybe change upper size limit 
+            prefer_not_col[p] =(list(prefer_not_p))#.append(list(prefer_not_p))
+            print(prefer_not_col)
+            for s in prefer_not_p:
+                remaining_dates_p.remove(s)
 
-        size = np.random.randint(0, len(remaining_dates_p)//2)
-        prefer_p = np.random.choice(remaining_dates_p, size=size, replace=False)
-        prefer_col.append(list(prefer_p))
-        for s in prefer_p:
-            remaining_dates_p.remove(s)
+            size = np.random.randint(0, len(remaining_dates_p)//2)
+            prefer_p = np.random.choice(remaining_dates_p, size=size, replace=False)
+            prefer_col[p]=list(prefer_p)#.append(list(prefer_p))
+            for s in prefer_p:
+                remaining_dates_p.remove(s)
 
-        unavail_p = np.random.choice(remaining_dates_p, size=np.random.randint(0, len(remaining_dates_p)//2), replace=False)
-        unavail_col.append(list(unavail_p))
+            unavail_p = np.random.choice(remaining_dates_p, size=np.random.randint(0, len(remaining_dates_p)//2), replace=False)
+            unavail_col[p] = list(unavail_p)#.append(list(unavail_p))
 
-    physician_data_df = pd.DataFrame({'name':name_col, 'title':title_col, 'competence':competence_col, 'extent': extent_col, 'prefer':prefer_col, 'prefer not':prefer_not_col, 'unavailable':unavail_col})
+    physician_data_df = pd.DataFrame({'name':name_col, 'title':title_col, 'competence':competence_col, 'extent': extent_col, 'prefer':prefer_col, 'prefer not':prefer_not_col, 'unavailable':unavail_col, 'satisfaction':satisfaction_col})
     physician_data_df.to_csv('data/intermediate/physician_data.csv', index=None)
 
 # Automatically generate "shift_data.csv"
@@ -197,7 +200,7 @@ def makeObjectiveFunctions(n_demand, week, cl, lambdas):
     H_pref = 0
     H_unavail = 0
 
-    # Objective: minimize UNFAIRNESS
+    # minimize UNFAIRNESS
     # Hfair = ∑ᵢ₌₁ᴾ (∑ⱼ₌₁ˢ xᵢⱼ − S/P)²                 S = n_demand, P = n_physicians
     max_shifts_per_p = int((n_demand/n_physicians)+0.999 ) # fair distribution of shifts
     for p in range(n_physicians):
@@ -206,7 +209,7 @@ def makeObjectiveFunctions(n_demand, week, cl, lambdas):
         H_fair += H_fair_p
 
     if cl>=2:
-        # Objective: minimize PREFERENCE dissatisfaction
+        # Minimize PREFERENCE dissatisfaction
         for p in range(n_physicians): 
             prefer_p = physician_df[f'prefer w{week}'].iloc[p]
             if prefer_p != '[]':
