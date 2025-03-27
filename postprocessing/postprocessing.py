@@ -65,10 +65,6 @@ def preferenceHistory(result_schedule_df_w, week):
         prefer_not_counts += [s for s in prefer_not[p]]
         unavailable_counts += [s for s in unavailable[p]]
 
-    print('pref')
-    print(prefer)
-    print(prefer_not)
-    print(unavailable)
     # decide shift attractiveness
     shift_attractiveness = {}
     for s in range(n_shifts):
@@ -82,8 +78,8 @@ def preferenceHistory(result_schedule_df_w, week):
         for p in staff_s:
             assigned_shifts[int(p)].append(s)
         
-    print('\n shift attr')
-    print(shift_attractiveness)
+    #print('\n shift attr')
+    #print(shift_attractiveness)
 
     # satisfaction scores
     self_weight = 1  # how much p's own preference is weighted against everyone's preferences
@@ -117,13 +113,17 @@ def preferenceHistory(result_schedule_df_w, week):
         satisfaction_col_w.append(satisfaction_p)
 
     physician_df['satisfaction'] = satisfaction_col_w
-    print(satisfaction_col_w)
     physician_df.to_csv('data/intermediate/physician_data.csv', index=None)
 
 def controlPlot(result_df, weeks, cl): 
     physician_df =pd.read_csv('data/intermediate/physician_data.csv',index_col=False) #TODO (change to /input/, compare specific dates?)
     n_physicians = len(physician_df)
     n_shifts = len(result_df)
+    shifts_per_week = 7
+    if cl>=3:
+        shifts_per_week = 21
+        print('\ncontrolPlot() assuming 21 shifts per week')
+
 
     result_matrix = np.zeros((n_physicians,n_shifts))
     for s in range(n_shifts):
@@ -147,7 +147,8 @@ def controlPlot(result_df, weeks, cl):
                 if prefer_p != '[]':
                     prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')  #TODO fix csv list handling
                     for s in prefer_shifts_p:
-                        prefer_matrix[p][int(s)] = 1
+                        s_tot = int(s)+week*7
+                        prefer_matrix[p][s_tot] = 1
 
                 prefer_not_p = physician_df[f'prefer not w{week}'].iloc[p]
                 if prefer_not_p != '[]':

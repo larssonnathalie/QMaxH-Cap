@@ -24,12 +24,12 @@ from postprocessing.postprocessing import *
 
 # Parameters
 start_date = '2025-03-24' # for now this should be an [int] number of weeks
-end_date = '2025-03-27'
+end_date = '2025-04-13'
 weekday_demand = 2
 holiday_demand = 1
 n_physicians = 3
 cl = 2                      # complexity level: 
-complexity_leves = ['',
+complexity_levels = ['',
 'cl1: demand, fairness',
 'cl2: demand, fairness, preferences, unavailable',
 'cl3: demand, fairness, preferences, unavailable, shift_type, rest',
@@ -41,9 +41,11 @@ prints = True
 plots = True
 classical = False
 draw_circuit = False
+preference_seed = False
+init_seed = False
 
 n_layers = 1
-search_iterations = 5
+search_iterations = 10
 estimation_iterations = n_layers * 100 
 sampling_iterations = 4000
 n_candidates = 20 # compare top X most common solutions
@@ -58,17 +60,21 @@ all_dates_df = pd.read_csv(f'data/intermediate/empty_calendar.csv',index_col=Non
 full_solution = []
 
 # Generate random preferences
-generatePhysicianData(all_dates_df, n_physicians,cl, seed=False) 
+generatePhysicianData(all_dates_df, n_physicians,cl, seed=preference_seed) 
 
 # Deterministic generation, used multiple times for now
 generateShiftData(all_dates_df, 'all', cl, weekday_workers=weekday_demand, holiday_workers=holiday_demand, prints=False)
 
 print()
-print(complexity_leves[cl])
-print('n physicians:\t', n_physicians)
-print('n days:\t\t', len(all_dates_df))
-print('n layers\t', n_layers)
-print('n weeks\t', n_weeks)
+print(complexity_levels[cl])
+print('Physicians:\t', n_physicians)
+print('Days:\t\t', len(all_dates_df))
+print('Weeks\t', n_weeks)
+print('Layers\t', n_layers)
+print('Seeds:')
+print('\tPreference\t', preference_seed)
+print('\tInitialization\t', init_seed)
+print()
 print('search iterations:', search_iterations)
 print(f'comparing top {n_candidates} most common solutions')
 
@@ -77,7 +83,6 @@ for week in range(n_weeks):
     calendar_df_week = all_dates_df.iloc[week*7:(week+1)*7]
 
     print('\nWEEK:\t', week)
-    print()
     # Automatically generate 'shift_data.csv'
     generateShiftData(calendar_df_week, week, cl, weekday_workers=weekday_demand, holiday_workers=holiday_demand, prints=False)
 
@@ -96,7 +101,7 @@ for week in range(n_weeks):
         convertPreferences(calendar_df_week, week)   # Dates to shift-numbers
 
     # Make sum of all objective functions and enforce penatlies (lambdas)
-    all_objectives, x_symbols = makeObjectiveFunctions(n_demand, week, cl, lambdas=lambdas) 
+    all_objectives, x_symbols = makeObjectiveFunctions(n_demand, week, n_weeks, cl, lambdas=lambdas) 
    
     # Extract Qubo Q-matrix from objectives           Y = x^T Qx
     Q = objectivesToQubo(all_objectives, n_shifts, x_symbols, cl, mirror=False)
@@ -105,12 +110,14 @@ for week in range(n_weeks):
     b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
     Hc = QToHc(Q, b) 
 
-    qaoa = Qaoa(Hc, n_layers, plots=False, seed=True, backend='aer', instance='premium')
+    qaoa = Qaoa(Hc, n_layers, plots=False, seed=init_seed, backend='aer', instance='premium')
     qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
     best_bitstring_w = qaoa.sampleSolutions(sampling_iterations, n_candidates, return_worst_solution=False)
     result_schedule_df_w = bitstringToSchedule(best_bitstring_w, calendar_df_week, n_shifts)
     full_solution.append(result_schedule_df_w)
     controled_result_df_w = controlSchedule(result_schedule_df_w, shifts_df, cl)
+    print()
+    print(controled_result_df_w)
     #TODO check if result is ok (unavailable & demand met) rerun with more iterations if not
 
     if cl>=2:
@@ -131,5 +138,7 @@ print()
 physician_df = pd.read_csv('data/intermediate/physician_data.csv')
 physician_df_print = physician_df.drop(columns=['name', 'competence', 'extent', 'prefer', 'prefer not', 'unavailable'])
 print(physician_df_print)
+
+
 # (Evaluate & compare solution to classical methods)'''
 

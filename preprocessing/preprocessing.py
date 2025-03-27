@@ -69,7 +69,6 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True):
             size = np.random.randint(0, n_dates//2)
             prefer_not_p = np.random.choice(remaining_dates_p, size=size, replace=False) # NOTE maybe change upper size limit 
             prefer_not_col[p] =(list(prefer_not_p))#.append(list(prefer_not_p))
-            print(prefer_not_col)
             for s in prefer_not_p:
                 remaining_dates_p.remove(s)
 
@@ -180,7 +179,7 @@ def convertPreferences(empty_calendar_df, week):
     physician_df.to_csv(f'data/intermediate/physician_data.csv', index=None)
 
 
-def makeObjectiveFunctions(n_demand, week, cl, lambdas):
+def makeObjectiveFunctions(n_demand, week, n_weeks, cl, lambdas):
     # Both objective & constraints formulated as Hamiltonians to be combined to QUBO form
     # Using sympy to simplify the H expressions
 
@@ -201,37 +200,55 @@ def makeObjectiveFunctions(n_demand, week, cl, lambdas):
     H_unavail = 0
 
     # minimize UNFAIRNESS
-    # Hfair = ∑ᵢ₌₁ᴾ (∑ⱼ₌₁ˢ xᵢⱼ − S/P)²                 S = n_demand, P = n_physicians
-    max_shifts_per_p = int((n_demand/n_physicians)+0.999 ) # fair distribution of shifts
-    for p in range(n_physicians):
-        H_fair_s_sum_p = sum(x_symbols[p][s] for s in range(n_shifts))   
-        H_fair_p = (H_fair_s_sum_p - max_shifts_per_p)**2   
-        H_fair += H_fair_p
+    if cl == 1:
+        if n_weeks !=1:
+            print('nERROR in makeObjectives..(): cl 1 not implemented for more than one week')  
+            return 
+        
+        # Hfair = ∑ᵢ₌₁ᴾ (∑ⱼ₌₁ˢ xᵢⱼ − S/P)²                 S = n_demand, P = n_physicians
+        max_shifts_per_p = int((n_demand/n_physicians)+0.999 ) # fair distribution of shifts
+        for p in range(n_physicians):
+            H_fair_s_sum_p = sum(x_symbols[p][s] for s in range(n_shifts))   
+            H_fair_p = (H_fair_s_sum_p - max_shifts_per_p)**2   
+            H_fair += H_fair_p
+    else: # (cl > 1)
+        if n_weeks ==1:
+            # Minimize PREFERENCE dissatisfaction
+            for p in range(n_physicians): 
+                prefer_p = physician_df[f'prefer w{week}'].iloc[p]
+                if prefer_p != '[]':
+                    prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')  #TODO fix csv list handling
+                    H_pref_p = sum(x_symbols[p][int(s)] for s in prefer_shifts_p) # Reward prefered shifts (negative penalties)
+                    H_pref -= H_pref_p 
 
-    if cl>=2:
-        # Minimize PREFERENCE dissatisfaction
-        for p in range(n_physicians): 
-            prefer_p = physician_df[f'prefer w{week}'].iloc[p]
-            if prefer_p != '[]':
-                prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')  #TODO fix csv list handling
-                H_pref_p = sum(x_symbols[p][int(s)] for s in prefer_shifts_p) # Reward prefered shifts (negative penalties)
-                H_pref -= H_pref_p 
+                prefer_not_p = physician_df[f'prefer not w{week}'].iloc[p]
+                if prefer_not_p != '[]':
+                    prefer_not_shifts_p = prefer_not_p.strip('[').strip(']').split(',')  
+                    H_pref_not_p = sum(x_symbols[p][int(s)] for s in prefer_not_shifts_p) # Penalize unprefered shifts
+                    H_pref += H_pref_not_p
 
-            prefer_not_p = physician_df[f'prefer not w{week}'].iloc[p]
-            if prefer_not_p != '[]':
-                prefer_not_shifts_p = prefer_not_p.strip('[').strip(']').split(',')  
-                H_pref_not_p = sum(x_symbols[p][int(s)] for s in prefer_not_shifts_p) # Penalize unprefered shifts
-                H_pref += H_pref_not_p
+                # UNAVAILABLE constraint
+                unavail_shifts_p = physician_df[f'unavailable w{week}'].iloc[p]
+                if unavail_shifts_p != '[]':
+                    unavail_shifts_p = unavail_shifts_p.strip('[').strip(']').split(',')  
+                    H_unavail_p = sum(x_symbols[p][int(s)] for s in unavail_shifts_p)
+                    H_unavail += H_unavail_p
 
-            # UNAVAILABLE constraint
-            unavail_shifts_p = physician_df[f'unavailable w{week}'].iloc[p]
-            if unavail_shifts_p != '[]':
-                unavail_shifts_p = unavail_shifts_p.strip('[').strip(']').split(',')  
-                H_unavail_p = sum(x_symbols[p][int(s)] for s in unavail_shifts_p)
-                H_unavail += H_unavail_p
+        else: # multiple weeks --> long-term fairness
+            long_term_priority = week/n_weeks  # allow more imbalance if there are more weeks left to fix it
+            now_priority = 1-long_term_priority
+            
+            prefer = {p:physician_df.loc[p,f'prefer w{week}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
+            prefer_not = {p:physician_df.loc[p,f'prefer not w{week}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
+            unavailable = {p:physician_df.loc[p,f'unavailable w{week}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
+            satisfaction = {p:float(physician_df.loc[p,'satisfaction']) for p in range(n_physicians)}
+
+            for s in range(n_shifts): # TODO complete long term fairness constraint
+                pass
+
 
     if cl>=4:
-        # COMPETENCE constraint
+        # TITLES constraint
         pass
 
     # Constraint: Meet DEMAND
