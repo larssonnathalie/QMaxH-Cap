@@ -4,7 +4,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def bitstringIndexToPS(idx, n_vars, n_shifts):
-
     idx=int((n_vars-1)-idx) # NOTE assuming strings are reversed 
     p = int(idx/n_shifts)
     s = idx%n_shifts
@@ -16,7 +15,7 @@ def psVarNamesToI(xp_s, n_shifts): # Might not be needed
         return f'x{i}'
 
 def bitstringToSchedule(bitstring:str, empty_calendar_df, n_shifts) -> pd.DataFrame:
-    staff_col = [[] for _ in range(n_shifts)]
+    staff_col = [[] for _ in range(n_shifts)] # TODO week-wise interpretation, bc bitstrings assume 7(*3) shifts
 
     n_vars = len(bitstring)
     for i in range(n_vars): 
@@ -45,7 +44,7 @@ def controlSchedule(result_schedule_df, shift_data_df, cl):
 
     return combined_df
     
-def controlPlot(result_df, week): #TODO compare with ok column
+def controlPlot(result_df, weeks): 
     physician_df =pd.read_csv('data/intermediate/physician_data.csv',index_col=False) #TODO (change to /input/, compare specific dates?)
     n_physicians = len(physician_df)
     n_shifts = len(result_df)
@@ -55,26 +54,31 @@ def controlPlot(result_df, week): #TODO compare with ok column
         workers_s = result_df['staff'].iloc[s]
         for p in workers_s:
             result_matrix[int(p)][s] = 1 
-
+    
     prefer_matrix = np.zeros((n_physicians,n_shifts))
-    for p in range(n_physicians):
-        prefer_p = physician_df[f'prefer w{week}'].iloc[p]
-        if prefer_p != '[]':
-            prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')  #TODO fix csv list handling
-            for s in prefer_shifts_p:
-                prefer_matrix[p][int(s)] = 1
 
-        prefer_not_p = physician_df[f'prefer not w{week}'].iloc[p]
-        if prefer_not_p != '[]':
-            prefer_not_shifts_p = prefer_not_p.strip('[').strip(']').split(',')  
-            for s in prefer_not_shifts_p:
-                prefer_matrix[p][int(s)] = -1
+    if type(weeks)==int:
+        weeks =list(weeks)
 
-        unavail_p = physician_df[f'unavailable w{week}'].iloc[p]
-        if unavail_p != '[]':
-            unavail_shifts_p = unavail_p.strip('[').strip(']').split(',')  
-            for s in unavail_shifts_p:
-                prefer_matrix[p][int(s)] = -2
+    for week in weeks:
+        for p in range(n_physicians):
+            prefer_p = physician_df[f'prefer w{week}'].iloc[p]
+            if prefer_p != '[]':
+                prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')  #TODO fix csv list handling
+                for s in prefer_shifts_p:
+                    prefer_matrix[p][int(s)] = 1
+
+            prefer_not_p = physician_df[f'prefer not w{week}'].iloc[p]
+            if prefer_not_p != '[]':
+                prefer_not_shifts_p = prefer_not_p.strip('[').strip(']').split(',')  
+                for s in prefer_not_shifts_p:
+                    prefer_matrix[p][int(s)] = -1
+
+            unavail_p = physician_df[f'unavailable w{week}'].iloc[p]
+            if unavail_p != '[]':
+                unavail_shifts_p = unavail_p.strip('[').strip(']').split(',')  
+                for s in unavail_shifts_p:
+                    prefer_matrix[p][int(s)] = -2
 
     ok_row = np.zeros((1,n_shifts))
     ok_row[0,:] = result_df['shift covered']=='ok'

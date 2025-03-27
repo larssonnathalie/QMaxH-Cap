@@ -17,9 +17,8 @@ def emptyCalendar(end_date, start_date):
     holidays_and_weekends = swedish_holidays+saturdays>= 1 # TODO replace with better OR function
     total_holidays = np.sum(holidays_and_weekends)
     if len(all_dates)%7!=0:
-        print('\nError: Dates must be a [int] number of weeks\n') # (start on tuesday end on monday works too)
-        return
-    n_weeks = len(all_dates)//7
+        print('\Warning: Dates should be a [int] number of weeks\n') # (start on tuesday end on monday works too)
+    n_weeks = (len(all_dates)+6)//7
     print('\ntotal holidays:',total_holidays,'n_weeks:', n_weeks)
 
     calendar_df= pd.DataFrame({'date': all_dates, 'is_holiday': holidays_and_weekends}) 
@@ -42,8 +41,8 @@ def generatePhysicianData(empty_calendar, n_physicians, seed=True):
 
     all_dates = empty_calendar['date'] # TODO preferences on separate shifts instead of dates
     n_dates = len(all_dates)
-    possible_extents = [25,50,50,75,75,100,100,100,100,100,100]  
-    possible_titles = ['UL', 'ÖL', 'AT', 'ST', 'Chef'] # more copies --> more likely
+    possible_extents = [25,50,50,75,75,100,100,100,100,100,100]  # more copies -> more likely
+    possible_titles = ['ÖL', 'ST', 'AT','Chef','UL'] * (n_physicians//5+1)
     possible_competences = [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1]  
 
     name_col = []
@@ -61,8 +60,8 @@ def generatePhysicianData(empty_calendar, n_physicians, seed=True):
         remaining_dates_p = list(all_dates)
         name_col.append(f'physician{p}')
         extent_col.append(np.random.choice(possible_extents))
-        title_col.append(np.random.choice(possible_titles))
         competence_col.append(np.random.choice(possible_competences))
+        title_col.append(possible_titles[p]) 
 
         # RANDOM PREFERENCES
         size = np.random.randint(0, n_dates//2)
@@ -86,17 +85,17 @@ def generatePhysicianData(empty_calendar, n_physicians, seed=True):
 # Automatically generate "shift_data.csv"
 # following repeating demand rules based on weekdays/holidays
 def generateShiftData(empty_calendar, week, cl, weekday_workers=2, holiday_workers=1, prints=True):
-    if cl<4:
+    if cl<3:
         if week == 'all':
             demand_col = [holiday_workers + int(empty_calendar.loc[i,'is_holiday']==False)*(weekday_workers-holiday_workers) for i in range(len(empty_calendar))]          
 
         else:   
-            idx_range = range(week*7, (week+1)*7)
+            idx_range = empty_calendar.index.to_list() 
             demand_col = [holiday_workers + int(empty_calendar.loc[i,'is_holiday']==False)*(weekday_workers-holiday_workers) for i in idx_range]          
         
         shift_data_df = pd.DataFrame({'date':empty_calendar['date'], 'demand': demand_col})
 
-    elif cl>=4:
+    elif cl>=3:
         # SHIFT TYPES
         date_col = [] #TODO adapt to weekwise
         shift_type_col=[]
@@ -178,7 +177,7 @@ def convertPreferences(empty_calendar_df, week):
     physician_df.to_csv(f'data/intermediate/physician_data.csv', index=None)
 
 
-def makeObjectiveFunctions(n_demand, week, cl, lambdas, prints=False):
+def makeObjectiveFunctions(n_demand, week, cl, lambdas):
     # Both objective & constraints formulated as Hamiltonians to be combined to QUBO form
     # Using sympy to simplify the H expressions
 
@@ -228,7 +227,7 @@ def makeObjectiveFunctions(n_demand, week, cl, lambdas, prints=False):
                 H_unavail_p = sum(x_symbols[p][int(s)] for s in unavail_shifts_p)
                 H_unavail += H_unavail_p
 
-    if cl>=3:
+    if cl>=4:
         # COMPETENCE constraint
         pass
 

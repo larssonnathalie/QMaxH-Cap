@@ -6,11 +6,12 @@ from postprocessing.postprocessing import *
 # General TODO:s
     # Handle titles & assignments
         # might need even shorter periods than week
+        # "chef" title has special constraints & not included in fairness
+    # Fix ibm sampler
+    # Reduce Qubits: Work-type in constraints similar to long term fairness, OR: remove side-task work-types
     # Define "fairness", considering different titles have different types of work 
     # Memorize fairness externally and make new qubo-matrix for each week to make long term fair schedules with limited n.o. qubits
     # Simulator for finding candidate angles, compare candidates with ibm estimator
-    # best angles depend heavily on initialization, COBYLA finds very local optima
-        # fixed by comparing many random initialization outcomes & taking the best
     # How maximize fairness when workers have different percentages? 
         # Focus on fairness of shift type/weekday/holidays?
         # How adapt demand to extent?
@@ -20,18 +21,19 @@ from postprocessing.postprocessing import *
     # Bugfix in postprocessing, missing rows in output schedules!
 
 # Parameters
-start_date = '2025-03-24' # for now this must be a [int] number of weeks
-end_date = '2025-04-06'
+start_date = '2025-03-24' # for now this should be an [int] number of weeks
+end_date = '2025-03-26'
 weekday_demand = 2
 holiday_demand = 1
-n_physicians = 2
-cl = 2 # complexity level:
+n_physicians = 4
+cl = 2 # complexity level: 
 complexity_leves = ['',
 'cl1: demand, fairness',
 'cl2: demand, fairness, preferences, unavailable',
-'cl3: demand, fairness, preferences, unavailable, titles, competence',
-'cl4: demand, fairness, preferences, unavailable, titles, competence, shift_type, rest',
-'cl5: demand, fairness, preferences, unavailable, titles, competence, shift_type, rest,  side_tasks']
+'cl3: demand, fairness, preferences, unavailable, shift_type, rest',
+'cl4: demand, fairness, preferences, unavailable, shift_type, rest, titles',
+'cl5: demand, fairness, preferences, unavailable, shift_type, rest, titles, side_tasks',
+'cl6: demand, fairness, preferences, unavailable, shift_type, rest, titles, side_tasks, competence']
 
 prints = True
 plots = True
@@ -51,7 +53,7 @@ lambdas = {'demand':5, 'fair':2, 'pref':1, 'unavail':5, 'rest':3}  # NOTE Must b
 n_weeks, total_holidays = emptyCalendar(end_date, start_date)
 
 all_dates_df = pd.read_csv(f'data/intermediate/empty_calendar.csv',index_col=None)
-solution = []
+full_solution = []
 
 # Generate random preferences
 generatePhysicianData(all_dates_df, n_physicians,seed=True) 
@@ -98,27 +100,23 @@ for week in range(n_weeks):
     b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
     Hc = QToHc(Q, b) 
 
-    qaoa = Qaoa(Hc, n_layers, True, True, backend='aer', instance='premium')
-    qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
+    qaoa = Qaoa(Hc, n_layers, plots=False, seed=True, backend='aer', instance='premium')
+    qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=5)
     best_bitstring_w = qaoa.sampleSolutions(sampling_iterations, n_candidates, return_worst_solution=False)
-    solution.append(best_bitstring_w)
-    print()
     result_schedule_df_w = bitstringToSchedule(best_bitstring_w, calendar_df_week, n_shifts)
+    full_solution.append(result_schedule_df_w)
     controled_result_df_w = controlSchedule(result_schedule_df_w, shifts_df, cl)
-
-    controlPlot(controled_result_df_w, week)
-
-final_bitstring =''
-for week in solution:
-    for bit in week:
-        final_bitstring += bit
+    #print(controled_result_df_w)
+    #controlPlot(controled_result_df_w, week)
 
 all_shifts_df = pd.read_csv('data/intermediate/shift_data_all_w.csv', index_col=None)
 n_shifts = len(all_shifts_df)    
-
-full_result_schedule_df = bitstringToSchedule(final_bitstring, all_dates_df, n_shifts)
-full_controled_result_df = controlSchedule(full_result_schedule_df, all_shifts_df, cl)
-#controlPlot(controled_result_df, week) #TODO all weeks in controlPlot
+full_schedule_df = full_solution[0]
+for w in range(1,n_weeks):
+    full_schedule_df = pd.concat([full_schedule_df, full_solution[w]],axis=0)
+ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
+print(ok_full_schedule_df)
+controlPlot(ok_full_schedule_df, weeks=range(n_weeks)) 
 
 # (Evaluate & compare solution to classical methods)'''
 
