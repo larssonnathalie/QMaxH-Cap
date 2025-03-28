@@ -1,22 +1,100 @@
 date,demand,is_holiday,weekday,staff,shift covered
-2025-03-24,2,False,Monday,"['1', '0']",ok
+2025-03-24,2,False,Monday,"['2', '0']",ok
 2025-03-25,2,False,Tuesday,"['1', '0']",ok
-2025-03-26,2,False,Wednesday,"['2', '0']",ok
-2025-03-27,2,False,Thursday,"['2', '0']",ok
-2025-03-28,2,False,Friday,"['2', '1']",ok
-2025-03-29,1,True,Saturday,['1'],ok
-2025-03-30,1,True,Sunday,['2'],ok
-2025-03-31,2,False,Monday,"['2', '0']",ok
+2025-03-26,2,False,Wednesday,"['2', '1']",ok
+2025-03-27,2,False,Thursday,"['2', '1']",ok
+2025-03-28,2,False,Friday,"['2', '0']",ok
+2025-03-29,1,True,Saturday,['0'],ok
+2025-03-30,1,True,Sunday,['1'],ok
+2025-03-31,2,False,Monday,"['2', '1']",ok
 2025-04-01,2,False,Tuesday,"['2', '1']",ok
-2025-04-02,2,False,Wednesday,['1'],NOT ok!
+2025-04-02,2,False,Wednesday,"['1', '0']",ok
 2025-04-03,2,False,Thursday,['1'],NOT ok!
-2025-04-04,2,False,Friday,"['2', '0']",ok
-2025-04-05,1,True,Saturday,"['1', '0']",NOT ok!
+2025-04-04,2,False,Friday,['0'],NOT ok!
+2025-04-05,1,True,Saturday,['2'],ok
 2025-04-06,1,True,Sunday,['0'],ok
-2025-04-07,2,False,Monday,"['2', '0']",ok
-2025-04-08,2,False,Tuesday,"['2', '1']",ok
-2025-04-09,2,False,Wednesday,"['1', '0']",ok
-2025-04-10,2,False,Thursday,"['2', '0']",ok
-2025-04-11,2,False,Friday,"['1', '0']",ok
+2025-04-07,2,False,Monday,"['1', '0']",ok
+2025-04-08,2,False,Tuesday,['1'],NOT ok!
+2025-04-09,2,False,Wednesday,"['2', '0']",ok
+2025-04-10,2,False,Thursday,"['1', '0']",ok
+2025-04-11,2,False,Friday,"['2', '0']",ok
 2025-04-12,1,True,Saturday,['2'],ok
-2025-04-13,1,True,Sunday,['1'],ok
+2025-04-13,1,True,Sunday,['0'],ok
+2025-04-14,2,False,Monday,['0'],NOT ok!
+2025-04-15,2,False,Tuesday,['2'],NOT ok!
+2025-04-16,2,False,Wednesday,"['2', '0']",ok
+2025-04-17,2,False,Thursday,['0'],NOT ok!
+2025-04-18,1,True,Friday,['1'],ok
+2025-04-19,1,True,Saturday,['2'],ok
+2025-04-20,1,True,Sunday,['1'],ok
+2025-04-21,1,True,Monday,"['2', '1']",NOT ok!
+2025-04-22,2,False,Tuesday,"['2', '0']",ok
+2025-04-23,2,False,Wednesday,"['1', '0']",ok
+2025-04-24,2,False,Thursday,"['2', '1']",ok
+2025-04-25,2,False,Friday,"['2', '1']",ok
+2025-04-26,1,True,Saturday,['1'],ok
+2025-04-27,1,True,Sunday,['2'],ok
+2025-04-28,2,False,Monday,"['1', '0']",ok
+2025-04-29,2,False,Tuesday,"['2', '0']",ok
+2025-04-30,2,False,Wednesday,"['2', '0']",ok
+2025-05-01,1,True,Thursday,['1'],ok
+2025-05-02,2,False,Friday,['2'],NOT ok!
+2025-05-03,1,True,Saturday,['0'],ok
+2025-05-04,1,True,Sunday,"['2', '1']",NOT ok!
+2025-05-05,2,False,Monday,"['2', '1']",ok
+2025-05-06,2,False,Tuesday,['0'],NOT ok!
+2025-05-07,2,False,Wednesday,"['2', '1']",ok
+2025-05-08,2,False,Thursday,"['2', '1']",ok
+2025-05-09,2,False,Friday,"['2', '1']",ok
+2025-05-10,1,True,Saturday,['2'],ok
+2025-05-11,1,True,Sunday,['0'],ok
+2025-05-12,2,False,Monday,['1'],NOT ok!
+2025-05-13,2,False,Tuesday,"['2', '0']",ok
+2025-05-14,2,False,Wednesday,"['2', '0']",ok
+2025-05-15,2,False,Thursday,"['2', '1']",ok
+2025-05-16,2,False,Friday,"['1', '0']",ok
+2025-05-17,1,True,Saturday,['0'],ok
+2025-05-18,1,True,Sunday,['0'],ok
+2025-05-19,2,False,Monday,"['2', '1']",ok
+2025-05-20,2,False,Tuesday,['2'],NOT ok!
+2025-05-21,2,False,Wednesday,['1'],NOT ok!
+2025-05-22,2,False,Thursday,['0'],NOT ok!
+2025-05-23,2,False,Friday,['0'],NOT ok!
+2025-05-24,1,True,Saturday,['1'],ok
+2025-05-25,1,True,Sunday,['0'],ok
+2025-05-26,2,False,Monday,"['2', '1']",ok
+2025-05-27,2,False,Tuesday,['1'],NOT ok!
+2025-05-28,2,False,Wednesday,"['2', '1']",ok
+2025-05-29,1,True,Thursday,['2'],ok
+2025-05-30,2,False,Friday,"['2', '1']",ok
+2025-05-31,1,True,Saturday,['2'],ok
+2025-06-01,1,True,Sunday,['1'],ok
+2025-06-02,2,False,Monday,"['1', '0']",ok
+2025-06-03,2,False,Tuesday,"['2', '1']",ok
+2025-06-04,2,False,Wednesday,"['1', '0']",ok
+2025-06-05,2,False,Thursday,"['1', '0']",ok
+2025-06-06,1,True,Friday,['0'],ok
+2025-06-07,1,True,Saturday,['1'],ok
+2025-06-08,1,True,Sunday,"['1', '0']",NOT ok!
+2025-06-09,2,False,Monday,"['1', '0']",ok
+2025-06-10,2,False,Tuesday,['0'],NOT ok!
+2025-06-11,2,False,Wednesday,"['2', '1']",ok
+2025-06-12,2,False,Thursday,['0'],NOT ok!
+2025-06-13,2,False,Friday,['2'],NOT ok!
+2025-06-14,1,True,Saturday,['1'],ok
+2025-06-15,1,True,Sunday,['1'],ok
+2025-06-16,2,False,Monday,"['2', '0']",ok
+2025-06-17,2,False,Tuesday,"['2', '0']",ok
+2025-06-18,2,False,Wednesday,"['1', '0']",ok
+2025-06-19,2,False,Thursday,"['2', '0']",ok
+2025-06-20,1,True,Friday,['1'],ok
+2025-06-21,1,True,Saturday,['1'],ok
+2025-06-22,1,True,Sunday,"['1', '0']",NOT ok!
+2025-06-23,2,False,Monday,"['2', '0']",ok
+2025-06-24,2,False,Tuesday,"['1', '0']",ok
+2025-06-25,2,False,Wednesday,"['1', '0']",ok
+2025-06-26,2,False,Thursday,"['2', '1']",ok
+2025-06-27,2,False,Friday,"['1', '0']",ok
+2025-06-28,1,True,Saturday,['2'],ok
+2025-06-29,1,True,Sunday,['1'],ok
+2025-06-30,2,False,Monday,"['2', '0']",ok

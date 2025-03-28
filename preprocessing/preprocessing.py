@@ -144,8 +144,10 @@ def convertPreferences(empty_calendar_df, week):
         prefer_shifts = []
         if prefer_dates !='[]':
             prefer_dates = prefer_dates.strip(']').strip('[').split(',')
+
             for date in prefer_dates:
-                date = date.strip('"').strip("'")
+                date = date.strip('"').strip(' ').strip("'")
+
                 if date in included_dates:
                     for s in date_to_s[date]:
                         prefer_shifts.append(s)
@@ -156,7 +158,7 @@ def convertPreferences(empty_calendar_df, week):
         if prefer_not_dates!='[]':
             prefer_not_dates = prefer_not_dates.strip(']').strip('[').split(',') 
             for date in prefer_not_dates:
-                date = date.strip('"').strip("'")
+                date = date.strip('"').strip(' ').strip("'")
                 if date in included_dates:
                     for s in date_to_s[date]:
                         prefer_not_shifts.append(s)
@@ -167,7 +169,7 @@ def convertPreferences(empty_calendar_df, week):
         if unavailable_dates!='[]':  
             unavailable_dates = unavailable_dates.strip(']').strip('[').split(',') 
             for date in unavailable_dates:
-                date = date.strip('"').strip("'")
+                date = date.strip('"').strip(' ').strip("'")
                 if date in included_dates:
                     for s in date_to_s[date]:
                         unavailable_shifts.append(s)   
@@ -235,17 +237,42 @@ def makeObjectiveFunctions(n_demand, week, n_weeks, cl, lambdas):
                     H_unavail += H_unavail_p
 
         else: # multiple weeks --> long-term fairness
-            long_term_priority = week/n_weeks  # allow more imbalance if there are more weeks left to fix it
-            now_priority = 1-long_term_priority
+            #long_term_priority = week/n_weeks  # TODO (allow more imbalance if there are more weeks left to fix it)
+            #now_priority = 1-long_term_priority
             
             prefer = {p:physician_df.loc[p,f'prefer w{week}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
             prefer_not = {p:physician_df.loc[p,f'prefer not w{week}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
             unavailable = {p:physician_df.loc[p,f'unavailable w{week}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
-            satisfaction = {p:float(physician_df.loc[p,'satisfaction']) for p in range(n_physicians)}
 
-            for s in range(n_shifts): # TODO complete long term fairness constraint
-                pass
+            if week == 0:
+                satisfaction = np.ones(n_physicians) # ignore if reused file
+            else:
+                satisfaction = np.array([float(sat) for sat in physician_df['satisfaction']])
+                min_sat = np.min(satisfaction)
+                satisfaction = satisfaction - min_sat + 1  # shift whole column to set least satisfied = 1
+            satisfaction_rate = satisfaction/np.max(satisfaction) # TODO  use difference instead of rate so more unfairness yields more change
+            print()
+            print(satisfaction)
+            print('rates',satisfaction_rate)
+            min_prio = 0.2    # NOTE example value, minimum priority (so the most satisfied p still has some priority. First week this applies to all p)
+            max_prio = 5
+            priority = (1 - satisfaction_rate)*(max_prio-min_prio) + min_prio   # less satisfied are more important 
+            print('prios', priority)
 
+            for p in range(n_physicians):
+                priority_p = priority[p]
+
+                for s in prefer[p]:
+                    if s != '':
+                        H_fair -= priority_p * x_symbols[p][int(s)]**2  # reward prefered shifts
+
+                for s in prefer_not[p]:
+                    if s != '':
+                        H_fair += priority_p * x_symbols[p][int(s)]**2  # penalize unprefered shifts
+
+                for s in unavailable[p]:
+                    if s != '':
+                        H_unavail += x_symbols[p][int(s)]**2 # penalize assigning unavailable
 
     if cl>=4:
         # TITLES constraint

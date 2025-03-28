@@ -85,7 +85,10 @@ def preferenceHistory(result_schedule_df_w, week):
     self_weight = 1  # how much p's own preference is weighted against everyone's preferences
     satisfaction_col_w = []
     for p in range(n_physicians):
-        satisfaction_p = physician_df['satisfaction'].iloc[p]
+        if week ==0:
+            satisfaction_p = 1
+        else:
+            satisfaction_p = physician_df['satisfaction'].iloc[p]
 
         for s in prefer[p]:
             if s!='':
@@ -115,7 +118,7 @@ def preferenceHistory(result_schedule_df_w, week):
     physician_df['satisfaction'] = satisfaction_col_w
     physician_df.to_csv('data/intermediate/physician_data.csv', index=None)
 
-def controlPlot(result_df, weeks, cl): 
+def controlPlot(result_df, weeks, cl, width=10): 
     physician_df =pd.read_csv('data/intermediate/physician_data.csv',index_col=False) #TODO (change to /input/, compare specific dates?)
     n_physicians = len(physician_df)
     n_shifts = len(result_df)
@@ -128,7 +131,10 @@ def controlPlot(result_df, weeks, cl):
     result_matrix = np.zeros((n_physicians,n_shifts))
     for s in range(n_shifts):
         workers_s = result_df['staff'].iloc[s]
+        if type(workers_s) == str: # For using results saved in files
+            workers_s = workers_s.strip("[] ").split(',')
         for p in workers_s:
+            p=p.strip(" '")
             result_matrix[int(p)][s] = 1 
     
 
@@ -154,35 +160,71 @@ def controlPlot(result_df, weeks, cl):
                 if prefer_not_p != '[]':
                     prefer_not_shifts_p = prefer_not_p.strip('[').strip(']').split(',')  
                     for s in prefer_not_shifts_p:
-                        prefer_matrix[p][int(s)] = -1
+                        s_tot = int(s)+week*7
+                        prefer_matrix[p][s_tot] = -1
 
                 unavail_p = physician_df[f'unavailable w{week}'].iloc[p]
                 if unavail_p != '[]':
                     unavail_shifts_p = unavail_p.strip('[').strip(']').split(',')  
                     for s in unavail_shifts_p:
-                        prefer_matrix[p][int(s)] = -2
+                        s_tot = int(s)+week*7
+                        prefer_matrix[p][s_tot] = -2
+                
 
         #TODO add rest of constraints
-    
-        x_size = 5
-        y_size = n_physicians/n_shifts * x_size
-        plt.figure(figsize=(x_size,y_size))
+
         prefer_colors = np.where(prefer_matrix.flatten()==1,'lightgreen',prefer_matrix.flatten()) # prefer
         prefer_colors = np.where(prefer_matrix.flatten()==-1,'pink',prefer_colors) # prefer not
         prefer_colors = np.where(prefer_matrix.flatten()==0,'none',prefer_colors) # neutral
         prefer_colors = np.where(prefer_matrix.flatten()==-2,'red',prefer_colors) # unavailable
-        
-    plt.pcolor(np.arange(n_shifts+1)-0.5, np.arange(n_physicians+1)-0.5,result_matrix, 
-              cmap="Greens")
+
+        # Plot preference satisfaction
+        only_preference = np.where(prefer_matrix==-2, 0,prefer_matrix) # remove unavailable
+        only_prefer = np.where(only_preference==-1, 0,only_preference) # remove prefer not
+        only_prefer_not = -np.where(only_preference==1, 0,only_preference) # remove prefer
+
+        prefer_col = np.zeros((n_physicians,1))
+        prefer_not_col = np.zeros((n_physicians,1))
+        for p in range(n_physicians):
+
+            prefer_met = np.sum(only_prefer[p,:]*result_matrix[p,:]==1)
+            if np.sum(only_prefer[p]) !=0:
+                prefer_col[p] = prefer_met/np.sum(only_prefer[p]) # % of "prefer" that was satisfied
+            else:
+                prefer_col[p] = np.nan
+
+            prefer_not_but_worked = np.sum(only_prefer_not[p,:]*(result_matrix[p,:])==1)
+            prefer_not_was_free = np.sum(only_prefer_not[p]) - prefer_not_but_worked
+            if np.sum(only_prefer_not[p]) !=0:
+                prefer_not_col[p] = prefer_not_was_free/np.sum(only_prefer_not[p]) # % of "prefer not" that was satisfied
+            else:
+                prefer_not_col[p] = np.nan
+
+    x_size = width
+    y_size = n_physicians/n_shifts * x_size + 1
+    fig, ax = plt.subplots(figsize=(x_size,y_size))
+    result = ax.pcolor(np.arange(n_shifts+1)-0.5, np.arange(n_physicians+1)-0.5,result_matrix, cmap="Greens")
     x, y = np.meshgrid(np.arange(n_shifts), np.arange(n_physicians)) 
 
     if cl>=2:  # Preference squares
-        plt.scatter(x.ravel(), y.ravel(), s=(50*(x_size/n_shifts))**2, c='none',marker='s', linewidths=9,edgecolors=prefer_colors)
-    
-    # Shift covered row
-    plt.pcolor(np.arange(n_shifts+1)-0.5,[n_physicians-0.5,n_physicians-0.4],ok_row, cmap='RdYlGn', vmin=0,vmax=1) 
+        pref = ax.scatter(x.ravel(), y.ravel(), s=(50*(x_size/n_shifts))**2, c='none',marker='s', linewidths=9,edgecolors=prefer_colors)
+        pref_met = ax.pcolor([n_shifts-0.5,n_shifts], np.arange(n_physicians+1)-0.5, prefer_col, cmap='RdYlGn', shading='auto', vmin=0, vmax=1) 
+        pref_not_met = ax.pcolor([n_shifts,n_shifts+0.5], np.arange(n_physicians+1)-0.5, prefer_not_col, cmap='RdYlGn', shading='auto', vmin=0,vmax=1) 
+        for p in range(n_physicians):
+            pref_text = ax.text(n_shifts-0.25,p, str(int(prefer_col[p]*100)), ha="center", va="center", color="black", fontsize=8,zorder=10)
+            pref_not_text = ax.text( n_shifts+0.25,p, str(int(prefer_not_col[p]*100)), ha="center", va="center", color="black", fontsize=8, zorder=10)
 
-    plt.xticks(ticks=np.arange(n_shifts), labels=[date for date in result_df['date']])
+    # Shift covered row
+    shift = ax.pcolor(np.arange(n_shifts+1)-0.5,[n_physicians-0.5,n_physicians-0.4], ok_row, cmap='RdYlGn', vmin=0,vmax=1) 
+    
+    xticks = [i for i in np.arange(n_shifts)]+[n_shifts-0.25]+[n_shifts+0.25]
+    ax.set_xticks(ticks=xticks, labels=[date[5:] for date in result_df['date']]+['pref.\n%', 'pref.\nnot %'],fontsize=8) # NOTE removed year from ticks
     yticks = [i for i in np.arange(n_physicians)]+[n_physicians-0.4]
-    plt.yticks(ticks=yticks, labels=[phys[-1] for phys in physician_df['name']]+['OK n.o.\nworkers'])
+    ax.set_yticks(ticks=yticks, labels=[phys[-1] for phys in physician_df['name']]+['OK n.o.\nworkers'])
+    ax.spines["right"].set_linewidth(0) # remove right side of frame
+    ax.spines["top"].set_linewidth(0) 
+    plt.subplots_adjust(left=0.05, right=0.95,bottom=0.3) # Adjust padding
+
+
+    fig.savefig('data/results/schedule.png')
     plt.show()

@@ -176,7 +176,7 @@ def findBestBitstring(sampling_distribution:dict, Hc, n_candidates=20, prints=Tr
 
 
 class Qaoa:
-    def __init__(self, Hc:np.ndarray, n_layers:int, seed:bool, plots:bool, backend:str='ibm', instance:str='open'):
+    def __init__(self, week, Hc:np.ndarray, n_layers:int, seed:bool, plots:bool, backend:str='ibm', instance:str='open'):
         self.Hc = Hc
         self.n_layers = n_layers
         self.seed = seed
@@ -201,7 +201,8 @@ class Qaoa:
         else:
             self.backend = AerSimulator() 
             self.service=''
-        print('Quantum backend set to:', self.backend)
+        if week == 0:
+            print('\nQuantum backend set to:', self.backend)
     
     def findOptimalCircuit(self, estimation_iterations=2000, search_iterations=20):
         # Make initial circuit

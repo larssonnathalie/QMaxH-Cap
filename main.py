@@ -14,17 +14,14 @@ from postprocessing.postprocessing import *
     # Memorize fairness externally and make new qubo-matrix for each week to make long term fair schedules with limited n.o. qubits
         # add more factors than preference satisfaction, ex. weekend shifts, night shifts etc.
     # Simulator for finding candidate angles, compare candidates with ibm estimator
-    # How maximize fairness when workers have different percentages? 
-        # Focus on fairness of shift type/weekday/holidays?
-        # How adapt demand to extent?
-            # Soften demand-constraint so it is a minimum but more is ok? Impossible for constant Q-matrix (without slack vars)
+    # Extent: workers have different percentages? 
     # Bugfix in postprocessing, missing rows in output schedules!
     # Decide lambdas
     # (remove extent)
 
 # Parameters
 start_date = '2025-03-24' # for now this should be an [int] number of weeks
-end_date = '2025-04-13'
+end_date = '2025-06-30'
 weekday_demand = 2
 holiday_demand = 1
 n_physicians = 3
@@ -51,7 +48,7 @@ sampling_iterations = 4000
 n_candidates = 20 # compare top X most common solutions
 
 # lambdas = penalties (how hard a constraint is)
-lambdas = {'demand':5, 'fair':2, 'pref':1, 'unavail':5, 'rest':3}  # NOTE Must be integers
+lambdas = {'demand':5, 'fair':2, 'pref':1, 'unavail':8, 'rest':3}  # NOTE Must be integers
 
 # Construct empty calendar with holidays etc.
 n_weeks, total_holidays = emptyCalendar(end_date, start_date)
@@ -91,12 +88,6 @@ for week in range(n_weeks):
     n_dates = calendar_df_week.shape[0] 
     n_demand = sum(shifts_df['demand']) # sum of workers demanded on all shifts
 
-    '''print('n physicians:\t', n_physicians)
-    print('n days:\t', n_dates)
-    print('n shifts\t', n_shifts)
-    print('n variables:\t', n_physicians*n_shifts)
-    print('n layers\t', n_layers)'''
-
     if cl >=2:
         convertPreferences(calendar_df_week, week)   # Dates to shift-numbers
 
@@ -110,14 +101,14 @@ for week in range(n_weeks):
     b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
     Hc = QToHc(Q, b) 
 
-    qaoa = Qaoa(Hc, n_layers, plots=False, seed=init_seed, backend='aer', instance='premium')
+    qaoa = Qaoa(week, Hc, n_layers, plots=False, seed=init_seed, backend='aer', instance='premium')
     qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
     best_bitstring_w = qaoa.sampleSolutions(sampling_iterations, n_candidates, return_worst_solution=False)
     result_schedule_df_w = bitstringToSchedule(best_bitstring_w, calendar_df_week, n_shifts)
     full_solution.append(result_schedule_df_w)
     controled_result_df_w = controlSchedule(result_schedule_df_w, shifts_df, cl)
-    print()
-    print(controled_result_df_w)
+    #print()
+    #print(controled_result_df_w)
     #TODO check if result is ok (unavailable & demand met) rerun with more iterations if not
 
     if cl>=2:
@@ -130,14 +121,15 @@ full_schedule_df = full_solution[0]
 for w in range(1,n_weeks):
     full_schedule_df = pd.concat([full_schedule_df, full_solution[w]],axis=0)
 ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
+#ok_full_schedule_df = pd.read_csv('data/results/result_and_demand_cl2.csv') # Use saved result
 print()
-print(ok_full_schedule_df)
-controlPlot(ok_full_schedule_df, weeks=range(n_weeks), cl=cl) 
+#print(ok_full_schedule_df)
+controlPlot(ok_full_schedule_df, weeks=range(n_weeks), cl=cl, width=25) 
 
 print()
-physician_df = pd.read_csv('data/intermediate/physician_data.csv')
+physician_df = pd.read_csv('data/intermediate/physician_data.csv', index_col=None)
 physician_df_print = physician_df.drop(columns=['name', 'competence', 'extent', 'prefer', 'prefer not', 'unavailable'])
-print(physician_df_print)
+print(physician_df['satisfaction'])
 
 
 # (Evaluate & compare solution to classical methods)'''
