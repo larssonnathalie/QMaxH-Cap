@@ -14,9 +14,10 @@ def psVarNamesToI(xp_s, n_shifts): # Might not be needed
         i = int(p) * n_shifts + int(s)
         return f'x{i}'
 
-def bitstringToSchedule(bitstring:str, empty_calendar_df, n_shifts) -> pd.DataFrame:
-    staff_col = [[] for _ in range(n_shifts)] # TODO week-wise interpretation, bc bitstrings assume 7(*3) shifts
-
+def bitstringToSchedule(bitstring:str, empty_calendar_df) -> pd.DataFrame:
+    n_shifts=len(empty_calendar_df)
+    staff_col = [[] for _ in range(n_shifts)]
+    
     n_vars = len(bitstring)
     for i in range(n_vars): 
         bit = bitstring[i]
@@ -25,6 +26,7 @@ def bitstringToSchedule(bitstring:str, empty_calendar_df, n_shifts) -> pd.DataFr
             staff_col[s].append(str(p))
 
     result_schedule_df = empty_calendar_df.copy()
+
     result_schedule_df['staff'] = staff_col
     #result_schedule_df.to_csv(f'data/results/result_schedule.csv', index=False)
     return result_schedule_df
@@ -33,8 +35,9 @@ def bitstringToSchedule(bitstring:str, empty_calendar_df, n_shifts) -> pd.DataFr
 def controlSchedule(result_schedule_df, shift_data_df, cl):
     combined_df = shift_data_df.merge(result_schedule_df, on='date', how='outer')
     ok_col = []
+
     for i in range(combined_df.shape[0]):
-        if combined_df.loc[i,'demand'] == len(combined_df.loc[i,'staff']):
+        if combined_df.loc[i,'demand'] == len(combined_df['staff'].iloc[i]):
             ok_col.append('ok')
         else:
            ok_col.append('NOT ok!')
@@ -59,28 +62,11 @@ def preferenceHistory(result_schedule_df_w, week):
     unavailable = {p:physician_df.loc[p,f'unavailable w{week}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
 
     assigned_shifts = {p:[] for p in range(n_physicians)}
-
-    prefer_counts, prefer_not_counts, unavailable_counts = [],[],[]
-    for p in range(n_physicians):
-        prefer_counts += [s for s in prefer[p]]
-        prefer_not_counts += [s for s in prefer_not[p]]
-        unavailable_counts += [s for s in unavailable[p]]
-
-    # decide shift attractiveness
-    shift_attractiveness = {}
     for s in range(n_shifts):
-        n_prefer_s = prefer_counts.count(str(s))
-        n_prefer_not_s = prefer_not_counts.count(str(s))
-        n_unavailable_s = unavailable_counts.count(str(s))
-        demand_s = shift_df_w['demand'].iloc[s]
-        shift_attractiveness[s] = (n_prefer_s - n_prefer_not_s)/(demand_s+n_unavailable_s) # NOTE temporary equation
-        
         staff_s = result_schedule_df_w['staff'].iloc[s]
         for p in staff_s:
             assigned_shifts[int(p)].append(s)
         
-    #print('\n shift attr')
-    #print(shift_attractiveness)
 
     # satisfaction scores
     self_weight = 1  # how much p's own preference is weighted against everyone's preferences
@@ -95,24 +81,24 @@ def preferenceHistory(result_schedule_df_w, week):
             if s!='':
                 s=int(s)
                 if s in assigned_shifts[p]:
-                    satisfaction_p += shift_attractiveness[s] + self_weight
+                    satisfaction_p += shift_df_w['attractiveness'].iloc[s] + self_weight
                 else:
-                    satisfaction_p -= shift_attractiveness[s] + self_weight
+                    satisfaction_p -= shift_df_w['attractiveness'].iloc[s] + self_weight
 
         for s in prefer_not[p]:
             if s!='':
                 s=int(s)
                 if s in assigned_shifts[p]:
-                    satisfaction_p -= shift_attractiveness[s] + self_weight
+                    satisfaction_p -= shift_df_w['attractiveness'].iloc[s] + self_weight
                 else:
-                    satisfaction_p += shift_attractiveness[s] + self_weight
+                    satisfaction_p += shift_df_w['attractiveness'].iloc[s] + self_weight
 
         for s in unavailable[p]:
             if s!='':
                 s=int(s)
                 if s in assigned_shifts[p]:
                     print('\n Shift assigned to UNAVAILABLE physician')
-                    satisfaction_p -= shift_attractiveness[s] + self_weight*5 # TODO maybe change or make impossible
+                    satisfaction_p -= shift_df_w['attractiveness'].iloc[s] + self_weight*5 # TODO maybe change or make impossible
         
         satisfaction_col_w.append(satisfaction_p)
     print(satisfaction_col_w, 'satisfaction')

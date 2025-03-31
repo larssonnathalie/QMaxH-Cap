@@ -14,7 +14,7 @@ from postprocessing.postprocessing import *
     # Define "fairness", considering different titles have different types of work 
     # Memorize fairness externally and make new qubo-matrix for each week to make long term fair schedules with limited n.o. qubits
         # add more factors than preference satisfaction, ex. weekend shifts, night shifts etc.
-        # Handle confusion of fairness & pref
+        # Optimize w.r.t. current week, not just previous OR day-to-day opt?
     # Simulator for finding candidate angles, compare candidates with ibm estimator
     # Extent: workers have different percentages? 
     # Bugfix in postprocessing, missing rows in output schedules!
@@ -23,7 +23,7 @@ from postprocessing.postprocessing import *
 
 # Parameters
 start_date = '2025-03-24' # for now this should be an [int] number of weeks
-end_date = '2025-04-20'
+end_date = '2025-05-25'
 weekday_demand = 2
 holiday_demand = 1
 n_physicians = 3
@@ -61,8 +61,8 @@ full_solution = []
 # Generate random preferences
 #generatePhysicianData(all_dates_df, n_physicians,cl, seed=preference_seed)  # NOTE TESTING WITH NO PREFER NOT & NO UNAVAIL
 
-# Deterministic generation, used multiple times for now
-generateShiftData(all_dates_df, 'all', cl, weekday_workers=weekday_demand, holiday_workers=holiday_demand, prints=False)
+# Demand & attractiveness for each shift
+generateShiftData(all_dates_df, n_weeks, cl, weekday_workers=weekday_demand, holiday_workers=holiday_demand)
 
 print()
 print(complexity_levels[cl])
@@ -79,11 +79,9 @@ print(f'comparing top {n_candidates} most common solutions')
 
 for week in range(n_weeks):
     #empty_calendar_df_week = pd.read_csv(f'data/intermediate/empty_calendar_week{week}.csv')
-    calendar_df_week = all_dates_df.iloc[week*7:(week+1)*7]
+    calendar_df_week = all_dates_df.iloc[week*7: min((week+1)*7, len(all_dates_df))]
 
     print('\nWEEK:\t', week)
-    # Automatically generate 'shift_data.csv'
-    generateShiftData(calendar_df_week, week, cl, weekday_workers=weekday_demand, holiday_workers=holiday_demand, prints=False)
 
     shifts_df = pd.read_csv(f'data/intermediate/shift_data_w{week}.csv')
     n_shifts = len(shifts_df)
@@ -106,11 +104,10 @@ for week in range(n_weeks):
     qaoa = Qaoa(week, Hc, n_layers, plots=False, seed=init_seed, backend='aer', instance='premium')
     qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
     best_bitstring_w = qaoa.sampleSolutions(sampling_iterations, n_candidates, return_worst_solution=False)
-    result_schedule_df_w = bitstringToSchedule(best_bitstring_w, calendar_df_week, n_shifts)
+
+    result_schedule_df_w = bitstringToSchedule(best_bitstring_w, calendar_df_week)
     full_solution.append(result_schedule_df_w)
     controled_result_df_w = controlSchedule(result_schedule_df_w, shifts_df, cl)
-    #print()
-    #print(controled_result_df_w)
     #TODO check if result is ok (unavailable & demand met) rerun until ok if not
 
     if cl>=2:
@@ -124,19 +121,16 @@ for w in range(1,n_weeks):
     full_schedule_df = pd.concat([full_schedule_df, full_solution[w]],axis=0)
 ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
 #ok_full_schedule_df = pd.read_csv('data/results/result_and_demand_cl2.csv') # Use saved result
-
-#print(ok_full_schedule_df)
 controlPlot(ok_full_schedule_df, weeks=range(n_weeks), cl=cl, width=20) 
 
-#physician_df = pd.read_csv('data/intermediate/physician_data.csv', index_col=None)
-#physician_df_print = physician_df.drop(columns=['name', 'competence', 'extent', 'prefer', 'prefer not', 'unavailable'])
-#print('\nFinal satisfactions:')
-#print(physician_df['satisfaction'])
 satisfaction_plot = np.array(satisfaction_plot)
 plt.figure()
+plt.title('Preference satisfaction per week')
 for p in range(n_physicians):
     plt.plot(satisfaction_plot[:,p], label=str(p))
 plt.legend()
 plt.show()
+
+
 # (Evaluate & compare solution to classical methods)'''
 

@@ -86,20 +86,49 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True):
 
 # Automatically generate "shift_data.csv"
 # following repeating demand rules based on weekdays/holidays
-def generateShiftData(empty_calendar, week, cl, weekday_workers=2, holiday_workers=1, prints=True):
+def generateShiftData(empty_calendar, n_weeks, cl, weekday_workers=2, holiday_workers=1):
     if cl<3:
-        if week == 'all':
-            demand_col = [holiday_workers + int(empty_calendar.loc[i,'is_holiday']==False)*(weekday_workers-holiday_workers) for i in range(len(empty_calendar))]          
+        physician_df= pd.read_csv(f'data/intermediate/physician_data.csv')
+        n_physicians = len(physician_df)
+        n_shifts = len(empty_calendar) # since cl < 3
 
-        else:   
-            idx_range = empty_calendar.index.to_list() 
-            demand_col = [holiday_workers + int(empty_calendar.loc[i,'is_holiday']==False)*(weekday_workers-holiday_workers) for i in idx_range]          
+        # Generate demand
+        demand_col = [holiday_workers + int(empty_calendar.loc[i,'is_holiday']==False)*(weekday_workers-holiday_workers) for i in range(len(empty_calendar))]          
+        attractiveness_col = np.zeros(n_shifts)
         
-        shift_data_df = pd.DataFrame({'date':empty_calendar['date'], 'demand': demand_col})
+        # Generate shift attractiveness 
+        if cl >=2: # NOTE can be made more effective
+            prefer = {p:physician_df.loc[p,'prefer'].strip('[').strip(']').split(',') for p in range(n_physicians)} 
+            prefer_not = {p:physician_df.loc[p,'prefer not'].strip('[]').split(',') for p in range(n_physicians)}
+            unavailable = {p:physician_df.loc[p,'unavailable'].strip('[').strip(']').split(',') for p in range(n_physicians)}
+
+            prefer_counts, prefer_not_counts, unavailable_counts = [],[],[] 
+            for p in range(n_physicians):
+                prefer_counts += [s.strip(" '") for s in prefer[p]]
+                prefer_not_counts += [s.strip(" '") for s in prefer_not[p]]
+                unavailable_counts += [s.strip(" '") for s in unavailable[p]]
+
+            attractiveness_col = np.zeros(n_shifts)
+            for s, date in enumerate(empty_calendar['date']):
+                n_prefer_s = prefer_counts.count(date)
+                n_prefer_not_s = prefer_not_counts.count(date)
+                n_unavailable_s = unavailable_counts.count(date)
+                attractiveness_col[s] = (n_prefer_s - n_prefer_not_s)/(demand_col[s]+n_unavailable_s) # NOTE temporary equation
+        
+        # Shift_data for all weeks
+        shift_data_df = pd.DataFrame({'date':empty_calendar['date'], 'demand': demand_col, 'attractiveness':attractiveness_col})
+        shift_data_df.to_csv('data/intermediate/shift_data_all_w.csv', index=False)
+
+        # One file per week
+        for week in range(n_weeks):
+            start_idx,stop_idx = week*7, min((week+1)*7, len(shift_data_df))
+            shift_data_df_w = shift_data_df.iloc[start_idx:stop_idx]
+            shift_data_df_w.to_csv(f'data/intermediate/shift_data_w{week}.csv', index=False)
 
     elif cl>=3:
         # SHIFT TYPES
-        date_col = [] #TODO adapt to weekwise
+        print('\nShift attractiveness not implemented for cl>2!!!\n') # TODO shift attractiveness for 3-shift
+        date_col = [] #TODO adapt to weekwise 
         shift_type_col=[]
         demand_col = []
         demands = {('dag', False):2, ('kväll',False):2, ('natt',False):2,('dag',True):1, ('kväll',True):1, ('natt',True):1} #TODO decide values
@@ -112,12 +141,9 @@ def generateShiftData(empty_calendar, week, cl, weekday_workers=2, holiday_worke
                 shift_type_col.append(shift_type)
                 demand = demands[(shift_type, is_holiday_i)]
                 demand_col.append(demand)
+
         shift_data_df = pd.DataFrame({'date':date_col, 'shift type':shift_type_col, 'demand': demand_col})
     
-    if week =='all':
-        shift_data_df.to_csv(f'data/intermediate/shift_data_all_w.csv', index=False)
-    else:
-        shift_data_df.to_csv(f'data/intermediate/shift_data_w{week}.csv', index=False)
 
 # Convert preferences from dates to shift numbers
 def convertPreferences(empty_calendar_df, week):
@@ -237,27 +263,14 @@ def makeObjectiveFunctions(n_demand, week, n_weeks, cl, lambdas):
                     H_unavail += H_unavail_p
 
         else: # multiple weeks --> long-term fairness
-            equality_priority = week/n_weeks  # Allow more imbalance if there are more weeks left to fix it
-            optimize_priority = 1-equality_priority
-            min_prio = optimize_priority  # minimum priority (so the most satisfied p still has some priority. First week this applies to all p)
+            equality_priority = week/n_weeks        # Last weeks: prioritize fairness
+            optimize_priority = 1-equality_priority # First weeks: optimize overall satisfaction
+            min_prio = 0.08 *optimize_priority        # so the most satisfied p still has some priority. (First week this applies to all p)
 
             prefer = {p:physician_df.loc[p,f'prefer w{week}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
             prefer_not = {p:physician_df.loc[p,f'prefer not w{week}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
             unavailable = {p:physician_df.loc[p,f'unavailable w{week}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
 
-            # LINEAR DIFFERENCE
-            '''if week == 0:
-                satisfaction = np.zeros(n_physicians) 
-            else:
-                satisfaction = np.array([float(sat) for sat in physician_df['satisfaction']])
-            print(satisfaction, 'satisfaction')
-            max_prio = 10  # NOTE example value, maximum priority (so preference objective don't exceed hard constraints)
-            min_prio = 1    # NOTE example value, minimum priority (so the most satisfied p still has some priority. First week this applies to all p)
-            priority = (np.max(satisfaction) - satisfaction) + min_prio   # less satisfied are more important 
-            priority = np.where(priority>max_prio, max_prio, priority)  # apply max-value for priority
-            print(priority, 'prios')'''
-
-            # RATES
             if week == 0:
                 satisfaction = np.ones(n_physicians) # ignore old values if we reuse file
             else:
@@ -326,7 +339,9 @@ def objectivesToQubo(all_hamiltonians, n_shifts, x_symbols, cl, mirror=True):
                 #print('=0',term.as_powers_dict()) 
                 #print(var)
                 var = list(term_powers.keys())[1] # TODO better solution
-            idx = x_list.index(var) #TODO remove index
+            elif str(var)[-3:] == '**2':
+                var = var[:-3]
+            idx = x_list.index(var) #TODO better solution
             Q[idx, idx] += coeff  
 
         elif len(variables) == 2: # Quadratic terms
