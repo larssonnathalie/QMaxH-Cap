@@ -39,8 +39,7 @@ def QToHc(Q, b):
         # cᵢⱼ = Qᵢⱼ/4
 
     n_vars = Q.shape[0]
-    print()
-    print('n vars:\t\t',n_vars)
+    #print('n vars:\t\t',n_vars)
     pauli_list = []
 
     # Upper half
@@ -158,7 +157,7 @@ def costOfBitstring(bitstring:str, Hc:SparsePauliOp):
         cost += coeff * term_value
     return cost
 
-def findBestBitstring(sampling_distribution:dict, Hc, n_candidates=20, prints=True, worst_solution=False):
+def findBestBitstring(sampling_distribution:dict, Hc, n_candidates=20, prints=False, worst_solution=False): # No prints temporary
     reverse = (worst_solution==False)
     sorted_distribution = dict(sorted(sampling_distribution.items(), key=lambda item:item[1], reverse=reverse)) #NOTE sorting might be memory expensive
     frequent_bitstrings = list(sorted_distribution.keys())[:n_candidates]
@@ -218,5 +217,5 @@ class Qaoa:
     
     def sampleSolutions(self, sampling_iterations=4000, n_candidates=20, return_worst_solution=False):
         sampling_distribution = sampleSolutions(self.optimized_circuit, self.backend, sampling_iterations, plots=self.plots)
-        best_bitstring = findBestBitstring(sampling_distribution, self.Hc, n_candidates, prints=True, worst_solution=return_worst_solution)
+        best_bitstring = findBestBitstring(sampling_distribution, self.Hc, n_candidates, worst_solution=return_worst_solution)
         return best_bitstring

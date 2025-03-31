@@ -44,6 +44,7 @@ def controlSchedule(result_schedule_df, shift_data_df, cl):
 
     return combined_df
 
+satisfaction_plot = []
 def preferenceHistory(result_schedule_df_w, week):
     # Memorize preference satisfaction to ensure fairness
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
@@ -86,7 +87,7 @@ def preferenceHistory(result_schedule_df_w, week):
     satisfaction_col_w = []
     for p in range(n_physicians):
         if week ==0:
-            satisfaction_p = 1
+            satisfaction_p = 0
         else:
             satisfaction_p = physician_df['satisfaction'].iloc[p]
 
@@ -114,19 +115,23 @@ def preferenceHistory(result_schedule_df_w, week):
                     satisfaction_p -= shift_attractiveness[s] + self_weight*5 # TODO maybe change or make impossible
         
         satisfaction_col_w.append(satisfaction_p)
+    print(satisfaction_col_w, 'satisfaction')
+    satisfaction_plot.append(satisfaction_col_w) # NOTE global list
+
 
     physician_df['satisfaction'] = satisfaction_col_w
     physician_df.to_csv('data/intermediate/physician_data.csv', index=None)
 
 def controlPlot(result_df, weeks, cl, width=10): 
-    physician_df =pd.read_csv('data/intermediate/physician_data.csv',index_col=False) #TODO (change to /input/, compare specific dates?)
+    physician_df =pd.read_csv('data/intermediate/physician_data.csv', index_col=False) #TODO (change to /input/, compare specific dates?)
     n_physicians = len(physician_df)
     n_shifts = len(result_df)
+
+
     shifts_per_week = 7
     if cl>=3:
         shifts_per_week = 21
         print('\ncontrolPlot() assuming 21 shifts per week')
-
 
     result_matrix = np.zeros((n_physicians,n_shifts))
     for s in range(n_shifts):
@@ -183,22 +188,35 @@ def controlPlot(result_df, weeks, cl, width=10):
         only_prefer = np.where(only_preference==-1, 0,only_preference) # remove prefer not
         only_prefer_not = -np.where(only_preference==1, 0,only_preference) # remove prefer
 
-        prefer_col = np.zeros((n_physicians,1))
-        prefer_not_col = np.zeros((n_physicians,1))
+        prefer_satisfy_rate = np.zeros((n_physicians,1))
+        prefer_not_satisfy_rate = np.zeros((n_physicians,1))
+
         for p in range(n_physicians):
 
             prefer_met = np.sum(only_prefer[p,:]*result_matrix[p,:]==1)
             if np.sum(only_prefer[p]) !=0:
-                prefer_col[p] = prefer_met/np.sum(only_prefer[p]) # % of "prefer" that was satisfied
+                prefer_satisfy_rate[p] = prefer_met/np.sum(only_prefer[p]) # % of "prefer" that was satisfied
             else:
-                prefer_col[p] = np.nan
+                prefer_satisfy_rate[p] = 0#np.nan 
 
             prefer_not_but_worked = np.sum(only_prefer_not[p,:]*(result_matrix[p,:])==1)
             prefer_not_was_free = np.sum(only_prefer_not[p]) - prefer_not_but_worked
             if np.sum(only_prefer_not[p]) !=0:
-                prefer_not_col[p] = prefer_not_was_free/np.sum(only_prefer_not[p]) # % of "prefer not" that was satisfied
+                prefer_not_satisfy_rate[p] = prefer_not_was_free/np.sum(only_prefer_not[p]) # % of "prefer not" that was satisfied
             else:
-                prefer_not_col[p] = np.nan
+                prefer_not_satisfy_rate[p] = 0#np.nan
+        
+        # Save preference rates
+        preference_stats_df = physician_df.copy()
+        preference_stats_df['# prefered not'] = np.sum(only_prefer_not, axis=1)
+        #preference_stats_df['len pref not'] = len(preference_stats_df['prefer not'])
+        preference_stats_df['% prefered not'] = prefer_not_satisfy_rate
+        preference_stats_df['# prefered'] = np.sum(only_prefer, axis=1)
+        #preference_stats_df['len pref'] = len(preference_stats_df['prefer'].split(','))
+        preference_stats_df['% prefered'] = prefer_satisfy_rate
+        preference_stats_df = preference_stats_df[['name', 'title', '# prefered', '% prefered', '# prefered not', '% prefered not']]
+        print(preference_stats_df)
+        preference_stats_df.to_csv('data/results/preference_stats_df.csv')
 
     x_size = width
     y_size = n_physicians/n_shifts * x_size + 1
@@ -207,12 +225,19 @@ def controlPlot(result_df, weeks, cl, width=10):
     x, y = np.meshgrid(np.arange(n_shifts), np.arange(n_physicians)) 
 
     if cl>=2:  # Preference squares
-        pref = ax.scatter(x.ravel(), y.ravel(), s=(50*(x_size/n_shifts))**2, c='none',marker='s', linewidths=9,edgecolors=prefer_colors)
-        pref_met = ax.pcolor([n_shifts-0.5,n_shifts], np.arange(n_physicians+1)-0.5, prefer_col, cmap='RdYlGn', shading='auto', vmin=0, vmax=1) 
-        pref_not_met = ax.pcolor([n_shifts,n_shifts+0.5], np.arange(n_physicians+1)-0.5, prefer_not_col, cmap='RdYlGn', shading='auto', vmin=0,vmax=1) 
+        pref = ax.scatter(x.ravel(), y.ravel(), s=(50*(x_size/n_shifts))**2, c='none',marker='s', linewidths=9, edgecolors=prefer_colors)
+        pref_met = ax.pcolor([n_shifts-0.5,n_shifts], np.arange(n_physicians+1)-0.5, prefer_satisfy_rate, cmap='RdYlGn', shading='auto', vmin=0, vmax=1) 
+        pref_not_met = ax.pcolor([n_shifts,n_shifts+0.5], np.arange(n_physicians+1)-0.5, prefer_not_satisfy_rate, cmap='RdYlGn', shading='auto', vmin=0,vmax=1) 
+        #sat = ax.pcolor([n_shifts+0.5,n_shifts+1], np.arange(n_physicians+1)-0.5, physician_df['satisfaction'], cmap='RdYlGn') #vmin=?,vmax=?) 
+
+        #prefer_satisfy_rate = np.where(prefer_satisfy_rate ==np.NaN, 0, prefer_satisfy_rate) # tried rate = NaN if no preferences, instead of 0%, got error
+        #prefer_not_satisfy_rate = np.where(prefer_not_satisfy_rate==np.NaN, 0, prefer_not_satisfy_rate)
         for p in range(n_physicians):
-            pref_text = ax.text(n_shifts-0.25,p, str(int(prefer_col[p]*100)), ha="center", va="center", color="black", fontsize=8,zorder=10)
-            pref_not_text = ax.text( n_shifts+0.25,p, str(int(prefer_not_col[p]*100)), ha="center", va="center", color="black", fontsize=8, zorder=10)
+            #print(prefer_satisfy_rate[p][0]*100)
+            #print(prefer_not_satisfy_rate[p][0]*100)
+            pref_text = ax.text(n_shifts-0.25,p, str(int(prefer_satisfy_rate[p][0]*100)), ha="center", va="center", color="black", fontsize=8,zorder=10)
+            pref_not_text = ax.text( n_shifts+0.25,p, str(int(prefer_not_satisfy_rate[p][0]*100)), ha="center", va="center", color="black", fontsize=8, zorder=10)
+            #sat_text = ax.text( n_shifts+0.75,p, str(physician_df['satisfaction'].iloc[p]), ha="center", va="center", color="black", fontsize=8, zorder=10)
 
     # Shift covered row
     shift = ax.pcolor(np.arange(n_shifts+1)-0.5,[n_physicians-0.5,n_physicians-0.4], ok_row, cmap='RdYlGn', vmin=0,vmax=1) 

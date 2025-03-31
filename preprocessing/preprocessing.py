@@ -155,24 +155,24 @@ def convertPreferences(empty_calendar_df, week):
 
         prefer_not_dates = physician_df.loc[p,'prefer not']
         prefer_not_shifts =[]
-        if prefer_not_dates!='[]':
+        '''if prefer_not_dates!='[]':
             prefer_not_dates = prefer_not_dates.strip(']').strip('[').split(',') 
             for date in prefer_not_dates:
                 date = date.strip('"').strip(' ').strip("'")
                 if date in included_dates:
                     for s in date_to_s[date]:
-                        prefer_not_shifts.append(s)
+                        prefer_not_shifts.append(s)''' #NOTE TESTING
         prefer_not_shifts_col[p]= prefer_not_shifts 
         
         unavailable_dates = physician_df.loc[p,'unavailable']
         unavailable_shifts =[]
-        if unavailable_dates!='[]':  
+        '''if unavailable_dates!='[]':  
             unavailable_dates = unavailable_dates.strip(']').strip('[').split(',') 
             for date in unavailable_dates:
                 date = date.strip('"').strip(' ').strip("'")
                 if date in included_dates:
                     for s in date_to_s[date]:
-                        unavailable_shifts.append(s)   
+                        unavailable_shifts.append(s)  ''' #NOTE TESTING
         unavailable_shifts_col[p]= unavailable_shifts 
 
     physician_df[f'prefer w{week}'] = prefer_shifts_col
@@ -237,27 +237,38 @@ def makeObjectiveFunctions(n_demand, week, n_weeks, cl, lambdas):
                     H_unavail += H_unavail_p
 
         else: # multiple weeks --> long-term fairness
-            #long_term_priority = week/n_weeks  # TODO (allow more imbalance if there are more weeks left to fix it)
-            #now_priority = 1-long_term_priority
-            
+            equality_priority = week/n_weeks  # Allow more imbalance if there are more weeks left to fix it
+            optimize_priority = 1-equality_priority
+            min_prio = optimize_priority  # minimum priority (so the most satisfied p still has some priority. First week this applies to all p)
+
             prefer = {p:physician_df.loc[p,f'prefer w{week}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
             prefer_not = {p:physician_df.loc[p,f'prefer not w{week}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
             unavailable = {p:physician_df.loc[p,f'unavailable w{week}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
 
+            # LINEAR DIFFERENCE
+            '''if week == 0:
+                satisfaction = np.zeros(n_physicians) 
+            else:
+                satisfaction = np.array([float(sat) for sat in physician_df['satisfaction']])
+            print(satisfaction, 'satisfaction')
+            max_prio = 10  # NOTE example value, maximum priority (so preference objective don't exceed hard constraints)
+            min_prio = 1    # NOTE example value, minimum priority (so the most satisfied p still has some priority. First week this applies to all p)
+            priority = (np.max(satisfaction) - satisfaction) + min_prio   # less satisfied are more important 
+            priority = np.where(priority>max_prio, max_prio, priority)  # apply max-value for priority
+            print(priority, 'prios')'''
+
+            # RATES
             if week == 0:
-                satisfaction = np.ones(n_physicians) # ignore if reused file
+                satisfaction = np.ones(n_physicians) # ignore old values if we reuse file
             else:
                 satisfaction = np.array([float(sat) for sat in physician_df['satisfaction']])
                 min_sat = np.min(satisfaction)
-                satisfaction = satisfaction - min_sat + 1  # shift whole column to set least satisfied = 1
-            satisfaction_rate = satisfaction/np.max(satisfaction) # TODO  use difference instead of rate so more unfairness yields more change
-            print()
-            print(satisfaction)
-            print('rates',satisfaction_rate)
-            min_prio = 0.2    # NOTE example value, minimum priority (so the most satisfied p still has some priority. First week this applies to all p)
-            max_prio = 5
-            priority = (1 - satisfaction_rate)*(max_prio-min_prio) + min_prio   # less satisfied are more important 
-            print('prios', priority)
+                satisfaction = satisfaction - min_sat   # shift whole column to set least satisfied = 0
+            satisfaction_rate = satisfaction/np.max(satisfaction) 
+            print(satisfaction_rate,'\trates')
+            #priority = (1 - satisfaction_rate)*(1-min_prio) + min_prio   # less satisfied are more important 
+            priority = np.where((1 - satisfaction_rate)>min_prio, (1 - satisfaction_rate), min_prio)   # less satisfied are more important & apply min_prio
+            print(priority, '\tprios')
 
             for p in range(n_physicians):
                 priority_p = priority[p]
@@ -265,10 +276,12 @@ def makeObjectiveFunctions(n_demand, week, n_weeks, cl, lambdas):
                 for s in prefer[p]:
                     if s != '':
                         H_fair -= priority_p * x_symbols[p][int(s)]**2  # reward prefered shifts
+                        #print(p, 'prefered', s, 'has priority', priority_p)
 
                 for s in prefer_not[p]:
                     if s != '':
                         H_fair += priority_p * x_symbols[p][int(s)]**2  # penalize unprefered shifts
+                        #print(p, 'prefered not', s, 'has priority', priority_p)
 
                 for s in unavailable[p]:
                     if s != '':
@@ -285,6 +298,10 @@ def makeObjectiveFunctions(n_demand, week, n_weeks, cl, lambdas):
         workers_s = sum(x_symbols[p][s] for p in range(n_physicians))   
         H_meet_demand_s = (workers_s-sp.Integer(demand_s))**2 
         H_meet_demand += H_meet_demand_s
+    
+    
+    #print('H demand:', sp.expand(sp.simplify(H_meet_demand*lambdas['demand']))) # Lambdas are 0-symmetric (can be negative)
+    #print('\nH fair:',sp.expand(sp.simplify(H_fair*lambdas['fair'])))
 
     # Combine all to one single H
     # H = λ₁H_fair + λ₂H_pref + λ₃H_meetDemand + ...
