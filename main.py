@@ -7,23 +7,19 @@ from postprocessing.postprocessing import *
     # Handle titles & assignments
         # might need even shorter periods than week
         # "chef" title has special constraints & not included in fairness
-    # n_weeks --> T,    w -> t
-    # Fix ibm sampler
     # Merge branches
     # Reduce Qubits: Work-type in constraints similar to long term fairness, OR: remove side-task work-types
     # Define "fairness", considering different titles have different types of work 
-    # Memorize fairness externally and make new qubo-matrix for each week to make long term fair schedules with limited n.o. qubits
         # add more factors than preference satisfaction, ex. weekend shifts, night shifts etc
         # Optimize w.r.t. current week, not just previous OR day-to-day opt?
     # Simulator for finding candidate angles, compare candidates with ibm estimator
-    # Extent: workers have different percentages 
+    # Extent for t!= week
     # Decide lambdas
-    # Demand for 3-shift
+    # Custom demand for 3-shift
     # cl1 compatibility
     # dont assign unavailable
     # Extent --> target over time
     # shift type preferences
-    # (remove extent)
 
 # Parameters
 start_date = '2025-03-24' # for now this should be an [int] number of weeks
@@ -40,12 +36,12 @@ cl_contents = ['',
 'cl5: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles, side_tasks',
 'cl6: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles, side_tasks, competence']
 
-skip_unavailable_and_prefer_not = True
+skip_unavailable_and_prefer_not = True 
 prints = True
 plots = True
 classical = False
 draw_circuit = False
-preference_seed = False
+preference_seed = True
 init_seed = False
 
 time_period = 'day'
@@ -56,7 +52,7 @@ sampling_iterations = 4000
 n_candidates = 20 # compare top X most common solutions
 
 # lambdas = penalties (how hard a constraint is)
-lambdas = {'demand':10, 'fair':1, 'pref':1, 'unavail':1, 'extent':10, 'rest':5}  # NOTE Must be integers
+lambdas = {'demand':20, 'fair':0, 'pref':0, 'unavail':0, 'extent':0, 'rest':0}  # NOTE Must be integers
 
 # Construct empty calendar with holidays etc.
 T, total_holidays, n_days = emptyCalendar(end_date, start_date, cl, time_period=time_period)
@@ -65,7 +61,7 @@ all_dates_df = pd.read_csv(f'data/intermediate/empty_calendar.csv',index_col=Non
 full_solution = []
 
 # Generate random preferences
-generatePhysicianData(all_dates_df, n_physicians,cl, seed=preference_seed)  # NOTE TESTING WITH NO PREFER NOT & NO UNAVAIL
+generatePhysicianData(all_dates_df, n_physicians,cl, seed=preference_seed)  
 
 # Demand & attractiveness for each shift
 generateShiftData(all_dates_df, T, cl, weekday_workers=weekday_demand, holiday_workers=holiday_demand, time_period=time_period)
@@ -86,7 +82,6 @@ print('\tInitialization\t', init_seed)
 print()
 print('search iterations:', search_iterations)
 print(f'comparing top {n_candidates} most common solutions')
-
 
 for t in range(T):
     #empty_calendar_df_t = pd.read_csv(f'data/intermediate/empty_calendar_t{t}.csv')
@@ -124,7 +119,7 @@ for t in range(T):
     print(controled_result_df_t)
 
     if cl>=2:
-        preferenceHistory(controled_result_df_t, t)
+        recordHistory(controled_result_df_t, t,cl, time_period)
     
 
 all_shifts_df = pd.read_csv('data/intermediate/shift_data_all_t.csv', index_col=None)
@@ -134,7 +129,7 @@ for w in range(1,T):
     full_schedule_df = pd.concat([full_schedule_df, full_solution[w]],axis=0)
 ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
 #ok_full_schedule_df = pd.read_csv('data/results/result_and_demand_cl2.csv') # Use saved result
-controlPlot(ok_full_schedule_df, range(T), cl, time_period, width=4) 
+controlPlot(ok_full_schedule_df, range(T), cl, time_period, width=8) 
 
 satisfaction_plot = np.array(satisfaction_plot)
 plt.figure()

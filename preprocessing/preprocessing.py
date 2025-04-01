@@ -4,7 +4,7 @@ import sympy as sp
 import holidays
 from datetime import datetime
 from qaoa.converters import *
-from qiskit_algorithms.optimizers import COBYLA
+#from qiskit_algorithms.optimizers import COBYLA
 
 # EMPTY CALENDAR with weekdays & holidays
 def emptyCalendar(end_date, start_date, cl, time_period):
@@ -61,13 +61,15 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True):
     unavail_col = [[] for _ in range(n_physicians)]
     title_col = [] 
     competence_col = []
+    worked_shifts_col = [0 for _ in range(n_physicians)] 
+    work_rate_col = [0 for _ in range(n_physicians)] 
     satisfaction_col = [0 for _ in range(n_physicians)] # maybe change initial scores
 
     if seed:
         np.random.seed(56)
     
     for p in range(n_physicians):
-        remaining_dates_p = list(all_dates)
+        remaining_dates_p = list(set(list(all_dates)))
         name_col.append(f'physician{p}')
         extent_col.append(np.random.choice(possible_extents))
         competence_col.append(np.random.choice(possible_competences))
@@ -81,16 +83,19 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True):
             for s in prefer_not_p:
                 remaining_dates_p.remove(s)
 
-            size = np.random.randint(0, len(remaining_dates_p)//2)
-            prefer_p = np.random.choice(remaining_dates_p, size=size, replace=False)
-            prefer_col[p]=list(prefer_p)
-            for s in prefer_p:
-                remaining_dates_p.remove(s)
+            if len(remaining_dates_p)>0:
+                size = np.random.randint(0, len(remaining_dates_p))#//2)
+                prefer_p = np.random.choice(remaining_dates_p, size=size, replace=False)
+                prefer_col[p]=list(prefer_p)
+                for s in prefer_p:
+                    remaining_dates_p.remove(s)
 
-            unavail_p = np.random.choice(remaining_dates_p, size=np.random.randint(0, len(remaining_dates_p)//2), replace=False)
-            unavail_col[p] = list(unavail_p)
+            if len(remaining_dates_p)>0:
+                size=np.random.randint(0, len(remaining_dates_p))#//2)
+                unavail_p = np.random.choice(remaining_dates_p, size=size, replace=False)
+                unavail_col[p] = list(unavail_p)
 
-    physician_data_df = pd.DataFrame({'name':name_col, 'title':title_col, 'competence':competence_col, 'extent': extent_col, 'prefer':prefer_col, 'prefer not':prefer_not_col, 'unavailable':unavail_col, 'satisfaction':satisfaction_col})
+    physician_data_df = pd.DataFrame({'name':name_col, 'title':title_col, 'competence':competence_col, 'extent': extent_col, 'shifts worked':worked_shifts_col, 'work rate':work_rate_col, 'prefer':prefer_col, 'prefer not':prefer_not_col, 'unavailable':unavail_col, 'satisfaction':satisfaction_col})
     physician_data_df.to_csv('data/intermediate/physician_data.csv', index=None)
 
 # SHIFT DEMAND & ATTRACTIVENESS
@@ -156,13 +161,11 @@ def convertPreferences(empty_calendar_df, t, only_prefer=False):
     date_to_s={}
     for s in range(n_shifts):
         date = shifts_df.loc[s,'date']
-        print(date, type(date))
         if date in date_to_s.keys():
             date_to_s[date].append(s)
         else:
             date_to_s[date] = [s]
     included_dates = list(shifts_df['date'])#list(empty_calendar_df['date'])
-    print(included_dates)
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv') 
     n_physicians = physician_df.shape[0]
 
@@ -308,37 +311,36 @@ def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period):
                         H_unavail += x_symbols[p][int(s)]**2 # penalize assigning unavailable
         
         # EXTENT
-        if time_period =='week':
-            shifts_per_week = {25: 1.25, 50:2.5, 75:3.75, 100:5} #TODO long term rules
-            
-            for p in range(n_physicians):
-                extent_p = physician_df['extent'].iloc[p]
-                n_shifts_target_p = shifts_per_week[extent_p]
-                shifts_p = sum(x_symbols[p][s] for s in range(n_shifts))   
-                H_extent_p = (shifts_p - n_shifts_target_p)**2   
-                H_extent += H_extent_p
-        else:
-            print('\n WARNING IN MAKEOBJECTIVES(): Extent not implemented for t != week\n')
+        for p in range(n_physicians):
+            work_rate_p = physician_df['work rate'].iloc[p]
+            priority_p = 1-float(work_rate_p) # Reward shift assignment to p:s who have low work rate
+            for s in range(n_shifts):
+                H_extent -= priority_p * x_symbols[p][s]**2
 
         if cl>=4:
             # TITLES constraint
             pass
 
-    # Constraint: Meet DEMAND
+    # DEMAND
     # ∑s=1 (demanded – (∑p=1  x_ps))^2
     for s in range(n_shifts): 
+        
         demand_s = shifts_df['demand'].iloc[s]
         workers_s = sum(x_symbols[p][s] for p in range(n_physicians))   
         H_meet_demand_s = (workers_s-sp.Integer(demand_s))**2 
         H_meet_demand += H_meet_demand_s
     
-    
-    #print('H demand:', sp.expand(sp.simplify(H_meet_demand*lambdas['demand']))) # Lambdas are 0-symmetric (can be negative)
-    #print('\nH fair:',sp.expand(sp.simplify(H_fair*lambdas['fair'])))
+    H_fair = sp.expand(H_fair)
+    H_extent = sp.expand(H_extent)
+    H_meet_demand = sp.expand(H_meet_demand)
+    H_pref = sp.expand(H_pref)
+    H_unavail = sp.expand(H_unavail)
+    #print('H demand:', sp.simplify(H_meet_demand*lambdas['demand']))) # Lambdas are 0-symmetric (can be negative)
+    #print('\nH fair:', sp.simplify(H_fair*lambdas['fair'])))
 
     # Combine all to one single H
     # H = λ₁H_fair + λ₂H_pref + λ₃H_meetDemand + ...
-    all_hamiltonians = sp.nsimplify(sp.expand(H_meet_demand*lambdas['demand'] + H_fair*lambdas['fair'] + H_pref*lambdas['pref'] + H_unavail*lambdas['unavail']))#, #H_extent*lambdas['extent']))
+    all_hamiltonians = sp.nsimplify(sp.expand(H_meet_demand*lambdas['demand'] + H_fair*lambdas['fair'] + H_pref*lambdas['pref'] + H_unavail*lambdas['unavail'] + H_extent*lambdas['extent']))
     return all_hamiltonians, x_symbols
 
 def objectivesToQubo(all_hamiltonians, n_shifts, x_symbols, cl, mirror=True):

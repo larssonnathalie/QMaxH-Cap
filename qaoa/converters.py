@@ -46,6 +46,16 @@ def getShiftsPerT(time_period:str, cl:int) -> int:
         shifts_per_t=1 
     return shifts_per_t
 
+def percentOfShifts(percentage, cl):
+    # assuming shifts are 8~hrs
+    shifts_per_week = 7
+    if cl>=3:
+        shifts_per_week = 3*7
+
+    target_percent_of_shifts = {25: 1.25/shifts_per_week, 50:2.5/shifts_per_week, 75:3.75/shifts_per_week, 100:5/shifts_per_week} 
+    return target_percent_of_shifts[percentage]
+    
+
 # Only for visualization, does not handle complex numbers
 '''def HcPaulisToQ(Hc:SparsePauliOp)-> np.ndarray: 
     n_vars = len(Hc.paulis[0])

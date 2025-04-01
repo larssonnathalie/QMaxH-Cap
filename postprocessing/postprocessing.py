@@ -41,7 +41,7 @@ def controlSchedule(result_schedule_df, shift_data_df, cl):
     ok_col = []
 
     for i in range(combined_df.shape[0]):
-        if combined_df.loc[i,'demand'] == len(combined_df['staff'].iloc[i]):
+        if combined_df['demand'].iloc[i] == len(combined_df['staff'].iloc[i]):
             ok_col.append('ok')
         else:
            ok_col.append('NOT ok!')
@@ -50,27 +50,25 @@ def controlSchedule(result_schedule_df, shift_data_df, cl):
     return combined_df
 
 
-# Remember previous PREFERENCE SATISFACTION to ensure fairness
+# Remember previous PREFERENCE SATISFACTION and EXTENT to ensure fairness and correct # hours
 satisfaction_plot = []
-def preferenceHistory(result_schedule_df_t, t):
+def recordHistory(result_schedule_df_t, t, cl, time_period):
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
     shift_df_t = pd.read_csv(f'data/intermediate/shift_data_t{t}.csv')
-
     n_physicians = len(physician_df)
     n_shifts = len(result_schedule_df_t)
     
-    prefer = {p:physician_df.loc[p,f'prefer t{t}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
-    prefer_not = {p:physician_df.loc[p,f'prefer not t{t}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
-    unavailable = {p:physician_df.loc[p,f'unavailable t{t}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
+    prefer = {p:physician_df[f'prefer t{t}'].iloc[p].strip('[').strip(']').split(',') for p in range(n_physicians)}
+    prefer_not = {p:physician_df[f'prefer not t{t}'].iloc[p].strip('[').strip(']').split(',') for p in range(n_physicians)}
+    unavailable = {p:physician_df[f'unavailable t{t}'].iloc[p].strip('[').strip(']').split(',') for p in range(n_physicians)}
 
     assigned_shifts = {p:[] for p in range(n_physicians)}
     for s in range(n_shifts):
         staff_s = result_schedule_df_t['staff'].iloc[s]
         for p in staff_s:
             assigned_shifts[int(p)].append(s)
-        
 
-    # satisfaction scores
+    # SATISFACTION scores
     self_weight = 1  # how much p's own preference is weighted against everyone's preferences
     satisfaction_col_t = []
     for p in range(n_physicians):
@@ -103,12 +101,25 @@ def preferenceHistory(result_schedule_df_t, t):
                     satisfaction_p -= shift_df_t['attractiveness'].iloc[s] + self_weight*5 # TODO maybe change or make impossible
         
         satisfaction_col_t.append(satisfaction_p)
-    print(satisfaction_col_t, 'satisfaction')
+    #print(satisfaction_col_t, 'satisfaction')
     satisfaction_plot.append(satisfaction_col_t) # NOTE global list
-
-
     physician_df['satisfaction'] = satisfaction_col_t
+
+    # EXTENT
+    shifts_worked_col, work_rate_col = [],[]
+    total_shifts = (t+1)*getShiftsPerT(time_period, cl)
+    percentage = {p:physician_df['extent'].iloc[p] for p in range(n_physicians)}
+    for p in range(n_physicians):
+        shifts_worked_p = physician_df['shifts worked'].iloc[p] + len(assigned_shifts[p])
+        shifts_worked_col.append(shifts_worked_p)
+        target_percent_of_shifts = percentOfShifts(percentage[p], cl)
+        work_rate_col.append((shifts_worked_p/total_shifts)/target_percent_of_shifts) # how many % too much or too little they worked
+
+    physician_df['shifts worked'] = shifts_worked_col
+    physician_df['work rate'] = work_rate_col
+
     physician_df.to_csv('data/intermediate/physician_data.csv', index=None)
+
 
 def controlPlot(result_df, Ts, cl,time_period, width=10): 
     physician_df =pd.read_csv('data/intermediate/physician_data.csv', index_col=False) #TODO (change to /input/, compare specific dates?)
@@ -205,7 +216,7 @@ def controlPlot(result_df, Ts, cl,time_period, width=10):
         preference_stats_df['# prefered'] = np.sum(only_prefer, axis=1)
         preference_stats_df['% prefered'] = prefer_satisfy_rate
         preference_stats_df = preference_stats_df[['name', 'title', '# prefered', '% prefered', '# prefered not', '% prefered not']]
-        print(preference_stats_df)
+        #print(preference_stats_df)
         preference_stats_df.to_csv('data/results/preference_stats_df.csv')
 
     x_size = width

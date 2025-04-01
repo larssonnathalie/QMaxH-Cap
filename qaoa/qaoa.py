@@ -1,8 +1,8 @@
-from qiskit_algorithms.minimum_eigensolvers import QAOA
+#from qiskit_algorithms.minimum_eigensolvers import QAOA
 from qiskit_ibm_runtime import QiskitRuntimeService
-from qiskit_algorithms.optimizers import COBYLA
-from qiskit_optimization import QuadraticProgram
-from qiskit_optimization.algorithms import MinimumEigenOptimizer
+#from qiskit_algorithms.optimizers import COBYLA
+#from qiskit_optimization import QuadraticProgram
+#from qiskit_optimization.algorithms import MinimumEigenOptimizer
 from qiskit.circuit.library import QAOAAnsatz
 from qiskit.quantum_info import SparsePauliOp
 from qiskit_ibm_runtime import Session
@@ -70,19 +70,18 @@ def estimateHc(parameters, ansatz, hamiltonian, estimator:Estimator):
     #print('estimation start')
     isa_hamiltonian = hamiltonian.apply_layout(ansatz.layout)
     pub = (ansatz, isa_hamiltonian, parameters)
-    circuit, observable, params = pub  
-    #job = estimator.run([circuit], observables=[observable], parameter_values=[params])
+    
     job = estimator.run([pub])
-    results = job.result()[0] # why does this take time
+    #print('start')
+    results = job.result()[0] # This takes time
+    #print('job done')
     cost = results.data.evs
-
     Hc_values.append(cost) # NOTE global list
 
     return cost
 
 def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search_iterations, backend_name, service, seed=True, prints=True, plots=True): # TODO what job mode? (single, session, etc)
-    if backend_name == 'aer':
-        estimator = Estimator(mode=backend,options={"default_shots": estimation_iterations})
+    
     bounds = [(0, 2*np.pi) for _ in range(n_layers)] # gammas have period = 2 pi, given integer penalties
     bounds += [(0, np.pi) for _ in range(n_layers)] # betas have period = 1 pi
 
@@ -93,9 +92,23 @@ def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search
         initial_betas = np.random.random(size=n_layers)*np.pi # Random initial angles 
         initial_gammas = np.random.random(size=n_layers)*np.pi*2   
         initial_parameters = np.concatenate([initial_gammas, initial_betas])
-        with Session(backend=backend) as session:
-            if backend_name == 'ibm':
-                estimator = Estimator(mode=session, options={"default_shots": estimation_iterations})
+    
+        if backend_name == 'ibm':
+            estimator = Estimator(mode=session, options={"default_shots": estimation_iterations})
+            print('\nSearch it:',i)
+            with Session(backend=backend) as session:
+                result = minimize(
+                    estimateHc,
+                    initial_parameters,
+                    args=(circuit, Hc, estimator),
+                    method="COBYLA", # COBYLA is a classical OA: Constrained Optimization BY Linear Approximations
+                    bounds=bounds,
+                    tol=1e-1, #NOTE should be 1e-3 or smaller
+                    options={"rhobeg": 1}   # Sets initial step size (manages exploration)
+                )
+
+        elif backend_name == 'aer':
+            estimator = Estimator(mode=backend,options={"default_shots": estimation_iterations})
             result = minimize(
                 estimateHc,
                 initial_parameters,
@@ -105,8 +118,8 @@ def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search
                 tol=1e-3, #NOTE should be 1e-3 or smaller
                 options={"rhobeg": 1}   # Sets initial step size (manages exploration)
             )
-            candidates.append(result.x)
-            costs.append(estimateHc(result.x, circuit, Hc, estimator))
+        candidates.append(result.x)
+        costs.append(estimateHc(result.x, circuit, Hc, estimator))
     
     #print('costs',costs) 
     #print('min',costs[np.argmin(costs)])
@@ -175,7 +188,7 @@ def findBestBitstring(sampling_distribution:dict, Hc, n_candidates=20, prints=Fa
 
 
 class Qaoa:
-    def __init__(self, week, Hc:np.ndarray, n_layers:int, seed:bool, plots:bool, backend:str='ibm', instance:str='open'):
+    def __init__(self, t, Hc:np.ndarray, n_layers:int, seed:bool, plots:bool, backend:str='ibm', instance:str='open'):
         self.Hc = Hc
         self.n_layers = n_layers
         self.seed = seed
@@ -189,6 +202,7 @@ class Qaoa:
             else:
                 instance = 'ibm-q/open/main'
             token = open('../token.txt').readline().strip()
+            print('token:', token)
 
             service = QiskitRuntimeService(
             channel='ibm_quantum',
@@ -200,7 +214,7 @@ class Qaoa:
         else:
             self.backend = AerSimulator() 
             self.service=''
-        if week == 0:
+        if t == 0:
             print('\nQuantum backend set to:', self.backend)
     
     def findOptimalCircuit(self, estimation_iterations=2000, search_iterations=20):
