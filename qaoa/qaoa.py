@@ -72,71 +72,93 @@ def estimateHc(parameters, ansatz, hamiltonian, estimator:Estimator):
     pub = (ansatz, isa_hamiltonian, parameters)
     
     job = estimator.run([pub])
-    #print('start')
+    print('start')
     results = job.result()[0] # This takes time
-    #print('job done')
+    print('job done')
     cost = results.data.evs
     Hc_values.append(cost) # NOTE global list
 
     return cost
 
-def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search_iterations, backend_name, service, seed=True, prints=True, plots=True): # TODO what job mode? (single, session, etc)
+def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search_iterations, backend_name, instance, seed=True, prints=True, plots=True): # TODO what job mode? (single, session, etc)
     
-    bounds = [(0, 2*np.pi) for _ in range(n_layers)] # gammas have period = 2 pi, given integer penalties
+    bounds = [(0, np.pi/2) for _ in range(n_layers)] # gammas have period = 2 pi, given integer penalties
     bounds += [(0, np.pi) for _ in range(n_layers)] # betas have period = 1 pi
 
-    candidates, costs = [],[]
+    candidates, costs = [],np.zeros(search_iterations)
     for i in range(search_iterations):
         if seed:
             np.random.seed(i*10)
         initial_betas = np.random.random(size=n_layers)*np.pi # Random initial angles 
         initial_gammas = np.random.random(size=n_layers)*np.pi*2   
         initial_parameters = np.concatenate([initial_gammas, initial_betas])
-    
-        if backend_name == 'ibm':
-            estimator = Estimator(mode=session, options={"default_shots": estimation_iterations})
-            print('\nSearch it:',i)
-            with Session(backend=backend) as session:
-                result = minimize(
-                    estimateHc,
-                    initial_parameters,
-                    args=(circuit, Hc, estimator),
-                    method="COBYLA", # COBYLA is a classical OA: Constrained Optimization BY Linear Approximations
-                    bounds=bounds,
-                    tol=1e-1, #NOTE should be 1e-3 or smaller
-                    options={"rhobeg": 1}   # Sets initial step size (manages exploration)
-                )
 
-        elif backend_name == 'aer':
-            estimator = Estimator(mode=backend,options={"default_shots": estimation_iterations})
-            result = minimize(
-                estimateHc,
-                initial_parameters,
-                args=(circuit, Hc, estimator),
-                method="COBYLA", # COBYLA is a classical OA: Constrained Optimization BY Linear Approximations
-                bounds=bounds,
-                tol=1e-3, #NOTE should be 1e-3 or smaller
-                options={"rhobeg": 1}   # Sets initial step size (manages exploration)
+        # SIMULATOR TO FIND CANDIDATES
+        estimator = Estimator(mode=backend,options={"default_shots": estimation_iterations})
+        result = minimize(
+            estimateHc,
+            initial_parameters,
+            args=(circuit, Hc, estimator),
+            method="COBYLA", # COBYLA is a classical OA: Constrained Optimization BY Linear Approximations
+            bounds=bounds,
+            tol=1e-3, #NOTE should be 1e-3 or smaller
+            options={"rhobeg": 1}   # Sets initial step size (manages exploration)
             )
         candidates.append(result.x)
-        costs.append(estimateHc(result.x, circuit, Hc, estimator))
+        costs[i] = estimateHc(result.x, circuit, Hc, estimator)
     
-    #print('costs',costs) 
-    #print('min',costs[np.argmin(costs)])
-    parameters = candidates[np.argmin(costs)]
-    #print('COBYLA:', parameters)
+    found_parameters = candidates[np.argmin(costs)]
+
     if plots:
         plt.figure()
         plt.plot(Hc_values)
-        plt.title('Hc costs while optimizing ßs and gammas')
+        plt.title('Estimated Hc using simulator')
+        plt.show()
+
+    Hc_values.clear()
+
+    if backend_name == 'ibm':
+        # IBM HARDWARE TO OPTIMIZE FOUND PARAMETERS WITH NOISE
+        print('simulator found parameters:', found_parameters)
+        print('Now initialize ibm backend with them')
+
+        token = open('../token.txt').readline().strip()
+
+        service = QiskitRuntimeService(
+            channel='ibm_quantum',
+            instance=instance,
+            token=token)
+        backend = service.least_busy(min_num_qubits=127)
+        
+        pass_manager = generate_preset_pass_manager(optimization_level=3, backend=backend) # transpiles circuit
+        circuit_ibm = pass_manager.run(circuit) 
+        print('\ntranspiled')
+
+        with Session(backend=backend) as session:
+            estimator = Estimator(mode=session, options={"default_shots": 100}) #NOTE TESTVALUE
+            result = minimize(
+                estimateHc,
+                found_parameters,
+                args=(circuit_ibm, Hc, estimator),
+                method="COBYLA",
+                bounds=bounds,
+                tol=1e-1,
+                options={"rhobeg": 1e-1}  
+            )
+            found_parameters = result.x 
+           
+    if plots:
+        plt.figure()
+        plt.plot(Hc_values)
+        plt.title('Hc estimations using IBM')
         plt.show()
     #if prints:
         #print('\nBest parameters (ß:s & gamma:s):', parameters)
-        print('Estimated cost of best parameters', estimateHc(parameters, circuit, Hc, estimator))
+        print('Estimated cost of best parameters', estimateHc(found_parameters, circuit, Hc, estimator))
         print('Estimator iterations', len(Hc_values))
-    Hc_values.clear()
 
-    return parameters
+
+    return found_parameters
 
 def sampleSolutions(best_circuit, backend, sampling_iterations, prints=True, plots=True):
     # TODO Use single job-mode?
@@ -194,29 +216,19 @@ class Qaoa:
         self.seed = seed
         self.plots = plots
         self.backend_name = backend
+        self.instance='wacqt/partners/scheduling-of-me'
+        if instance =='open':
+            self.instance = 'ibm-q/open/main'
 
-        # Initialize backend
-        if backend == 'ibm':
-            if instance=='premium':
-                instance='wacqt/partners/scheduling-of-me' # maybe add me"dical-doctors"
-            else:
-                instance = 'ibm-q/open/main'
-            token = open('../token.txt').readline().strip()
-            print('token:', token)
+        self.backend = AerSimulator() 
 
-            service = QiskitRuntimeService(
-            channel='ibm_quantum',
-            instance=instance,
-            token=token)
-            self.service =service
-            self.backend = service.least_busy(min_num_qubits=127)
-
-        else:
-            self.backend = AerSimulator() 
-            self.service=''
         if t == 0:
-            print('\nQuantum backend set to:', self.backend)
-    
+            if self.backend_name == 'ibm':
+                print('\nUsing both simulator and ibm hardware as quantum backend')
+            else:
+                print('\nUsing quantum simulator')
+
+            
     def findOptimalCircuit(self, estimation_iterations=2000, search_iterations=20):
         # Make initial circuit
         circuit = QAOAAnsatz(cost_operator=self.Hc, reps=self.n_layers) # Using a standard mixer hamiltonian 
@@ -225,7 +237,8 @@ class Qaoa:
         circuit = pass_manager.run(circuit) 
 
         # Find best betas and gammas using estimator on initial circuit
-        best_parameters = findParameters(self.n_layers, circuit, self.backend, self.Hc, estimation_iterations, search_iterations, self.backend_name, self.service, seed=self.seed, plots=self.plots)
+        best_parameters = findParameters(self.n_layers, circuit, self.backend, self.Hc, estimation_iterations, search_iterations, self.backend_name, self.instance, seed=self.seed, plots=self.plots)
+        print('assigning parameters:', best_parameters)
         best_circuit = circuit.assign_parameters(parameters=best_parameters)
         self.optimized_circuit = best_circuit
     

@@ -1,5 +1,5 @@
-name,title,competence,extent,shifts worked,work rate,prefer,prefer not,unavailable,satisfaction,prefer t0,prefer not t0,unavailable t0,prefer t1,prefer not t1,unavailable t1,prefer t2,prefer not t2,unavailable t2,prefer t3,prefer not t3,unavailable t3,prefer t4,prefer not t4,unavailable t4,prefer t5,prefer not t5,unavailable t5,prefer t6,prefer not t6,unavailable t6
-physician0,ÖL,0.4,100,6,1.2,"['2025-03-28', '2025-03-24', '2025-03-25', '2025-03-30', '2025-03-27', '2025-03-29']",[],[],7.5,[0],[],[],[0],[],[],[],[],[],[0],[],[],[0],[],[],[0],[],[],[0],[],[]
-physician1,ST,0.0,50,2,0.7999999999999999,"['2025-03-24', '2025-03-28', '2025-03-26', '2025-03-29', '2025-03-25']",['2025-03-30'],[],-7.0,[0],[],[],[0],[],[],[0],[],[],[],[],[],[0],[],[],[0],[],[],[],[],[]
-physician2,AT,1.0,50,4,1.5999999999999999,[],['2025-03-29'],['2025-03-30'],0.0,[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]
-physician3,Chef,0.6,100,2,0.39999999999999997,"['2025-03-28', '2025-03-29', '2025-03-25']",['2025-03-26'],[],-3.0,[],[],[],[0],[],[],[],[],[],[],[],[],[0],[],[],[0],[],[],[],[],[]
+name,title,competence,extent,shifts worked,work rate,prefer,prefer not,unavailable,satisfaction,prefer t0,prefer not t0,unavailable t0
+physician0,ÖL,0.4,100,0,0,"['2025-03-25', '2025-03-28', '2025-03-24', '2025-03-27', '2025-03-30', '2025-03-29']",[],[],0,[0],[],[]
+physician1,ST,0.0,50,0,0,"['2025-03-28', '2025-03-25', '2025-03-26', '2025-03-29', '2025-03-24']",['2025-03-27'],[],0,[0],[],[]
+physician2,AT,1.0,50,0,0,[],['2025-03-29'],['2025-03-27'],0,[],[],[]
+physician3,Chef,0.6,100,0,0,"['2025-03-25', '2025-03-29', '2025-03-24']",['2025-03-26'],[],0,[0],[],[]

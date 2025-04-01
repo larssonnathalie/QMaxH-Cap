@@ -87,7 +87,7 @@ for t in range(T):
     #empty_calendar_df_t = pd.read_csv(f'data/intermediate/empty_calendar_t{t}.csv')
     calendar_df_t = all_dates_df.iloc[t*shifts_per_t: min((t+1)*shifts_per_t, len(all_shifts_df))]
 
-    print('\ttime period (t):\t', t)
+    print('\nt:\t', t)
 
     shifts_df = pd.read_csv(f'data/intermediate/shift_data_t{t}.csv')
     n_shifts = len(shifts_df)
@@ -107,7 +107,7 @@ for t in range(T):
     b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
     Hc = QToHc(Q, b) 
 
-    qaoa = Qaoa(t, Hc, n_layers, plots=False, seed=init_seed, backend='aer', instance='premium')
+    qaoa = Qaoa(t, Hc, n_layers, plots=True, seed=init_seed, backend='ibm', instance='premium')
     qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
     best_bitstring_t = qaoa.sampleSolutions(sampling_iterations, n_candidates, return_worst_solution=False)
 
