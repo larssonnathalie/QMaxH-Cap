@@ -29,6 +29,22 @@ def bitstringToPauliZ(bitstring)->np.ndarray:
     z_eigenvalues = np.array([1 if bit == "0" else -1 for bit in bitstring])
     return z_eigenvalues
 
+def getShiftsPerT(time_period:str, cl:int) -> int:
+    if time_period == 'week':
+        if cl<3:
+            shifts_per_t = 7
+        else:
+            shifts_per_t = 3*7
+            
+    elif time_period == 'day':
+        if cl <3:
+            shifts_per_t=1
+        else:
+            shifts_per_t =3
+
+    elif time_period == 'shift':
+        shifts_per_t=1 
+    return shifts_per_t
 
 # Only for visualization, does not handle complex numbers
 '''def HcPaulisToQ(Hc:SparsePauliOp)-> np.ndarray: 
