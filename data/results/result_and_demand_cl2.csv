@@ -1,2 +1,39 @@
 date,demand,attractiveness,is_holiday,weekday,staff,shift covered
-2025-03-24,2,1.5,False,Monday,"['3', '2']",ok
+2025-03-24,2,1.3333333333333333,False,Monday,"['1', '0']",ok
+2025-03-25,2,1.0,False,Tuesday,"['3', '2']",ok
+2025-03-26,2,1.0,False,Wednesday,"['3', '2']",ok
+2025-03-27,2,0.0,False,Thursday,"['2', '1']",ok
+2025-03-28,2,-0.5,False,Friday,"['3', '2']",ok
+2025-03-29,1,-2.0,True,Saturday,"['1', '0']",NOT ok!
+2025-03-30,1,0.0,True,Sunday,['2'],ok
+2025-03-31,2,-0.5,False,Monday,"['1', '0']",ok
+2025-04-01,2,1.5,False,Tuesday,"['1', '0']",ok
+2025-04-02,2,1.5,False,Wednesday,"['3', '2']",ok
+2025-04-03,2,2.0,False,Thursday,"['1', '0']",ok
+2025-04-04,2,-0.3333333333333333,False,Friday,"['2', '0']",ok
+2025-04-05,1,0.0,True,Saturday,"['3', '1']",NOT ok!
+2025-04-06,1,-1.0,True,Sunday,['0'],ok
+2025-04-07,2,1.3333333333333333,False,Monday,"['3', '2']",ok
+2025-04-08,2,1.5,False,Tuesday,"['1', '0']",ok
+2025-04-09,2,2.0,False,Wednesday,"['3', '2']",ok
+2025-04-10,2,-0.5,False,Thursday,"['3', '0']",ok
+2025-04-11,2,-1.0,False,Friday,"['3', '0']",ok
+2025-04-12,1,-2.0,True,Saturday,['1'],ok
+2025-04-13,1,0.0,True,Sunday,"['3', '2']",NOT ok!
+2025-04-14,2,2.0,False,Monday,"['1', '0']",ok
+2025-04-15,2,2.0,False,Tuesday,"['3', '2']",ok
+2025-04-16,2,1.0,False,Wednesday,"['1', '0']",ok
+2025-04-17,2,-0.5,False,Thursday,"['3', '2']",ok
+2025-04-18,1,-2.0,True,Friday,"['2', '1']",NOT ok!
+2025-04-19,1,0.0,True,Saturday,['1'],ok
+2025-04-20,1,-1.0,True,Sunday,['2'],ok
+2025-04-21,1,1.5,True,Monday,"['3', '2']",NOT ok!
+2025-04-22,2,1.5,False,Tuesday,"['1', '0']",ok
+2025-04-23,2,1.3333333333333333,False,Wednesday,"['3', '2']",ok
+2025-04-24,2,-0.3333333333333333,False,Thursday,"['2', '1']",ok
+2025-04-25,2,-1.0,False,Friday,"['3', '1']",ok
+2025-04-26,1,-1.0,True,Saturday,['0'],ok
+2025-04-27,1,-2.0,True,Sunday,['1'],ok
+2025-04-28,2,-0.5,False,Monday,"['2', '1']",ok
+2025-04-29,2,-1.0,False,Tuesday,"['2', '1']",ok
+2025-04-30,2,1.0,False,Wednesday,"['1', '0']",ok

@@ -15,18 +15,17 @@ from postprocessing.postprocessing import *
     # Simulator for finding candidate angles, compare candidates with ibm estimator
     # Extent for t!= week
     # Decide lambdas
-    # Custom demand for 3-shift
     # cl1 compatibility
     # dont assign unavailable
-    # Extent --> target over time
     # shift type preferences
 
 # Parameters
 start_date = '2025-03-24' # for now this should be an [int] number of weeks
-end_date = '2025-03-30'
+end_date = '2025-04-30'
 weekday_demand = 2
 holiday_demand = 1
 n_physicians = 4
+backend = 'aer'
 cl = 2                      # complexity level: 
 cl_contents = ['',
 'cl1: demand, fairness',
@@ -37,14 +36,19 @@ cl_contents = ['',
 'cl6: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles, side_tasks, competence']
 
 skip_unavailable_and_prefer_not = True 
+only_fulltime =True
 prints = True
 plots = True
 classical = False
 draw_circuit = False
 preference_seed = True
 init_seed = False
+estimation_plots = False
 
 time_period = 'day'
+demands = {'weekday': 2, 'holiday': 1}   # weekday should be > holiday 
+if cl>= 3:    # {(shift, is_holiday): num_workers_needed, ...}
+    demands = {('dag', False):2, ('kväll',False):2, ('natt',False):2,('dag',True):1, ('kväll',True):1, ('natt',True):1} 
 n_layers = 1
 search_iterations = 10
 estimation_iterations = n_layers * 100 
@@ -52,7 +56,7 @@ sampling_iterations = 4000
 n_candidates = 20 # compare top X most common solutions
 
 # lambdas = penalties (how hard a constraint is)
-lambdas = {'demand':20, 'fair':0, 'pref':0, 'unavail':0, 'extent':0, 'rest':0}  # NOTE Must be integers
+lambdas = {'demand':1, 'fair':10, 'pref':1, 'unavail':0, 'extent':0, 'rest':0}  # NOTE Must be integers
 
 # Construct empty calendar with holidays etc.
 T, total_holidays, n_days = emptyCalendar(end_date, start_date, cl, time_period=time_period)
@@ -61,10 +65,10 @@ all_dates_df = pd.read_csv(f'data/intermediate/empty_calendar.csv',index_col=Non
 full_solution = []
 
 # Generate random preferences
-generatePhysicianData(all_dates_df, n_physicians,cl, seed=preference_seed)  
+#generatePhysicianData(all_dates_df, n_physicians,cl, seed=preference_seed, only_fulltime=only_fulltime)  
 
 # Demand & attractiveness for each shift
-generateShiftData(all_dates_df, T, cl, weekday_workers=weekday_demand, holiday_workers=holiday_demand, time_period=time_period)
+generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
 all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=None)
 shifts_per_t = getShiftsPerT(time_period, cl)
 
@@ -103,11 +107,12 @@ for t in range(T):
     # Extract Qubo Q-matrix from objectives           Y = x^T Qx
     Q = objectivesToQubo(all_objectives, n_shifts, x_symbols, cl, mirror=False)
 
+    print(Q)
     # Q-matrix --> pauli operators --> cost hamiltonian (Hc)
     b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
     Hc = QToHc(Q, b) 
 
-    qaoa = Qaoa(t, Hc, n_layers, plots=True, seed=init_seed, backend='ibm', instance='premium')
+    qaoa = Qaoa(t, Hc, n_layers, plots=estimation_plots, seed=init_seed, backend=backend, instance='premium')
     qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
     best_bitstring_t = qaoa.sampleSolutions(sampling_iterations, n_candidates, return_worst_solution=False)
 
@@ -115,8 +120,8 @@ for t in range(T):
     full_solution.append(result_schedule_df_t)
     controled_result_df_t = controlSchedule(result_schedule_df_t, shifts_df, cl)
     #TODO check if result is ok (unavailable & demand met) rerun until ok if not
-    print('result schedule')
-    print(controled_result_df_t)
+    #print('result schedule')
+    #print(controled_result_df_t)
 
     if cl>=2:
         recordHistory(controled_result_df_t, t,cl, time_period)
@@ -129,18 +134,19 @@ for w in range(1,T):
     full_schedule_df = pd.concat([full_schedule_df, full_solution[w]],axis=0)
 ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
 #ok_full_schedule_df = pd.read_csv('data/results/result_and_demand_cl2.csv') # Use saved result
-controlPlot(ok_full_schedule_df, range(T), cl, time_period, width=8) 
+controlPlot(ok_full_schedule_df, range(T), cl, time_period, lambdas, width=8) 
 
-satisfaction_plot = np.array(satisfaction_plot)
-plt.figure()
-plt.title('Preference satisfaction per time period')
-physician_df = pd.read_csv('data/intermediate/physician_data.csv', index_col=None)
-n_physicians = len(physician_df)
+if lambdas['pref'] != 0:
+    satisfaction_plot = np.array(satisfaction_plot)
+    plt.figure()
+    plt.title('Preference satisfaction per time period')
+    physician_df = pd.read_csv('data/intermediate/physician_data.csv', index_col=None)
+    n_physicians = len(physician_df)
 
-for p in range(n_physicians):
-    plt.plot(satisfaction_plot[:,p], label=str(p))
-plt.legend()
-plt.show()
+    for p in range(n_physicians):
+        plt.plot(satisfaction_plot[:,p], label=str(p))
+    plt.legend()
+    plt.show()
 
 
 # (Evaluate & compare solution to classical methods)'''

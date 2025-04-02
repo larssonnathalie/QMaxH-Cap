@@ -70,15 +70,15 @@ def estimateHc(parameters, ansatz, hamiltonian, estimator:Estimator):
     #print('estimation start')
     isa_hamiltonian = hamiltonian.apply_layout(ansatz.layout)
     pub = (ansatz, isa_hamiltonian, parameters)
-    
     job = estimator.run([pub])
-    print('start')
+    #print('start')
     results = job.result()[0] # This takes time
-    print('job done')
+    #print('job done')
     cost = results.data.evs
     Hc_values.append(cost) # NOTE global list
-
     return cost
+
+
 
 def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search_iterations, backend_name, instance, seed=True, prints=True, plots=True): # TODO what job mode? (single, session, etc)
     
@@ -106,30 +106,25 @@ def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search
             )
         candidates.append(result.x)
         costs[i] = estimateHc(result.x, circuit, Hc, estimator)
-    
     found_parameters = candidates[np.argmin(costs)]
 
     if plots:
         plt.figure()
         plt.plot(Hc_values)
-        plt.title('Estimated Hc using simulator')
+        plt.title(f'Estimated Hc using simulator. \n(with {search_iterations} random initializations)')
         plt.show()
-
     Hc_values.clear()
 
     if backend_name == 'ibm':
         # IBM HARDWARE TO OPTIMIZE FOUND PARAMETERS WITH NOISE
         print('simulator found parameters:', found_parameters)
         print('Now initialize ibm backend with them')
-
         token = open('../token.txt').readline().strip()
-
         service = QiskitRuntimeService(
             channel='ibm_quantum',
             instance=instance,
             token=token)
         backend = service.least_busy(min_num_qubits=127)
-        
         pass_manager = generate_preset_pass_manager(optimization_level=3, backend=backend) # transpiles circuit
         circuit_ibm = pass_manager.run(circuit) 
         print('\ntranspiled')
@@ -147,18 +142,19 @@ def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search
             )
             found_parameters = result.x 
            
-    if plots:
-        plt.figure()
-        plt.plot(Hc_values)
-        plt.title('Hc estimations using IBM')
-        plt.show()
+        if plots :
+            plt.figure()
+            plt.plot(Hc_values)
+            plt.title('Hc estimations using IBM')
+            plt.show()
     #if prints:
         #print('\nBest parameters (ß:s & gamma:s):', parameters)
-        print('Estimated cost of best parameters', estimateHc(found_parameters, circuit, Hc, estimator))
-        print('Estimator iterations', len(Hc_values))
-
-
+        #print('Estimated cost of best parameters', estimateHc(found_parameters, circuit, Hc, estimator))
+        #print('Estimator iterations', len(Hc_values))
     return found_parameters
+
+
+
 
 def sampleSolutions(best_circuit, backend, sampling_iterations, prints=True, plots=True):
     # TODO Use single job-mode?
@@ -181,6 +177,8 @@ def sampleSolutions(best_circuit, backend, sampling_iterations, prints=True, plo
     return sampling_distribution
 
 
+
+
 def costOfBitstring(bitstring:str, Hc:SparsePauliOp):
     bitstring_z = bitstringToPauliZ(bitstring)
     cost = 0
@@ -191,6 +189,9 @@ def costOfBitstring(bitstring:str, Hc:SparsePauliOp):
                 term_value *= bitstring_z[i]
         cost += coeff * term_value
     return cost
+
+
+
 
 def findBestBitstring(sampling_distribution:dict, Hc, n_candidates=20, prints=False, worst_solution=False): # No prints temporary
     reverse = (worst_solution==False)
@@ -207,6 +208,8 @@ def findBestBitstring(sampling_distribution:dict, Hc, n_candidates=20, prints=Fa
         #print('\nBest bitstring:', best_bitstring)
         print('best cost', costOfBitstring(best_bitstring, Hc))
     return best_bitstring
+
+
 
 
 class Qaoa:
@@ -226,7 +229,7 @@ class Qaoa:
             if self.backend_name == 'ibm':
                 print('\nUsing both simulator and ibm hardware as quantum backend')
             else:
-                print('\nUsing quantum simulator')
+                print('\nUsing "aer" quantum simulator')
 
             
     def findOptimalCircuit(self, estimation_iterations=2000, search_iterations=20):
@@ -238,7 +241,7 @@ class Qaoa:
 
         # Find best betas and gammas using estimator on initial circuit
         best_parameters = findParameters(self.n_layers, circuit, self.backend, self.Hc, estimation_iterations, search_iterations, self.backend_name, self.instance, seed=self.seed, plots=self.plots)
-        print('assigning parameters:', best_parameters)
+        #print('assigning parameters:', best_parameters)
         best_circuit = circuit.assign_parameters(parameters=best_parameters)
         self.optimized_circuit = best_circuit
     
