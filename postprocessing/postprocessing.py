@@ -106,17 +106,24 @@ def recordHistory(result_schedule_df_t, t, cl, time_period):
     physician_df['satisfaction'] = satisfaction_col_t
 
     # EXTENT
-    shifts_worked_col, work_rate_col = [],[]
+    shifts_worked_col, work_rate_col, worked_last_col = [],[],[]
     total_shifts = (t+1)*getShiftsPerT(time_period, cl)
     percentage = {p:physician_df['extent'].iloc[p] for p in range(n_physicians)}
     for p in range(n_physicians):
+
         shifts_worked_p = physician_df['shifts worked'].iloc[p] + len(assigned_shifts[p])
         shifts_worked_col.append(shifts_worked_p)
         target_percent_of_shifts = percentOfShifts(percentage[p], cl)
         work_rate_col.append((shifts_worked_p/total_shifts)/target_percent_of_shifts) # how many % too much or too little they worked
+        if n_shifts-1 in assigned_shifts[p]:
+            worked_last_col.append(1)
+        else:
+            worked_last_col.append(0)
+
 
     physician_df['shifts worked'] = shifts_worked_col
     physician_df['work rate'] = work_rate_col
+    physician_df['worked last'] = worked_last_col
 
     physician_df.to_csv('data/intermediate/physician_data.csv', index=None)
 
@@ -237,9 +244,9 @@ def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
             if lambdas['pref'] != 0:
                 pref_text = ax.text(n_shifts-0.25,p, str(int(prefer_satisfy_rate[p][0]*100)), ha="center", va="center", color="black", fontsize=5,zorder=10)
                 pref_not_text = ax.text( n_shifts+0.25,p, str(int(prefer_not_satisfy_rate[p][0]*100)), ha="center", va="center", color="black", fontsize=5, zorder=10)
-                sat_text = ax.text( n_shifts+0.75,p, str(round(satisfaction_score[p,0],2)), ha="center", va="center", color="black", fontsize=5, zorder=10)
+                sat_text = ax.text( n_shifts+0.85,p, str(round(satisfaction_score[p,0],2)), ha="center", va="center", color="black", fontsize=5, zorder=10)
             if lambdas['extent'] !=0:
-                ext_text = ax.text(n_shifts+1,p,str(int(extent_error[p][0])), ha="center", va="center", color="black", fontsize=5, zorder=10)
+                ext_text = ax.text(n_shifts+1.25,p,str(int(extent_error[p][0])), ha="center", va="center", color="black", fontsize=5, zorder=10)
 
     # Shift covered row
     shift = ax.pcolor(np.arange(n_shifts+1)-0.5,[n_physicians-0.5,n_physicians-0.4], ok_row, cmap='RdYlGn', vmin=0,vmax=1) 

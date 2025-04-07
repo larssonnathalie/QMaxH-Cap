@@ -101,10 +101,10 @@ def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search
             args=(circuit, Hc, estimator),
             method="COBYLA", # COBYLA is a classical OA: Constrained Optimization BY Linear Approximations
             bounds=bounds,
-            tol=1e-3, #NOTE should be 1e-3 or smaller
-            options={"rhobeg": 1}   # Sets initial step size (manages exploration)
+            tol=1e-4, #NOTE should be 1e-3 or smaller
+            options={"rhobeg": 0.5}   # Sets initial step size (manages exploration)
             )
-        candidates.append(result.x)
+        candidates.append(result.x) 
         costs[i] = estimateHc(result.x, circuit, Hc, estimator)
     found_parameters = candidates[np.argmin(costs)]
 
@@ -130,7 +130,7 @@ def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search
         print('\ntranspiled')
 
         with Session(backend=backend) as session:
-            estimator = Estimator(mode=session, options={"default_shots": 100}) #NOTE TESTVALUE
+            estimator = Estimator(mode=session, options={"default_shots": estimation_iterations}) #NOTE TESTVALUE
             result = minimize(
                 estimateHc,
                 found_parameters,
@@ -141,15 +141,17 @@ def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search
                 options={"rhobeg": 1e-1}  
             )
             found_parameters = result.x 
-           
+            print(result.fun)
+            # KOLLA RESULT.FUN OM DET ÄR SISTA I PLOTTEN
         if plots :
             plt.figure()
             plt.plot(Hc_values)
+            print(Hc_values)
             plt.title('Hc estimations using IBM')
             plt.show()
     #if prints:
         #print('\nBest parameters (ß:s & gamma:s):', parameters)
-        #print('Estimated cost of best parameters', estimateHc(found_parameters, circuit, Hc, estimator))
+    #print('Estimated cost of best parameters', estimateHc(found_parameters, circuit, Hc, estimator))
         #print('Estimator iterations', len(Hc_values))
     return found_parameters
 
@@ -180,6 +182,7 @@ def sampleSolutions(best_circuit, backend, sampling_iterations, prints=True, plo
 
 
 def costOfBitstring(bitstring:str, Hc:SparsePauliOp):
+    #bitstring = bitstring[::-1] #NOTE TESTING
     bitstring_z = bitstringToPauliZ(bitstring)
     cost = 0
     for pauli, coeff in zip(Hc.paulis, Hc.coeffs):

@@ -1,2 +1,2 @@
-date,demand,attractiveness
-2025-03-30,1,0.0
+date,shift type,demand,attractiveness
+2025-03-26,dag,2,-1.5

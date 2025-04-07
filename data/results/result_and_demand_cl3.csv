@@ -1,4 +1,10 @@
 date,shift type,demand,attractiveness,weekday,is_holiday,staff,shift covered
-2025-03-24,dag,2,0.0,Monday,False,"['3', '0']",ok
-2025-03-24,kväll,2,0.0,Monday,False,"['2', '1']",ok
-2025-03-24,natt,2,0.0,Monday,False,"['2', '0']",ok
+2025-03-24,dag,2,-1.5,Monday,False,"['4', '2']",ok
+2025-03-24,kväll,2,-1.5,Monday,False,"['5', '1', '0']",NOT ok!
+2025-03-24,natt,2,-1.5,Monday,False,"['4', '3', '2']",NOT ok!
+2025-03-25,dag,2,-2.0,Tuesday,False,"['5', '1', '0']",NOT ok!
+2025-03-25,kväll,2,-2.0,Tuesday,False,"['3', '2']",ok
+2025-03-25,natt,2,-2.0,Tuesday,False,"['1', '0']",ok
+2025-03-26,dag,2,-1.5,Wednesday,False,"['5', '4']",ok
+2025-03-26,kväll,2,-1.5,Wednesday,False,"['3', '0']",ok
+2025-03-26,natt,2,-1.5,Wednesday,False,"['4', '1']",ok
