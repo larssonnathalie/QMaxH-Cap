@@ -1,10 +1,8 @@
-date,shift type,weekday,is_holiday
-2025-03-24,dag,Monday,False
-2025-03-24,kväll,Monday,False
-2025-03-24,natt,Monday,False
-2025-03-25,dag,Tuesday,False
-2025-03-25,kväll,Tuesday,False
-2025-03-25,natt,Tuesday,False
-2025-03-26,dag,Wednesday,False
-2025-03-26,kväll,Wednesday,False
-2025-03-26,natt,Wednesday,False
+date,is_holiday,weekday
+2025-03-24,False,Monday
+2025-03-25,False,Tuesday
+2025-03-26,False,Wednesday
+2025-03-27,False,Thursday
+2025-03-28,False,Friday
+2025-03-29,True,Saturday
+2025-03-30,True,Sunday

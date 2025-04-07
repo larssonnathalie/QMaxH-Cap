@@ -24,6 +24,18 @@ def assignVariables(bitstring:str, x_symbols)->dict:
             i+=1
     return substitution
 
+def get_xT_Q_x(bitstring:str, Q):
+    int_string =[]
+    for bit in bitstring:
+        int_string.append(int(bit))
+    x = np.array(int_string)
+
+    x.resize((len(bitstring),1))
+
+    xT_Q_x = x.T @ Q @ x
+    return xT_Q_x
+    
+
 
 '''substitution = assignVariables(STRING)
 

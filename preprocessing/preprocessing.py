@@ -19,7 +19,7 @@ def emptyCalendar(end_date, start_date, cl, time_period):
     #if len(all_dates)%7!=0 and cl<3:
         #print('\nWarning: Dates should be a [int] number of weeks for cl<3\n') # (start on tuesday end on monday works too)
     
-    get_T = {'shift':n_days*3, 'day':n_days, 'week':(n_days+6)//7}
+    get_T = {'shift':n_days+(n_days*2*int(cl>=3)), 'day':n_days, 'week':(n_days+6)//7}
     T = get_T[time_period]
     print('\nNEW OPTIMIZATION  EACH '+time_period)
     print(str(T)+' '+time_period+':s')
@@ -139,7 +139,7 @@ def generateShiftData(empty_calendar, T, cl, demands, time_period):
             n_prefer_s = prefer_counts.count(date)
             n_prefer_not_s = prefer_not_counts.count(date)
             n_unavailable_s = unavailable_counts.count(date)
-            attractiveness_col[s] = (n_prefer_s - n_prefer_not_s)/(demand_col[s]+n_unavailable_s) 
+            attractiveness_col[s] = (n_prefer_s - n_prefer_not_s)/(demand_col[s]+n_unavailable_s+0.1) # +0.1 to avoid /0
 
         shift_data_df['attractiveness'] = attractiveness_col
     
@@ -289,7 +289,7 @@ def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=Fals
             unavailable = {p:physician_df.loc[p,f'unavailable t{t}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
 
             if t == 0:
-                satisfaction = np.ones(n_physicians) # ignore old values if we reuse file
+                satisfaction = np.ones(n_physicians)
             else:
                 satisfaction = np.array([float(sat) for sat in physician_df['satisfaction']])
                 min_sat = np.min(satisfaction)
@@ -320,15 +320,16 @@ def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=Fals
         # EXTENT
         if time_period == 'shift' or time_period =='day':
             days_passed = getDaysPassed(t, time_period)
-            extent_priority = min(days_passed/7, 1) # Extent is less important first days, so not all are assigned the first shifts
+            extent_priority =min(days_passed/7, 1) # Extent is less important first days, so not all are assigned the first shifts
             for p in range(n_physicians):
                 work_rate_p = physician_df['work rate'].iloc[p]
                     #print(p, 'has work rate', work_rate_p)
                 priority_p = abs(extent_priority * (1 - float(work_rate_p) ))
                     #print('priority\t', priority_p)
 
-                if work_rate_p < 1 and prints:
-                    print(p,'´s work rate is',work_rate_p)
+                if work_rate_p < 1:
+                    if prints:
+                        print(p,'´s work rate is',work_rate_p)
                     for s in range(n_shifts):
                         H_extent -= priority_p * x_symbols[p][s]**2  # Reward shift assignment to p:s who have low work rate
                 
@@ -363,6 +364,7 @@ def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=Fals
     # ∑s=1 (demanded – (∑p=1  x_ps))^2
     for s in range(n_shifts): 
         demand_s = shifts_df['demand'].iloc[s]
+        print('demand',demand_s)
         workers_s = sum(x_symbols[p][s] for p in range(n_physicians))   
         H_meet_demand_s = (workers_s-sp.Integer(demand_s))**2 
         H_meet_demand += H_meet_demand_s

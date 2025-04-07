@@ -26,6 +26,13 @@ def qToXIndex(q_index, n_shifts): #  [i,j] -->  [[p,s],[p,s]]   # TODO test func
 
 def bitstringToPauliZ(bitstring)->np.ndarray:
    # binary to ±1 eigenvalues of Z operators
+    '''z_eigenvalues = np.zeros(len(bitstring))
+    for i, bit in enumerate(bitstring):
+        if bit == '0':
+            z_eigenvalues[i]= 1
+        elif bit =='1':
+            z_eigenvalues[i]= -1 '''
+
     z_eigenvalues = np.array([1 if bit == "0" else -1 for bit in bitstring])
     return z_eigenvalues
 

@@ -48,8 +48,10 @@ def QToHc(Q, b):
             if Q[i, j] != 0:
                 pauli_string = ['I'] * n_vars
                 pauli_string[i], pauli_string[j] = 'Z', 'Z'     # "Z" at positions i and j
-                coeff = 2 * Q[i, j] / 4                         # "*2" compensates for exclusion of lower half
-                pauli_string.reverse()
+                #coeff = 2 * Q[i, j] / 4                         # "*2" compensates for exclusion of lower half
+                coeff = Q[i, j] / 4                         # TESTING
+
+                pauli_string.reverse() 
                 pauli_list.append(("".join(pauli_string), coeff))
 
     # "b"terms
@@ -58,7 +60,7 @@ def QToHc(Q, b):
             pauli_string = ['I'] * n_vars
             pauli_string[i] = 'Z'
             coeff = b[i] / 4
-            pauli_string.reverse()
+            pauli_string.reverse() 
             pauli_list.append(("".join(pauli_string), coeff))
     
     Hc = SparsePauliOp.from_list(pauli_list)
@@ -166,6 +168,7 @@ def sampleSolutions(best_circuit, backend, sampling_iterations, prints=True, plo
     job = sampler.run([pub])
     sampling_distribution = job.result()[0].data.meas.get_counts()
 
+
     if plots:
         plt.figure(figsize=(10,8))
         plt.title('Solution distribution')
@@ -200,7 +203,6 @@ def findBestBitstring(sampling_distribution:dict, Hc, n_candidates=20, prints=Fa
     reverse = (worst_solution==False)
     sorted_distribution = dict(sorted(sampling_distribution.items(), key=lambda item:item[1], reverse=reverse)) #NOTE sorting might be memory expensive
     frequent_bitstrings = list(sorted_distribution.keys())[:n_candidates]
-    
     costs = [costOfBitstring(bitstring, Hc) for bitstring in frequent_bitstrings]
     if worst_solution:
         best_bitstring = frequent_bitstrings[np.argmax(costs)]
