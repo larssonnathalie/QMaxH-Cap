@@ -1,4 +1,6 @@
 name,extent,prefer,prefer not,unavailable,title,competence
-physician0,100,[],[],[],ÖL,0.2
-physician1,100,[],[],[],AT,0.6
-physician2,75,[],[],[],ST,0.1
+physician0,100,[],"[np.str_('2025-04-06'), np.str_('2025-04-02'), np.str_('2025-04-03')]",[np.str_('2025-04-01')],ÖL,0.2
+physician1,100,"[np.str_('2025-04-03'), np.str_('2025-04-01'), np.str_('2025-04-02')]",[np.str_('2025-04-06')],[np.str_('2025-04-04')],AT,0.0
+physician2,25,[np.str_('2025-04-02')],"[np.str_('2025-04-06'), np.str_('2025-04-04')]","[np.str_('2025-04-01'), np.str_('2025-04-05')]",AT,0.6
+physician3,100,"[np.str_('2025-04-01'), np.str_('2025-04-04'), np.str_('2025-04-05')]",[np.str_('2025-04-03')],[],ÖL,0.6
+physician4,100,"[np.str_('2025-04-04'), np.str_('2025-04-03')]","[np.str_('2025-04-02'), np.str_('2025-04-05')]",[np.str_('2025-04-06')],ST,0.0

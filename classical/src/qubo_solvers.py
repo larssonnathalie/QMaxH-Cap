@@ -13,7 +13,7 @@ def load_qubo_matrix(cl=3):
     path = os.path.abspath(path)
     return pd.read_csv(path, header=None).values
 
-def solve_qubo_gurobi(Q, timeout_sec=10):
+def solve_qubo_gurobi(Q, timeout_sec=50):
     """Solve QUBO problem using Gurobi."""
     n = Q.shape[0]
     model = gp.Model("QUBO_Gurobi")
@@ -26,11 +26,14 @@ def solve_qubo_gurobi(Q, timeout_sec=10):
 
     if model.status == gp.GRB.OPTIMAL or model.status == gp.GRB.TIME_LIMIT:
         solution = [int(x[i].x > 0.5) for i in range(n)]
+        print(solution)
+        print("----")
+        print(model.objVal)
         return solution, model.objVal
 
     return None, None
 
-def solve_qubo_z3(Q, timeout_ms=10000):
+def solve_qubo_z3(Q, timeout_ms=50000):
     """Solve QUBO problem using Z3."""
     n = Q.shape[0]
     solver = z3.Optimize()
@@ -52,6 +55,9 @@ def solve_qubo_z3(Q, timeout_ms=10000):
         # Safe way to evaluate the cost using the model
         evaluated_cost = model.evaluate(cost, model_completion=True)
         value = int(str(evaluated_cost))
+        print(solution)
+        print("----")
+        print(value)
         return solution, value
 
     return None, None

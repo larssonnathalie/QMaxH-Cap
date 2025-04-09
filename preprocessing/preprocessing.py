@@ -51,7 +51,7 @@ def generatePhysicianData(empty_calendar, n_physicians, seed=True):
         competence_col.append(np.random.choice(possible_competences))
 
         # RANDOM PREFERENCES
-        prefer_not_p = np.random.choice(remaining_dates_p, size=np.random.randint(0, n_dates // 2 + 1), replace=False) # NOTE maybe change upper size limit 
+        prefer_not_p = np.random.choice(remaining_dates_p, size=np.random.randint(0, n_dates // 2 + 1), replace=False) # NOTE maybe change upper size limit
         prefer_not_col.append(list(prefer_not_p))
         for s in prefer_not_p:
             remaining_dates_p.remove(s)
@@ -63,8 +63,10 @@ def generatePhysicianData(empty_calendar, n_physicians, seed=True):
 
         unavail_p = np.random.choice(remaining_dates_p, size=np.random.randint(0, len(remaining_dates_p)), replace=False)
         unavail_col.append(list(unavail_p))
-    
+
     physician_data_df = pd.DataFrame({'name':name_col, 'extent': extent_col, 'prefer':prefer_col, 'prefer not':prefer_not_col, 'unavailable':unavail_col, 'title':title_col, 'competence':competence_col})
+    print('\nphys DF',physician_data_df['prefer'])
+
     physician_data_df.to_csv('data/intermediate/physician_data.csv', index=None)
 
 
@@ -104,7 +106,7 @@ def convertPreferences(empty_calendar_df):
             date_to_s[date].append(s)
         else:
             date_to_s[date] = [s]
-    included_dates = list(empty_calendar_df['date'])
+    included_dates = [str(empty_calendar_df['date'].iloc[i]) for i in range(len(empty_calendar_df))]
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv') 
     n_physicians = physician_df.shape[0]
 
@@ -113,7 +115,8 @@ def convertPreferences(empty_calendar_df):
     unavailable_shifts_col = ['']*n_physicians
 
     for p in range(n_physicians): 
-        prefer_dates = physician_df.loc[p,'prefer']
+        prefer_dates =[str(physician_df['prefer'].iloc[i]) for i in range(len(physician_df))]# physician_df.loc[p,'prefer']
+        print(prefer_dates,type(included_dates[0]))
         prefer_shifts = []
         if prefer_dates !='[]':
             prefer_dates = prefer_dates.strip(']').strip('[').split(',')
