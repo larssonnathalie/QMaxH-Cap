@@ -5,7 +5,6 @@ from postprocessing.postprocessing import *
 from qaoa.testQandH import *
 
 # General TODO:s
-    # Merge branches
     # Decide lambdas
 
     # results
@@ -17,10 +16,10 @@ from qaoa.testQandH import *
 
 # Parameters
 start_date = '2025-03-24' 
-end_date = '2025-03-25'
-n_physicians = 3
+end_date = '2025-04-10'
+n_physicians = 4
 backend = 'aer'
-cl = 2                 # complexity level: 
+cl = 3                # complexity level: 
 cl_contents = ['',
 'cl1: demand, fairness',
 'cl2: demand, fairness, preferences, unavailable, extent, (one shift per day)',
@@ -36,7 +35,7 @@ preference_seed = True
 init_seed = False
 estimation_plots = False
 
-time_period = 'week' # NOTE work extent constraint is very different if t = 'week' 
+time_period = 'shift' # NOTE work extent constraint is very different if t = 'week' 
 
 # NOTE Demand should be decided in consideration of the amount of workers and their extent
 demands = {'weekday': 3, 'holiday': 1}   # weekday should be > holiday 

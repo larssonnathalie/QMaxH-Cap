@@ -332,9 +332,14 @@ def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=Fals
 
 
         elif time_period == 'week':
+            shifts_per_week=7
+            if cl>=3:
+                shifts_per_week =21
+
             for p in range(n_physicians):
                 extent_p = int(physician_df['extent'].iloc[p])
                 n_shifts_target = targetShiftsPerWeek(extent_p, cl)
+                n_shifts_target = n_shifts_target * (n_shifts/shifts_per_week)
                 assigned_shifts = sum(x_symbols[p][s] for s in range(n_shifts))
                 H_extent += (assigned_shifts-n_shifts_target)**2
     
@@ -359,7 +364,8 @@ def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=Fals
     # ∑s=1 (demanded – (∑p=1  x_ps))^2
     for s in range(n_shifts): 
         demand_s = shifts_df['demand'].iloc[s]
-        print('demand',demand_s)
+        if time_period in ['day', 'shift']:
+            print('demand',demand_s)
         workers_s = sum(x_symbols[p][s] for p in range(n_physicians))   
         H_meet_demand_s = (workers_s-sp.Integer(demand_s))**2 
         H_meet_demand += H_meet_demand_s
@@ -370,6 +376,8 @@ def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=Fals
     H_pref = sp.expand(H_pref)
     H_unavail = sp.expand(H_unavail)
     H_rest = sp.expand(H_rest)
+    #print('H unavail:', sp.simplify(H_unavail*lambdas['unavail']))
+
     if prints:
         print('H demand:', sp.simplify(H_meet_demand*lambdas['demand']))
         #print('\nH fair:', sp.simplify(H_fair*lambdas['fair']))
