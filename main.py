@@ -1,6 +1,4 @@
-from qaoa.qaoa import *
-from classical.src.scheduler import solve_and_save_results, schedule_dict_to_df
-from postprocessing.postprocessing import bitstringToSchedule, controlSchedule, controlPlot
+from classical.scheduler import solve_and_save_results, schedule_dict_to_df
 from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
 
@@ -20,7 +18,7 @@ from postprocessing.postprocessing import *
 
 # Parameters
 start_date = '2025-04-01' # including this date
-end_date = '2025-04-06' # including this date
+end_date = '2025-04-30' # including this date
 weekday_demand = 2
 holiday_demand = 1
 n_physicians = 5   #TODO should depend on al
@@ -77,7 +75,7 @@ all_objectives, x_symbols = makeObjectiveFunctions(n_demand, cl, lambdas=lambdas
 # Extract Qubo Q-matrix from objectives           Y = x^T Qx
 Q = objectivesToQubo(all_objectives, x_symbols, cl, mirror=False)
 
-
+# TODO Store the results from classical
 # Solve using classical solvers
 if classical:
     print("\nSolving with Z3 (Classical)...")

@@ -2,14 +2,10 @@ import pandas as pd
 import os
 
 def load_data_from_intermediate():
-    """Loads shift and physician data generated from QUBO-style pipeline"""
-
-    # Get absolute path to the project root
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    intermediate_dir = os.path.join(base_dir, "data", "intermediate")
-
-    shifts_path = os.path.join(intermediate_dir, "shift_data.csv")
-    physicians_path = os.path.join(intermediate_dir, "physician_data.csv")
+    base_dir = os.path.dirname(os.path.abspath(__file__))  # path to classical/
+    data_dir = os.path.join(base_dir, "..", "data", "intermediate")
+    shifts_path = os.path.join(data_dir, "shift_data.csv")
+    physicians_path = os.path.join(data_dir, "physician_data.csv")
 
     shifts_df = pd.read_csv(shifts_path)
     physicians_df = pd.read_csv(physicians_path)

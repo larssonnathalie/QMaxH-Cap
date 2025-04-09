@@ -9,7 +9,7 @@ def create_gurobi_model(physicians, shifts, demand, preference, cl=1, lambdas=No
     x = model.addVars(physicians, shifts, vtype=GRB.BINARY, name="x")
 
     if lambdas is None:
-        lambdas = {'demand': 5, 'fair': 2, 'pref': 1, 'unavail': 5}
+        lambdas = {'demand': 5, 'fair': 2, 'pref': 100, 'unavail': 5}
 
     preference_expr = LinExpr()
     fairness_expr = LinExpr()
