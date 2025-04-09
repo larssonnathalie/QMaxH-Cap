@@ -107,3 +107,72 @@ def controlPlot(result_df): #TODO compare with ok column
     plt.title('Preferences')
     plt.imshow(-prefer_matrix,cmap='coolwarm', vmin=-1, vmax=1)
     plt.show()'''
+
+def controlPlotDual(result_df_z3, result_df_gurobi):
+    """
+    Plots Z3 and Gurobi results side-by-side with preference annotations and coverage info.
+    """
+    physician_df = pd.read_csv('data/intermediate/physician_data.csv', index_col=False)
+    n_physicians = len(physician_df)
+    n_shifts = len(result_df_z3)
+
+    fig, axes = plt.subplots(1, 2, figsize=(2 * 5, n_physicians / n_shifts * 6), sharey=True)
+    titles = ["Z3 Result", "Gurobi Result"]
+    result_dfs = [result_df_z3, result_df_gurobi]
+
+    for ax, title, result_df in zip(axes, titles, result_dfs):
+        result_matrix = np.zeros((n_physicians, n_shifts))
+        for s in range(n_shifts):
+            workers_s = result_df['staff'].iloc[s]
+            for p in workers_s:
+                result_matrix[int(p)][s] = 1
+
+        prefer_matrix = np.zeros((n_physicians, n_shifts))
+        for p in range(n_physicians):
+            prefer_p = physician_df['prefer'].iloc[p]
+            if prefer_p != '[]':
+                prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')
+                for s in prefer_shifts_p:
+                    if s:
+                        prefer_matrix[p][int(s)] = 1
+
+            prefer_not_p = physician_df['prefer not'].iloc[p]
+            if prefer_not_p != '[]':
+                prefer_not_shifts_p = prefer_not_p.strip('[').strip(']').split(',')
+                for s in prefer_not_shifts_p:
+                    if s:
+                        prefer_matrix[p][int(s)] = -1
+
+            unavail_p = physician_df['unavailable'].iloc[p]
+            if unavail_p != '[]':
+                unavail_shifts_p = unavail_p.strip('[').strip(']').split(',')
+                for s in unavail_shifts_p:
+                    if s:
+                        prefer_matrix[p][int(s)] = -2
+
+        ok_row = np.zeros((1, n_shifts))
+        ok_row[0, :] = result_df['shift covered'] == 'ok'
+
+        prefer_colors = np.where(prefer_matrix.flatten() == 1, 'lightgreen', prefer_matrix.flatten())
+        prefer_colors = np.where(prefer_matrix.flatten() == -1, 'pink', prefer_colors)
+        prefer_colors = np.where(prefer_matrix.flatten() == 0, 'none', prefer_colors)
+        prefer_colors = np.where(prefer_matrix.flatten() == -2, 'red', prefer_colors)
+
+        ax.pcolor(np.arange(n_shifts + 1) - 0.5, np.arange(n_physicians + 1) - 0.5, result_matrix, cmap="Greens")
+        x, y = np.meshgrid(np.arange(n_shifts), np.arange(n_physicians))
+        ax.scatter(
+            x.ravel(), y.ravel(),
+            s=(50 * (5 / n_shifts)) ** 2, c='none', marker='s', linewidths=9, edgecolors=prefer_colors
+        )
+        ax.pcolor(np.arange(n_shifts + 1) - 0.5, [n_physicians - 0.5, n_physicians - 0.4], ok_row,
+                  cmap='RdYlGn', vmin=0, vmax=1)
+
+        ax.set_xticks(ticks=np.arange(n_shifts))
+        ax.set_xticklabels([date for date in result_df['date']], rotation=90)
+        yticks = [i for i in np.arange(n_physicians)] + [n_physicians - 0.4]
+        ax.set_yticks(ticks=yticks)
+        ax.set_yticklabels([phys[-1] for phys in physician_df['name']] + ['OK n.o.\nworkers'])
+        ax.set_title(title)
+
+    plt.tight_layout()
+    plt.show()

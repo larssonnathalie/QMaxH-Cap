@@ -3,9 +3,9 @@ import numpy as np
 import time
 
 def create_z3_model(physicians, shifts, demand, preference, cl=1, lambdas=None):
-    start_time = time.time()
-    solver = Optimize()
+    overall_start = time.time()
     x = {(p, s): Bool(f"x_{p}_{s}") for p in physicians for s in shifts}
+    solver = Optimize()
 
     if lambdas is None:
         lambdas = {'demand': 5, 'fair': 2, 'pref': 1, 'unavail': 5}
@@ -16,12 +16,10 @@ def create_z3_model(physicians, shifts, demand, preference, cl=1, lambdas=None):
     if cl >= 1:
         for s in shifts:
             solver.add(Sum([If(x[p, s], 1, 0) for p in physicians]) == demand[s])
-
         for p in physicians:
             for i in range(len(shifts) - 1):
                 s1, s2 = shifts[i], shifts[i + 1]
                 solver.add(Or(Not(x[p, s1]), Not(x[p, s2])))
-
         total_demand = sum(demand.values())
         avg_assignments = int(np.ceil(total_demand / len(physicians)))
         for p in physicians:
@@ -41,16 +39,24 @@ def create_z3_model(physicians, shifts, demand, preference, cl=1, lambdas=None):
 
     solver.minimize(Sum(preference_penalties) + lambdas['fair'] * Sum(fairness_terms))
 
-    if solver.check() == sat:
+    solve_start = time.time()
+    result = solver.check()
+    solve_end = time.time()
+
+    overall_end = time.time()
+
+    solver_time = solve_end - solve_start
+    overall_time = overall_end - overall_start
+
+    print(f"Z3 solver time: {solver_time:.4f} seconds")
+    print(f"Z3 overall time: {overall_time:.4f} seconds")
+
+    if result == sat:
         model = solver.model()
         schedule = {p: [] for p in physicians}
         for (p, s) in x:
             if is_true(model.evaluate(x[p, s])):
                 schedule[p].append(s)
-        end_time = time.time()
-        print(f"Z3 solve time: {end_time - start_time:.4f} seconds")
-        return schedule
+        return schedule, solver_time, overall_time
     else:
-        end_time = time.time()
-        print(f"Z3 solve time (no solution): {end_time - start_time:.4f} seconds")
-        return None
+        return None, solver_time, overall_time

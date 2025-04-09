@@ -1,8 +1,6 @@
 from qaoa.qaoa import *
-from classical.src.scheduler import solve_and_save_results
-from classical.src.qubo_solvers import solve_qubo_z3, solve_qubo_gurobi
+from classical.src.scheduler import solve_and_save_results, schedule_dict_to_df
 from postprocessing.postprocessing import bitstringToSchedule, controlSchedule, controlPlot
-
 from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
 
@@ -15,7 +13,6 @@ from postprocessing.postprocessing import *
         # Focus on fairness of shift type/weekday/holidays?
         # How adapt demand to extent?
             # Soften demand-constraint so it is a minimum but more is ok? Impossible for constant Q-matrix (without slack vars)
-    # Test QUBO for classic
     # Competence constraint
     # Fix universal way of storing list-like objects in csv
     # QAOA class instead of functions
@@ -80,45 +77,39 @@ all_objectives, x_symbols = makeObjectiveFunctions(n_demand, cl, lambdas=lambdas
 # Extract Qubo Q-matrix from objectives           Y = x^T Qx
 Q = objectivesToQubo(all_objectives, x_symbols, cl, mirror=False)
 
-# TODO test passing Q matrix to classical
-# Classical optimization (BILP, solver: z3), for comparison
+
 # Solve using classical solvers
 if classical:
-    def schedule_dict_to_df(schedule, shifts_df):
-        n_shifts = len(shifts_df)
-        df = pd.DataFrame({'date': shifts_df['date'], 'staff': [[] for _ in range(n_shifts)]})
-        for p, shift_list in schedule.items():
-            pid = int(p.replace('physician', '')) if p.startswith('physician') else p
-            for s in shift_list:
-                s_index = shifts_df.index[shifts_df['date'] == s][0]
-                df.at[s_index, 'staff'].append(str(pid))
-        return df
-
-    # Solve with Z3
     print("\nSolving with Z3 (Classical)...")
-    z3_schedule = solve_and_save_results(solver_type="z3", cl=cl, lambdas=lambdas)
+    z3_schedule, z3_solver_time, z3_overall_time = solve_and_save_results(solver_type="z3", cl=cl, lambdas=lambdas)
     if z3_schedule:
         print("Z3 schedule:")
         for p, s in z3_schedule.items():
             print(f"{p}: {s}")
-
         z3_schedule_df = schedule_dict_to_df(z3_schedule, shifts_df)
         z3_checked_df = controlSchedule(z3_schedule_df, shifts_df, cl=cl)
-        if plots:
-            controlPlot(z3_checked_df)
 
-    # Solve with Gurobi
     print("\nSolving with Gurobi (Classical)...")
-    gurobi_schedule = solve_and_save_results(solver_type="gurobi", cl=cl, lambdas=lambdas)
+    gurobi_schedule, gurobi_solver_time, gurobi_overall_time = solve_and_save_results(solver_type="gurobi", cl=cl, lambdas=lambdas)
     if gurobi_schedule:
         print("Gurobi schedule:")
         for p, s in gurobi_schedule.items():
             print(f"{p}: {s}")
-
         gurobi_schedule_df = schedule_dict_to_df(gurobi_schedule, shifts_df)
         gurobi_checked_df = controlSchedule(gurobi_schedule_df, shifts_df, cl=cl)
-        if plots:
-            controlPlot(gurobi_checked_df)
+
+    print("\n--- Timing Comparison ---")
+    print(f"Z3 solver time:     {z3_solver_time:.4f} s")
+    print(f"Z3 overall time:    {z3_overall_time:.4f} s")
+    print(f"Gurobi solver time: {gurobi_solver_time:.4f} s")
+    print(f"Gurobi overall time:{gurobi_overall_time:.4f} s")
+
+    print("\n--- Relative Difference ---")
+    print(f"Solver time difference:  {z3_solver_time - gurobi_solver_time:.4f} s")
+    print(f"Overall time difference: {z3_overall_time - gurobi_overall_time:.4f} s")
+
+    if plots:
+        controlPlotDual(z3_checked_df, gurobi_checked_df)
 
 '''
 # Q-matrix --> pauli operators --> cost hamiltonian (Hc)

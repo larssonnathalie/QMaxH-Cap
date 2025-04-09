@@ -3,8 +3,9 @@ import numpy as np
 import time
 
 def create_gurobi_model(physicians, shifts, demand, preference, cl=1, lambdas=None):
-    start_time = time.time()
+    overall_start = time.time()
     model = Model("Linear_Scheduling")
+    model.setParam("OutputFlag", 0)
     x = model.addVars(physicians, shifts, vtype=GRB.BINARY, name="x")
 
     if lambdas is None:
@@ -42,10 +43,17 @@ def create_gurobi_model(physicians, shifts, demand, preference, cl=1, lambdas=No
                     model.addConstr(x[p, s] == 0, name=f"unavail_{p}_{s}")
 
     model.setObjective(preference_expr + fairness_expr, GRB.MINIMIZE)
-    model.optimize()
-    end_time = time.time()
 
-    print(f"Gurobi solve time: {end_time - start_time:.4f} seconds")
+    solve_start = time.time()
+    model.optimize()
+    solve_end = time.time()
+
+    overall_end = time.time()
+
+    solver_time = solve_end - solve_start
+    overall_time = overall_end - overall_start
+    print(f"Gurobi solver time: {solver_time:.4f} seconds")
+    print(f"Gurobi overall time: {overall_time:.4f} seconds")
 
     if model.status == GRB.OPTIMAL:
         schedule = {p: [] for p in physicians}
@@ -53,6 +61,6 @@ def create_gurobi_model(physicians, shifts, demand, preference, cl=1, lambdas=No
             for s in shifts:
                 if x[p, s].X > 0.5:
                     schedule[p].append(s)
-        return schedule
+        return schedule, solver_time, overall_time
     else:
-        return None
+        return None, solver_time, overall_time

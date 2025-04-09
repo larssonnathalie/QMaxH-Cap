@@ -52,17 +52,17 @@ def generatePhysicianData(empty_calendar, n_physicians, seed=True):
 
         # RANDOM PREFERENCES
         prefer_not_p = np.random.choice(remaining_dates_p, size=np.random.randint(0, n_dates // 2 + 1), replace=False) # NOTE maybe change upper size limit
-        prefer_not_col.append(list(prefer_not_p))
+        prefer_not_col.append([str(pd.to_datetime(d).date()) for d in prefer_not_p])
         for s in prefer_not_p:
             remaining_dates_p.remove(s)
 
         prefer_p = np.random.choice(remaining_dates_p, size=np.random.randint(0, len(remaining_dates_p)), replace=False)
-        prefer_col.append(list(prefer_p))
+        prefer_col.append([str(pd.to_datetime(d).date()) for d in prefer_p])
         for s in prefer_p:
             remaining_dates_p.remove(s)
 
         unavail_p = np.random.choice(remaining_dates_p, size=np.random.randint(0, len(remaining_dates_p)), replace=False)
-        unavail_col.append(list(unavail_p))
+        unavail_col.append([str(pd.to_datetime(d).date()) for d in unavail_p])
 
     physician_data_df = pd.DataFrame({'name':name_col, 'extent': extent_col, 'prefer':prefer_col, 'prefer not':prefer_not_col, 'unavailable':unavail_col, 'title':title_col, 'competence':competence_col})
 
@@ -150,7 +150,7 @@ def convertPreferences(empty_calendar_df):
     physician_df['prefer'] = prefer_shifts_col
     physician_df['prefer not'] = prefer_not_shifts_col
     physician_df['unavailable'] = unavailable_shifts_col
-    print(physician_df)
+    #print(physician_df)
     physician_df.to_csv(f'data/intermediate/physician_data.csv', index=None)
 
 
