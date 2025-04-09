@@ -55,7 +55,8 @@ empty_calendar_df = pd.read_csv(f'data/intermediate/empty_calendar.csv') # readi
 # Automatically generate 'shift_data.csv'
 generateShiftData(empty_calendar_df, cl, weekday_workers=weekday_demand, holiday_workers=holiday_demand, prints=False)
 generatePhysicianData(empty_calendar_df,n_physicians,seed=True)
-
+phys_df = pd.read_csv('data/intermediate/physician_data.csv')
+#print('\nPHYS DF',phys_df)
 convertPreferences(empty_calendar_df)
 
 
@@ -71,7 +72,7 @@ if prints:
     print('n variables:', n_physicians*n_shifts)
 
 # Translate unprefered dates to unprefered shift-numbers
-convertPreferences(empty_calendar_df)
+#convertPreferences(empty_calendar_df)
 
 # Make sum of all objective functions and enforce penatlies (lambdas)
 all_objectives, x_symbols = makeObjectiveFunctions(n_demand, cl, lambdas=lambdas)
@@ -119,7 +120,7 @@ if classical:
         if plots:
             controlPlot(gurobi_checked_df)
 
-
+'''
 # Q-matrix --> pauli operators --> cost hamiltonian (Hc)
 b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
 Hc = QToHc(Q, b)

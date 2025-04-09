@@ -3,7 +3,7 @@ import numpy as np
 import sympy as sp
 import holidays
 from datetime import datetime
-from qiskit_algorithms.optimizers import COBYLA
+#from qiskit_algorithms.optimizers import COBYLA
 
 # construct empty calendar with work days, holidays etc
 def emptyCalendar(end_date, start_date, prints=True, include_weekdays=True):
@@ -65,7 +65,6 @@ def generatePhysicianData(empty_calendar, n_physicians, seed=True):
         unavail_col.append(list(unavail_p))
 
     physician_data_df = pd.DataFrame({'name':name_col, 'extent': extent_col, 'prefer':prefer_col, 'prefer not':prefer_not_col, 'unavailable':unavail_col, 'title':title_col, 'competence':competence_col})
-    print('\nphys DF',physician_data_df['prefer'])
 
     physician_data_df.to_csv('data/intermediate/physician_data.csv', index=None)
 
@@ -115,13 +114,12 @@ def convertPreferences(empty_calendar_df):
     unavailable_shifts_col = ['']*n_physicians
 
     for p in range(n_physicians): 
-        prefer_dates =[str(physician_df['prefer'].iloc[i]) for i in range(len(physician_df))]# physician_df.loc[p,'prefer']
-        print(prefer_dates,type(included_dates[0]))
+        prefer_dates =  physician_df.loc[p,'prefer']
         prefer_shifts = []
         if prefer_dates !='[]':
             prefer_dates = prefer_dates.strip(']').strip('[').split(',')
             for date in prefer_dates:
-                date = date.strip('"').strip("'")
+                date = str(date.strip('"').strip("'"))
                 if date in included_dates:
                     for s in date_to_s[date]:
                         prefer_shifts.append(s)
@@ -152,6 +150,7 @@ def convertPreferences(empty_calendar_df):
     physician_df['prefer'] = prefer_shifts_col
     physician_df['prefer not'] = prefer_not_shifts_col
     physician_df['unavailable'] = unavailable_shifts_col
+    print(physician_df)
     physician_df.to_csv(f'data/intermediate/physician_data.csv', index=None)
 
 
