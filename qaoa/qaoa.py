@@ -1,7 +1,7 @@
-from qiskit_algorithms.minimum_eigensolvers import QAOA
-from qiskit_algorithms.optimizers import COBYLA
-from qiskit_optimization import QuadraticProgram
-from qiskit_optimization.algorithms import MinimumEigenOptimizer
+#from qiskit_algorithms.minimum_eigensolvers import QAOA
+#from qiskit_algorithms.optimizers import COBYLA
+#from qiskit_optimization import QuadraticProgram
+#from qiskit_optimization.algorithms import MinimumEigenOptimizer
 from qiskit.circuit.library import QAOAAnsatz
 from qiskit.quantum_info import SparsePauliOp
 from qiskit_ibm_runtime import SamplerV2 as Sampler
