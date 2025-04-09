@@ -1,22 +1,22 @@
 date,shift type,demand,attractiveness,weekday,is_holiday,staff,shift covered
-2025-03-24,dag,1,-1.818181818181818,Monday,False,['1'],ok
-2025-03-24,kväll,1,-1.818181818181818,Monday,False,['2'],ok
-2025-03-24,natt,1,-1.818181818181818,Monday,False,['0'],ok
-2025-03-25,dag,1,-2.727272727272727,Tuesday,False,['2'],ok
-2025-03-25,kväll,1,-2.727272727272727,Tuesday,False,['1'],ok
-2025-03-25,natt,1,-2.727272727272727,Tuesday,False,['0'],ok
-2025-03-26,dag,1,-0.9090909090909092,Wednesday,False,['2'],ok
-2025-03-26,kväll,1,-0.9090909090909092,Wednesday,False,['1'],ok
-2025-03-26,natt,1,-0.9090909090909092,Wednesday,False,['0'],ok
-2025-03-27,dag,1,-0.9090909090909092,Thursday,False,['2'],ok
-2025-03-27,kväll,1,-0.9090909090909092,Thursday,False,['0'],ok
-2025-03-27,natt,1,-0.9090909090909092,Thursday,False,['1'],ok
-2025-03-28,dag,1,-2.727272727272727,Friday,False,['0'],ok
-2025-03-28,kväll,1,-2.727272727272727,Friday,False,['2'],ok
-2025-03-28,natt,1,-2.727272727272727,Friday,False,['1'],ok
-2025-03-29,dag,0,-20.0,Saturday,True,[],ok
-2025-03-29,kväll,0,-20.0,Saturday,True,[],ok
-2025-03-29,natt,0,-20.0,Saturday,True,[],ok
-2025-03-30,dag,0,-10.0,Sunday,True,[],ok
-2025-03-30,kväll,0,-10.0,Sunday,True,[],ok
-2025-03-30,natt,0,-10.0,Sunday,True,[],ok
+2025-03-24,dag,2,0.4761904761904761,Monday,False,"['3', '2', '0']",NOT ok!
+2025-03-24,kväll,1,0.9090909090909092,Monday,False,[],NOT ok!
+2025-03-24,natt,1,0.9090909090909092,Monday,False,"['1', '0']",NOT ok!
+2025-03-25,dag,2,0.0,Tuesday,False,"['3', '2']",ok
+2025-03-25,kväll,1,0.0,Tuesday,False,['0'],ok
+2025-03-25,natt,1,0.0,Tuesday,False,"['3', '0']",NOT ok!
+2025-03-26,dag,2,1.4285714285714286,Wednesday,False,"['2', '1']",ok
+2025-03-26,kväll,1,2.727272727272727,Wednesday,False,['0'],ok
+2025-03-26,natt,1,2.727272727272727,Wednesday,False,"['3', '2']",NOT ok!
+2025-03-27,dag,2,-0.3225806451612903,Thursday,False,"['1', '0']",ok
+2025-03-27,kväll,1,-0.4761904761904761,Thursday,False,[],NOT ok!
+2025-03-27,natt,1,-0.4761904761904761,Thursday,False,['3'],ok
+2025-03-28,dag,2,-0.4761904761904761,Friday,False,['0'],NOT ok!
+2025-03-28,kväll,1,-0.9090909090909092,Friday,False,['3'],ok
+2025-03-28,natt,1,-0.9090909090909092,Friday,False,"['3', '2', '1']",NOT ok!
+2025-03-29,dag,1,-0.9090909090909092,Saturday,True,['0'],ok
+2025-03-29,kväll,1,-0.9090909090909092,Saturday,True,['1'],ok
+2025-03-29,natt,0,-10.0,Saturday,True,"['3', '0']",NOT ok!
+2025-03-30,dag,1,-1.818181818181818,Sunday,True,['1'],ok
+2025-03-30,kväll,1,-1.818181818181818,Sunday,True,['3'],ok
+2025-03-30,natt,0,-20.0,Sunday,True,['3'],NOT ok!

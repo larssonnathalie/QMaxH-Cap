@@ -49,12 +49,11 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True, only_full
     #TODO look over all probabilities in random choices and set realistic values
 
     all_dates = empty_calendar['date'] # TODO preferences on separate shifts instead of dates
-    n_dates = len(all_dates)
+    n_dates = len(list(set(list(all_dates))))
     possible_extents = [25,50,50,75,75,100,100,100,100,100,100]  # more copies -> more likely
     if only_fulltime:
         possible_extents = [100]
     possible_titles = ['ÖL', 'ST', 'AT','Chef','UL'] * (n_physicians//5+1)
-    possible_competences = [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1]  
 
     name_col = []
     extent_col=[]
@@ -62,7 +61,6 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True, only_full
     prefer_not_col = [[] for _ in range(n_physicians)]
     unavail_col = [[] for _ in range(n_physicians)]
     title_col = [] 
-    competence_col = []
     worked_shifts_col = [0 for _ in range(n_physicians)] 
     work_rate_col = [0 for _ in range(n_physicians)] 
     satisfaction_col = [0 for _ in range(n_physicians)] 
@@ -75,7 +73,6 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True, only_full
         remaining_dates_p = list(set(list(all_dates)))
         name_col.append(f'physician{p}')
         extent_col.append(np.random.choice(possible_extents))
-        competence_col.append(np.random.choice(possible_competences))
         title_col.append(possible_titles[p]) 
 
         if cl >=2:
@@ -87,18 +84,18 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True, only_full
                 remaining_dates_p.remove(s)
 
             if len(remaining_dates_p)>0:
-                size = np.random.randint(0, len(remaining_dates_p))#//2)
+                size = np.random.randint(0, len(remaining_dates_p)//2)
                 prefer_p = np.random.choice(remaining_dates_p, size=size, replace=False)
                 prefer_col[p]=list(prefer_p)
                 for s in prefer_p:
                     remaining_dates_p.remove(s)
 
             if len(remaining_dates_p)>0:
-                size=np.random.randint(0, len(remaining_dates_p))#//2)
+                size= np.random.randint(0, len(remaining_dates_p)//2)
                 unavail_p = np.random.choice(remaining_dates_p, size=size, replace=False)
                 unavail_col[p] = list(unavail_p)
 
-    physician_data_df = pd.DataFrame({'name':name_col, 'title':title_col, 'competence':competence_col, 'extent': extent_col, 'shifts worked':worked_shifts_col, 'work rate':work_rate_col, 'prefer':prefer_col, 'prefer not':prefer_not_col, 'unavailable':unavail_col, 'satisfaction':satisfaction_col, 'worked last':worked_last_col})
+    physician_data_df = pd.DataFrame({'name':name_col, 'title':title_col, 'extent': extent_col, 'shifts worked':worked_shifts_col, 'work rate':work_rate_col, 'prefer':prefer_col, 'prefer not':prefer_not_col, 'unavailable':unavail_col, 'satisfaction':satisfaction_col, 'worked last':worked_last_col})
     physician_data_df.to_csv('data/intermediate/physician_data.csv', index=None)
 
 # SHIFT DEMAND & ATTRACTIVENESS
@@ -154,10 +151,6 @@ def generateShiftData(empty_calendar, T, cl, demands, time_period):
         shift_data_df_w = shift_data_df.iloc[start_idx:stop_idx]
         shift_data_df_w.to_csv(f'data/intermediate/shift_data_t{t}.csv', index=False)
 
-# TODO import task data
-def generateTaskData(empty_calendar, T, cl, demands, time_period):
-    pass
-
 # PREFERENCES from dates to shift-numbers
 def convertPreferences(empty_calendar_df, t, only_prefer=False):
     shifts_df = pd.read_csv(f'data/intermediate/shift_data_t{t}.csv')
@@ -169,7 +162,7 @@ def convertPreferences(empty_calendar_df, t, only_prefer=False):
             date_to_s[date].append(s)
         else:
             date_to_s[date] = [s]
-    included_dates = list(shifts_df['date'])#list(empty_calendar_df['date'])
+    included_dates = list(shifts_df['date'])
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv') 
     n_physicians = physician_df.shape[0]
 
@@ -218,7 +211,6 @@ def convertPreferences(empty_calendar_df, t, only_prefer=False):
     physician_df[f'unavailable t{t}'] = unavailable_shifts_col
     physician_df.to_csv(f'data/intermediate/physician_data.csv', index=None)
 
-
 def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=False):
     # Both objectives & constraints formulated as Hamiltonians to be combined to QUBO form
     # Using sympy to simplify the H expressions
@@ -240,6 +232,7 @@ def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=Fals
     H_pref = 0
     H_unavail = 0
     H_rest = 0
+    H_titles = 0
 
     # minimize UNFAIRNESS
     if cl == 1:
@@ -357,8 +350,10 @@ def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=Fals
                         H_rest += x_symbols[p][s]*x_symbols[p][s-1] # penalize working two following shift
 
             if cl >=4:
-                # TITLES constraint
+                # TODO TITLES constraint
+                    # TODO assign boss to necessary tasks
                 pass
+
 
     # DEMAND
     # ∑s=1 (demanded – (∑p=1  x_ps))^2
@@ -430,12 +425,13 @@ def objectivesToQubo(all_hamiltonians, n_shifts, x_symbols, cl, mirror=True, pri
                 Q[idx1, idx2] += coeff  # Off-diagonal terms
                 if prints:
                     print(f'p{p1}s{s1} * p{p2}s{s2} has coeff:', coeff)
-
-                if mirror:
-                    Q[idx2, idx1] += coeff  # Symmetric QUBO matrix
-
-                if idx1 == idx2:
+                if idx1 != idx2:
+                    if mirror:
+                        Q[idx2, idx1] += coeff  # Symmetric QUBO matrix
+                else:
                     print('\nTHIS SHOULD NOT OCCUR')
+
+                
             
 
     # Save Q to csv

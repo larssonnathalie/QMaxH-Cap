@@ -1,2 +1,4 @@
-date,demand,attractiveness
-2025-03-26,2,0.0
+date,shift type,demand,attractiveness
+2025-03-26,dag,2,1.4285714285714286
+2025-03-26,kväll,1,2.727272727272727
+2025-03-26,natt,1,2.727272727272727

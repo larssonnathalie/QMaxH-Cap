@@ -5,55 +5,47 @@ from postprocessing.postprocessing import *
 from qaoa.testQandH import *
 
 # General TODO:s
-    # Handle titles & assignments
-        # might need even shorter periods than week
-        # "chef" title has special constraints & not included in fairness
     # Merge branches
-    # Reduce Qubits: Work-type in constraints similar to long term fairness, OR: remove side-task work-types
-    # Define "fairness", considering different titles have different types of work 
-        # add more factors than preference satisfaction, ex. weekend shifts, night shifts etc
-        # Optimize w.r.t. current week, not just previous OR day-to-day opt?
     # Decide lambdas
-    # dont assign unavailable
-    # Preferences:
-        # shift type
-        # reoccuring
 
     # results
-        # Classical(qubo) vs quantum(qubo)
+        # Classical(constr.) vs quantum(qubo)
         # quantum simulator vs quantum ibm
         # (Classical(qubo) vs Classical(linear constraints))
-        # Classical(1 long qubo) vs Classical(many short qubo)
-        # Classical(qubo many) med Classical(rolling horizon)
+        # quantum(1 long qubo) vs quantum(many short qubo)
+
 
 # Parameters
 start_date = '2025-03-24' 
-end_date = '2025-03-30'
+end_date = '2025-03-25'
 n_physicians = 3
 backend = 'aer'
-cl = 2                   # complexity level: 
+cl = 2                 # complexity level: 
 cl_contents = ['',
 'cl1: demand, fairness',
-'cl2: demand, fairness, preferences, unavailable, extent',
-'cl3: demand, fairness, preferences, unavailable, extent, shift_type, rest',
-'cl4: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles',
-'cl5: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles, side_tasks',
-'cl6: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles, side_tasks, competence']
+'cl2: demand, fairness, preferences, unavailable, extent, (one shift per day)',
+'cl3: demand, fairness, preferences, unavailable, extent, shift_type, rest, (3 shifts per day)',
+'cl4: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles, (3 shifts per day)',
+'cl5: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles, side_tasks, (3 shifts per day)']
 
-skip_unavailable_and_prefer_not = True 
-only_fulltime =True
-prints = True
-plots = True
+skip_unavailable_and_prefer_not = False 
+only_fulltime = False
 classical = False
 draw_circuit = False
 preference_seed = True
 init_seed = False
 estimation_plots = False
 
-time_period = 'shift' # NOTE work extent constraint is vert different if t = 'week' 
-demands = {'weekday': 2, 'holiday': 2}   # weekday should be > holiday 
-if cl>= 3:    # {(shift, is_holiday): num_workers_needed, ...} Demand should be decided in consideration of the amount of workers and their extent
-    demands = {('dag', False):1, ('kväll',False):1, ('natt',False):1, ('dag',True):0, ('kväll',True):0, ('natt',True):0} 
+time_period = 'week' # NOTE work extent constraint is very different if t = 'week' 
+
+# NOTE Demand should be decided in consideration of the amount of workers and their extent
+demands = {'weekday': 3, 'holiday': 1}   # weekday should be > holiday 
+if cl>= 3:    
+        # {(shift, is_holiday): num_workers_needed, ...} 
+    demands = {('dag', False):2, ('kväll',False):1, ('natt',False):1, ('dag',True):1, ('kväll',True):1, ('natt',True):0} 
+    if cl>=4:
+       title_demands =  {('dag', False):{'ST': 0, 'AT': 0, 'UL':1, 'ÖL':1} , ('kväll',False):{'ST': 0, 'AT': 0, 'UL':1, 'ÖL':1} , ('natt',False):{'ST': 0, 'AT': 0, 'UL':1, 'ÖL':1} , ('dag',True):{'ST': 0, 'AT': 0, 'UL':0, 'ÖL':1} , ('kväll',True):{'ST': 0, 'AT': 0, 'UL':0, 'ÖL':1} , ('natt',True):{'ST': 0, 'AT': 0, 'UL':0, 'ÖL':1} }   # weekday should be > holiday 
+
 n_layers = 2
 search_iterations = 20
 estimation_iterations = n_layers * 500
@@ -62,7 +54,7 @@ n_candidates = 20 # compare top X most common solutions
 plot_width = 10
 
 # lambdas = penalties (how hard a constraint is)
-lambdas = {'demand':2, 'fair':0, 'pref':0, 'unavail':0, 'extent':10, 'rest':10}  # NOTE Must be integers
+lambdas = {'demand':8, 'fair':5, 'pref':1, 'unavail':10, 'extent':8, 'rest':10}  # NOTE Must be integers
 
 # Construct empty calendar with holidays etc.
 T, total_holidays, n_days = emptyCalendar(end_date, start_date, cl, time_period=time_period)
@@ -85,14 +77,11 @@ print('\nPhysicians:\t', n_physicians)
 print('Days:\t\t', n_days)
 print('Shifts:\t', len(all_shifts_df))
 print(f't:s ({time_period}:s)\t', T)
-print('Shifts per t:', shifts_per_t)
 print('Layers\t', n_layers)
-print('Seeds:')
-print('\tPreference\t', preference_seed)
-print('\tInitialization\t', init_seed)
-print()
-print('search iterations:', search_iterations)
+print('Seeds:\t\tPreference:', preference_seed,'\t\tInitialization:', init_seed)
+print('Initializations:', search_iterations)
 print(f'comparing top {n_candidates} most common solutions')
+
 
 for t in range(T):
     #empty_calendar_df_t = pd.read_csv(f'data/intermediate/empty_calendar_t{t}.csv')
@@ -116,14 +105,16 @@ for t in range(T):
     # Extract Qubo Q-matrix from objectives           Y = x^T Qx
     Q = objectivesToQubo(all_objectives, n_shifts, x_symbols, cl, mirror=False, prints = False)
 
-    if t==0:
-        print('\nVariables:',Q.shape[0])
+    #if t==0:
+     #   print('\nVariables:',Q.shape[0])
+
 
     # Q-matrix --> pauli operators --> cost hamiltonian (Hc)
     b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
     Hc = QToHc(Q, b) 
     #for i in range(len(Hc.coeffs)):
-        #print(Hc.paulis[i], Hc.coeffs[i])
+       # print(Hc.paulis[i], Hc.coeffs[i])
+
     qaoa = Qaoa(t, Hc, n_layers, plots=estimation_plots, seed=init_seed, backend=backend, instance='premium')
     qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
     best_bitstring_t = qaoa.sampleSolutions(sampling_iterations, n_candidates, return_worst_solution=False)
@@ -154,7 +145,9 @@ for w in range(1,T):
 ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
 print(ok_full_schedule_df)
 #ok_full_schedule_df = pd.read_csv('data/results/result_and_demand_cl2.csv') # Use saved result
-controlPlot(ok_full_schedule_df, range(T), cl, time_period, lambdas, width=plot_width) 
+fig = controlPlot(ok_full_schedule_df, range(T), cl, time_period, lambdas, width=plot_width) 
+fig.savefig('data/results/schedule.png')
+
 
 if lambdas['pref'] != 0 and T>1:
     satisfaction_plot = np.array(satisfaction_plot)

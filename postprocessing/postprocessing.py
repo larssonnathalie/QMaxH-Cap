@@ -158,9 +158,9 @@ def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
             for p in range(n_physicians):
                 prefer_p = physician_df[f'prefer t{t}'].iloc[p]
                 if prefer_p != '[]':
-                    prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')  #TODO fix csv list handling
+                    prefer_shifts_p = prefer_p.strip('[').strip(']').split(',') 
                     for s in prefer_shifts_p:
-                        s_tot = int(s)+t*shifts_per_t
+                        s_tot = int(s) + t*shifts_per_t
                         prefer_matrix[p][s_tot] = 1
 
                 prefer_not_p = physician_df[f'prefer not t{t}'].iloc[p]
@@ -204,15 +204,15 @@ def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
             if np.sum(only_prefer[p]) !=0:
                 prefer_satisfy_rate[p] = prefer_met/np.sum(only_prefer[p]) # % of "prefer" that was satisfied
             else:
-                prefer_satisfy_rate[p] = 0#np.nan 
+                prefer_satisfy_rate[p][0] = np.nan 
 
             prefer_not_but_worked = np.sum(only_prefer_not[p,:]*(result_matrix[p,:])==1)
             prefer_not_was_free = np.sum(only_prefer_not[p]) - prefer_not_but_worked
             if np.sum(only_prefer_not[p]) !=0:
                 prefer_not_satisfy_rate[p] = prefer_not_was_free/np.sum(only_prefer_not[p]) # % of "prefer not" that was satisfied
             else:
-                prefer_not_satisfy_rate[p] = 0#np.nan
-        
+                prefer_not_satisfy_rate[p][0] = np.nan
+                
         # Save preference rates
         preference_stats_df = physician_df.copy()
         preference_stats_df['# prefered not'] = np.sum(only_prefer_not, axis=1)
@@ -226,7 +226,7 @@ def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
     x_size = width
     y_size = n_physicians/n_shifts * x_size + 1
     fig, ax = plt.subplots(figsize=(x_size,y_size))
-    result = ax.pcolor(np.arange(n_shifts+1)-0.5, np.arange(n_physicians+1)-0.5,result_matrix, cmap="Greens")
+    result = ax.pcolor(np.arange(n_shifts+1)-0.5, np.arange(n_physicians+1)-0.5,result_matrix, cmap="Greens", vmax=1,vmin=0)
 
     if cl>=2:  # Preference squares
         if lambdas['pref'] != 0:
@@ -234,17 +234,21 @@ def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
             pref_squares = ax.scatter(x.ravel(), y.ravel(), s=(50*(x_size/n_shifts))**2, c='none',marker='s', linewidths=9, edgecolors=prefer_colors)
             pref_met = ax.pcolor([n_shifts-0.5,n_shifts], np.arange(n_physicians+1)-0.5, prefer_satisfy_rate, cmap='RdYlGn', shading='auto', vmin=0, vmax=1) 
             pref_not_met = ax.pcolor([n_shifts,n_shifts+0.5], np.arange(n_physicians+1)-0.5, prefer_not_satisfy_rate, cmap='RdYlGn', shading='auto', vmin=0,vmax=1) 
-            sat = ax.pcolor([n_shifts+0.5,n_shifts+1], np.arange(n_physicians+1)-0.5, satisfaction_score, cmap='RdYlGn') #vmin=?,vmax=?) 
+            sat = ax.pcolor([n_shifts+0.5,n_shifts+1], np.arange(n_physicians+1)-0.5, satisfaction_score, cmap='Greens', vmin=-100,vmax=500) 
         if lambdas['extent'] !=0:
             ext = ax.pcolor([n_shifts+1,n_shifts+1.5], np.arange(n_physicians+1)-0.5, extent_error, cmap='RdYlGn', shading='auto', vmin=-100, vmax=100) 
 
-        #prefer_satisfy_rate = np.where(prefer_satisfy_rate ==np.NaN, 0, prefer_satisfy_rate) # tried rate = NaN if no preferences, instead of 0%, got error
-        #prefer_not_satisfy_rate = np.where(prefer_not_satisfy_rate==np.NaN, 0, prefer_not_satisfy_rate)
+        #prefer_satisfy_rate = np.where(np.isnan(prefer_satisfy_rate), 0, prefer_satisfy_rate) # tried rate = NaN if no preferences, instead of 0%, got error
+        #prefer_not_satisfy_rate = np.where(np.isnan(prefer_not_satisfy_rate), 0, prefer_not_satisfy_rate)
+
         for p in range(n_physicians):
             if lambdas['pref'] != 0:
-                pref_text = ax.text(n_shifts-0.25,p, str(int(prefer_satisfy_rate[p][0]*100)), ha="center", va="center", color="black", fontsize=5,zorder=10)
-                pref_not_text = ax.text( n_shifts+0.25,p, str(int(prefer_not_satisfy_rate[p][0]*100)), ha="center", va="center", color="black", fontsize=5, zorder=10)
-                sat_text = ax.text( n_shifts+0.85,p, str(round(satisfaction_score[p,0],2)), ha="center", va="center", color="black", fontsize=5, zorder=10)
+                prefer_rate_p, prefer_not_rate_p = prefer_satisfy_rate[p][0], prefer_not_satisfy_rate[p][0]
+                if not np.isnan(prefer_rate_p): 
+                    pref_text = ax.text(n_shifts-0.25,p, str(int(prefer_rate_p*100)), ha="center", va="center", color="black", fontsize=5,zorder=10)
+                if not np.isnan(prefer_not_rate_p): 
+                    pref_not_text = ax.text( n_shifts+0.25,p, str(int(prefer_not_satisfy_rate[p][0]*100)), ha="center", va="center", color="black", fontsize=5, zorder=10)
+                sat_text = ax.text( n_shifts+0.85,p, str(int(satisfaction_score[p,0])), ha="center", va="center", color="black", fontsize=5, zorder=10)
             if lambdas['extent'] !=0:
                 ext_text = ax.text(n_shifts+1.25,p,str(int(extent_error[p][0])), ha="center", va="center", color="black", fontsize=5, zorder=10)
 
@@ -254,8 +258,12 @@ def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
     xticks = [i for i in np.arange(n_shifts)]
     xlabels = [date[5:] for date in result_df['date']]
     if lambdas['pref'] != 0:
-        xticks += [n_shifts-0.25]+[n_shifts+0.25]
-        xlabels += ['pref.\n%', 'pref.\nnot %']
+        xticks += [n_shifts-0.25, n_shifts+0.25, n_shifts+0.75]
+        xlabels += ['pref.\n%', 'pref.\nnot %', 'sat.']
+    if cl>=2:
+        xticks += [n_shifts+1.25]
+        xlabels += ['ext.']
+
     ax.set_xticks(ticks=xticks, labels=xlabels,fontsize=8) # NOTE removed year from ticks
     yticks = [i for i in np.arange(n_physicians)]+[n_physicians-0.4]
     ax.set_yticks(ticks=yticks, labels=[phys[-1] for phys in physician_df['name']]+['OK n.o.\nworkers'])
@@ -264,5 +272,8 @@ def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
     plt.subplots_adjust(left=0.05, right=0.95,bottom=0.3) # Adjust padding
 
 
-    fig.savefig('data/results/schedule.png')
     plt.show()
+
+    return fig
+
+

@@ -107,7 +107,7 @@ def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search
             options={"rhobeg": 0.5}   # Sets initial step size (manages exploration)
             )
         candidates.append(result.x) 
-        costs[i] = estimateHc(result.x, circuit, Hc, estimator)
+        costs[i] = result.fun #estimateHc(result.x, circuit, Hc, estimator) TESTING
     found_parameters = candidates[np.argmin(costs)]
 
     if plots:
@@ -191,6 +191,7 @@ def costOfBitstring(bitstring:str, Hc:SparsePauliOp):
     for pauli, coeff in zip(Hc.paulis, Hc.coeffs):
         term_value = 1
         for i, p in enumerate(pauli.to_label()):  # Convert to string like "ZZ" or "Z "
+            #print(p)
             if p == "Z":  # ignore "I" terms
                 term_value *= bitstring_z[i]
         cost += coeff * term_value
