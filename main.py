@@ -91,6 +91,9 @@ print('Seeds:\t\tPreference:', preference_seed,'\t\tQAOA estimation initializati
 # TODO Store the results from classical
 # Solve using classical solvers
 if use_classical:
+    t=0 # Only 1 optimization
+    convertPreferences(all_shifts_df, t, only_prefer=skip_unavailable_and_prefer_not)   # Dates to shift-numbers
+
     shifts_df = all_shifts_df
     plots = True
     print("\nSolving with Z3 (Classical)...")

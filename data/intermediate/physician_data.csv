@@ -1,5 +1,5 @@
-name,title,extent,shifts worked,work rate,prefer,prefer not,unavailable,satisfaction,worked last
-physician0,ÖL,100,0,0,"['2025-06-03', '2025-06-01']",[],[],0,0
-physician1,ST,25,0,0,['2025-06-01'],['2025-06-04'],[],0,0
-physician2,UL,75,0,0,"['2025-06-02', '2025-06-04']",[],[],0,0
-physician3,AT,100,0,0,"['2025-06-02', '2025-06-06']",[],[],0,0
+name,title,extent,shifts worked,work rate,prefer,prefer not,unavailable,satisfaction,worked last,prefer t0,prefer not t0,unavailable t0
+physician0,ÖL,100,0,0,"['2025-06-06', '2025-06-05']",[],[],0,0,[],[],[]
+physician1,ST,25,0,0,['2025-06-05'],['2025-06-02'],[],0,0,[],[],[]
+physician2,UL,75,0,0,"['2025-06-04', '2025-06-02']",[],[],0,0,[],[],[]
+physician3,AT,100,0,0,"['2025-06-04', '2025-06-07']",[],[],0,0,[],[],[]

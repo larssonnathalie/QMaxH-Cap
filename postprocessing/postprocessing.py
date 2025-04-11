@@ -300,21 +300,21 @@ def controlPlotDual(result_df_z3, result_df_gurobi):
 
         prefer_matrix = np.zeros((n_physicians, n_shifts))
         for p in range(n_physicians):
-            prefer_p = physician_df['prefer'].iloc[p]
+            prefer_p = physician_df['prefer t0'].iloc[p]
             if prefer_p != '[]':
                 prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')
                 for s in prefer_shifts_p:
                     if s:
                         prefer_matrix[p][int(s)] = 1
 
-            prefer_not_p = physician_df['prefer not'].iloc[p]
+            prefer_not_p = physician_df['prefer not t0'].iloc[p]
             if prefer_not_p != '[]':
                 prefer_not_shifts_p = prefer_not_p.strip('[').strip(']').split(',')
                 for s in prefer_not_shifts_p:
                     if s:
                         prefer_matrix[p][int(s)] = -1
 
-            unavail_p = physician_df['unavailable'].iloc[p]
+            unavail_p = physician_df['unavailable t0'].iloc[p]
             if unavail_p != '[]':
                 unavail_shifts_p = unavail_p.strip('[').strip(']').split(',')
                 for s in unavail_shifts_p:
