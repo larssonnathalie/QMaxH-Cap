@@ -13,18 +13,17 @@ from qaoa.testQandH import *
         # (Classical(qubo) vs Classical(linear constraints))
         # quantum(1 long qubo) vs quantum(many short qubo)
 
-
 # Parameters
-start_date = '2025-03-24' 
-end_date = '2025-04-10'
-n_physicians = 4
+start_date = '2025-06-01' 
+end_date = '2025-06-28'
+n_physicians = 7
 backend = 'aer'
-cl = 3                # complexity level: 
+cl = 2               # complexity level: 
 cl_contents = ['',
 'cl1: demand, fairness',
 'cl2: demand, fairness, preferences, unavailable, extent, (one shift per day)',
 'cl3: demand, fairness, preferences, unavailable, extent, shift_type, rest, (3 shifts per day)',
-'cl4: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles, (3 shifts per day)',
+'cl4: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles, (3 shifts per day), "titles" only handles 1 shift per t',
 'cl5: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles, side_tasks, (3 shifts per day)']
 
 skip_unavailable_and_prefer_not = False 
@@ -35,11 +34,9 @@ preference_seed = True
 init_seed = False
 estimation_plots = False
 
-time_period = 'shift' # NOTE work extent constraint is very different if t = 'week' 
+time_period = 'day' # NOTE work extent constraint is very different if t = 'week' 
 
-# NOTE Demand should be decided in consideration of the amount of workers and their extent
-demands = {'weekday': 3, 'holiday': 1}   # weekday should be > holiday 
-if cl>= 3:    
+if shiftsPerWeek(cl)==21:    
         # {(shift, is_holiday): num_workers_needed, ...} 
     demands = {('dag', False):2, ('kväll',False):1, ('natt',False):1, ('dag',True):1, ('kväll',True):1, ('natt',True):0} 
     if cl>=4:
@@ -53,7 +50,7 @@ n_candidates = 20 # compare top X most common solutions
 plot_width = 10
 
 # lambdas = penalties (how hard a constraint is)
-lambdas = {'demand':8, 'fair':5, 'pref':1, 'unavail':10, 'extent':8, 'rest':10}  # NOTE Must be integers
+lambdas = {'demand':2, 'fair':10, 'pref':5, 'unavail':10, 'extent':2, 'rest':0, 'titles':0}  # NOTE Must be integers
 
 # Construct empty calendar with holidays etc.
 T, total_holidays, n_days = emptyCalendar(end_date, start_date, cl, time_period=time_period)
@@ -61,22 +58,36 @@ T, total_holidays, n_days = emptyCalendar(end_date, start_date, cl, time_period=
 all_dates_df = pd.read_csv(f'data/intermediate/empty_calendar.csv',index_col=None)
 full_solution = []
 
-# Generate random preferences
+# PHYSICIAN
+# preferences, titles etc.
 generatePhysicianData(all_dates_df, n_physicians,cl, seed=preference_seed, only_fulltime=only_fulltime)  
+physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
 
-# Demand & attractiveness for each shift
+if shiftsPerWeek(cl)==7:    
+    # DEMAND 
+    # set from amount of workers and their extent
+    target_n_shifts_total_per_week = sum(targetShiftsPerWeek(physician_df['extent'].iloc[p], cl) for p in range(n_physicians)) 
+    target_n_shifts_total = target_n_shifts_total_per_week * (len(all_dates_df) / shiftsPerWeek(cl))
+
+    demand_hd = max(target_n_shifts_total_per_week//12, 1)
+    demand_wd = max((target_n_shifts_total_per_week - 2*demand_hd)//5, 1)
+    demands = {'weekday': demand_wd, 'holiday': demand_hd}  
+    print('demands:', demands)
+
+# SHIFTS
+# assign demand & attractiveness for each shift
 generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
 all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=None)
 shifts_per_t = getShiftsPerT(time_period, cl)
 
-
 print()
 print(cl_contents[cl])
+print('Lambdas:', lambdas)
 print('\nPhysicians:\t', n_physicians)
 print('Days:\t\t', n_days)
-print('Shifts:\t', len(all_shifts_df))
+print('Shifts:\t\t', len(all_shifts_df))
 print(f't:s ({time_period}:s)\t', T)
-print('Layers\t', n_layers)
+print('Layers\t\t', n_layers)
 print('Seeds:\t\tPreference:', preference_seed,'\t\tInitialization:', init_seed)
 print('Initializations:', search_iterations)
 print(f'comparing top {n_candidates} most common solutions')
@@ -97,7 +108,7 @@ for t in range(T):
         convertPreferences(calendar_df_t, t, only_prefer=skip_unavailable_and_prefer_not)   # Dates to shift-numbers
 
     # Make sum of all objective functions and enforce penatlies (lambdas)
-    all_objectives, x_symbols = makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=False)
+    all_objectives, x_symbols = makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False)
     n_vars = n_physicians*len(calendar_df_t)
     subs0 = assignVariables('0'*n_vars, x_symbols)
 

@@ -36,7 +36,7 @@ def bitstringToSchedule(bitstring:str, empty_calendar_df) -> pd.DataFrame:
 def controlSchedule(result_schedule_df, shift_data_df, cl):
     combined_df = shift_data_df.merge(result_schedule_df, on='date', how='outer')
 
-    if cl >=3:
+    if shiftsPerWeek(cl) ==21:
         combined_df = shift_data_df.merge(result_schedule_df, on=['date', 'shift type'], how='outer')
     ok_col = []
 
@@ -224,19 +224,21 @@ def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
         preference_stats_df.to_csv('data/results/preference_stats_df.csv')
 
     x_size = width
-    y_size = n_physicians/n_shifts * x_size + 1
+    y_size= 8 # TESTING
+    #y_size = n_physicians/n_shifts * x_size + 1
     fig, ax = plt.subplots(figsize=(x_size,y_size))
     result = ax.pcolor(np.arange(n_shifts+1)-0.5, np.arange(n_physicians+1)-0.5,result_matrix, cmap="Greens", vmax=1,vmin=0)
 
     if cl>=2:  # Preference squares
         if lambdas['pref'] != 0:
             x, y = np.meshgrid(np.arange(n_shifts), np.arange(n_physicians)) 
-            pref_squares = ax.scatter(x.ravel(), y.ravel(), s=(50*(x_size/n_shifts))**2, c='none',marker='s', linewidths=9, edgecolors=prefer_colors)
+            scale_squares = 1/3 # Should be = 1 for full-size squares
+            pref_squares = ax.scatter(x.ravel(), y.ravel(), s=(50*scale_squares*(x_size/n_shifts))**2, c='none',marker='s', linewidths=9*scale_squares, edgecolors=prefer_colors) 
             pref_met = ax.pcolor([n_shifts-0.5,n_shifts], np.arange(n_physicians+1)-0.5, prefer_satisfy_rate, cmap='RdYlGn', shading='auto', vmin=0, vmax=1) 
             pref_not_met = ax.pcolor([n_shifts,n_shifts+0.5], np.arange(n_physicians+1)-0.5, prefer_not_satisfy_rate, cmap='RdYlGn', shading='auto', vmin=0,vmax=1) 
-            sat = ax.pcolor([n_shifts+0.5,n_shifts+1], np.arange(n_physicians+1)-0.5, satisfaction_score, cmap='Greens', vmin=-100,vmax=500) 
+            sat = ax.pcolor([n_shifts+0.5,n_shifts+1], np.arange(n_physicians+1)-0.5, satisfaction_score, cmap='Greens', vmin=-20,vmax=50) 
         if lambdas['extent'] !=0:
-            ext = ax.pcolor([n_shifts+1,n_shifts+1.5], np.arange(n_physicians+1)-0.5, extent_error, cmap='RdYlGn', shading='auto', vmin=-100, vmax=100) 
+            ext = ax.pcolor([n_shifts+1,n_shifts+1.5], np.arange(n_physicians+1)-0.5, extent_error, cmap='coolwarm', shading='auto', vmin=-100, vmax=100) 
 
         #prefer_satisfy_rate = np.where(np.isnan(prefer_satisfy_rate), 0, prefer_satisfy_rate) # tried rate = NaN if no preferences, instead of 0%, got error
         #prefer_not_satisfy_rate = np.where(np.isnan(prefer_not_satisfy_rate), 0, prefer_not_satisfy_rate)
@@ -266,7 +268,7 @@ def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
 
     ax.set_xticks(ticks=xticks, labels=xlabels,fontsize=8) # NOTE removed year from ticks
     yticks = [i for i in np.arange(n_physicians)]+[n_physicians-0.4]
-    ax.set_yticks(ticks=yticks, labels=[phys[-1] for phys in physician_df['name']]+['OK n.o.\nworkers'])
+    ax.set_yticks(ticks=yticks, labels=[f'P{num} ({title})' for num, title in enumerate(physician_df['title'])]+['OK n.o.\nworkers'])
     ax.spines["right"].set_linewidth(0) # remove right side of frame
     ax.spines["top"].set_linewidth(0) 
     plt.subplots_adjust(left=0.05, right=0.95,bottom=0.3) # Adjust padding

@@ -48,8 +48,7 @@ def QToHc(Q, b):
             if Q[i, j] != 0:
                 pauli_string = ['I'] * n_vars
                 pauli_string[i], pauli_string[j] = 'Z', 'Z'     # "Z" at positions i and j
-                #coeff = 2 * Q[i, j] / 4                         # "*2" compensates for exclusion of lower half
-                coeff = Q[i, j] / 4                         # TESTING
+                coeff = Q[i, j] / 4                         
 
                 pauli_string.reverse() 
                 pauli_list.append(("".join(pauli_string), coeff))
@@ -107,7 +106,7 @@ def findParameters(n_layers, circuit, backend, Hc, estimation_iterations, search
             options={"rhobeg": 0.5}   # Sets initial step size (manages exploration)
             )
         candidates.append(result.x) 
-        costs[i] = result.fun #estimateHc(result.x, circuit, Hc, estimator) TESTING
+        costs[i] = result.fun 
     found_parameters = candidates[np.argmin(costs)]
 
     if plots:
@@ -185,7 +184,6 @@ def sampleSolutions(best_circuit, backend, sampling_iterations, prints=True, plo
 
 
 def costOfBitstring(bitstring:str, Hc:SparsePauliOp):
-    #bitstring = bitstring[::-1] #NOTE TESTING
     bitstring_z = bitstringToPauliZ(bitstring)
     cost = 0
     for pauli, coeff in zip(Hc.paulis, Hc.coeffs):

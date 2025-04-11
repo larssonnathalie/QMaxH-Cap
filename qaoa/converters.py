@@ -38,35 +38,34 @@ def bitstringToPauliZ(bitstring)->np.ndarray:
 
 def getShiftsPerT(time_period:str, cl:int) -> int:
     if time_period == 'week':
-        if cl<3:
-            shifts_per_t = 7
-        else:
-            shifts_per_t = 3*7
+        shifts_per_t = shiftsPerWeek(cl)
             
     elif time_period == 'day':
-        if cl <3:
-            shifts_per_t=1
-        else:
-            shifts_per_t =3
+        shifts_per_t = shiftsPerWeek(cl)/7
 
     elif time_period == 'shift':
-        shifts_per_t=1 
-    return shifts_per_t
+        shifts_per_t = 1
+    return int(shifts_per_t)
+
+def shiftsPerWeek(cl):
+    if cl<3:
+        shifts_per_week = 7
+    elif cl>=3:
+        shifts_per_week = 21
+
+    shifts_per_week = 7 # NOTE TESTING
+    return int(shifts_per_week)
 
 def percentOfShifts(percentage, cl):
     # assuming shifts are 8~hrs
-    shifts_per_week = 7
-    if cl>=3:
-        shifts_per_week = 3*7
+    shifts_per_week = shiftsPerWeek(cl)
 
     target_percent_of_shifts = {25: 1.25/shifts_per_week, 50:2.5/shifts_per_week, 75:3.75/shifts_per_week, 100:5/shifts_per_week} 
     return target_percent_of_shifts[percentage]
 
 def targetShiftsPerWeek(percentage, cl):
     # assuming shifts are 8~hrs
-    shifts_per_week = 7
-    if cl>=3:
-        shifts_per_week = 3*7
+    shifts_per_week = shiftsPerWeek(cl)
 
     target_percent_of_shifts = {25: 1.25/shifts_per_week, 50:2.5/shifts_per_week, 75:3.75/shifts_per_week, 100:5/shifts_per_week} 
     target_shifts = target_percent_of_shifts[percentage]*shifts_per_week

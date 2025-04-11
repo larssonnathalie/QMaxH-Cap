@@ -19,15 +19,15 @@ def emptyCalendar(end_date, start_date, cl, time_period):
     #if len(all_dates)%7!=0 and cl<3:
         #print('\nWarning: Dates should be a [int] number of weeks for cl<3\n') # (start on tuesday end on monday works too)
     
-    get_T = {'shift':n_days+(n_days*2*int(cl>=3)), 'day':n_days, 'week':(n_days+6)//7}
+    get_T = {'shift':n_days+(n_days*2*int(shiftsPerWeek(cl)==21)), 'day':n_days, 'week':(n_days+6)//7}
     T = get_T[time_period]
-    print('\nNEW OPTIMIZATION  EACH '+time_period)
+    print('\nNew optimization for each '+time_period)
     print(str(T)+' '+time_period+':s')
     print('\ntotal holidays:',total_holidays)
 
     calendar_df= pd.DataFrame({'date': all_dates, 'is_holiday': holidays_and_weekends, 'weekday':weekdays}) 
     
-    if cl>=3:
+    if shiftsPerWeek(cl) == 21:
         # 3-SHIFT
         date_col, shift_type_col, holiday_col, weekday_col = [], [], [], []
         for i, date in enumerate(calendar_df['date']):
@@ -53,7 +53,9 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True, only_full
     possible_extents = [25,50,50,75,75,100,100,100,100,100,100]  # more copies -> more likely
     if only_fulltime:
         possible_extents = [100]
-    possible_titles = ['ÖL', 'ST', 'AT','Chef','UL'] * (n_physicians//5+1)
+    #possible_titles = ['ÖL', 'ST', 'AT','Chef','UL'] * (n_physicians//5+1)
+    possible_titles = ['ÖL'] *(n_physicians//3) + ['ST'] * (n_physicians//3) + ['UL'] *(n_physicians//3) + ['AT'] * n_physicians
+
 
     name_col = []
     extent_col=[]
@@ -63,7 +65,7 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True, only_full
     title_col = [] 
     worked_shifts_col = [0 for _ in range(n_physicians)] 
     work_rate_col = [0 for _ in range(n_physicians)] 
-    satisfaction_col = [0 for _ in range(n_physicians)] 
+    satisfaction_col = [0 for _ in range(n_physicians)]
     worked_last_col = [0 for _ in range(n_physicians)] 
 
     if seed:
@@ -77,21 +79,21 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True, only_full
 
         if cl >=2:
             # RANDOM PREFERENCES
-            size = np.random.randint(0, n_dates//2)
+            size = np.random.randint(0, int(n_dates/7*2))
             prefer_not_p = np.random.choice(remaining_dates_p, size=size, replace=False) # NOTE temporary upper size limit 
             prefer_not_col[p] =(list(prefer_not_p))
             for s in prefer_not_p:
                 remaining_dates_p.remove(s)
 
             if len(remaining_dates_p)>0:
-                size = np.random.randint(0, len(remaining_dates_p)//2)
+                size = np.random.randint(0, int(n_dates/7*3))
                 prefer_p = np.random.choice(remaining_dates_p, size=size, replace=False)
                 prefer_col[p]=list(prefer_p)
                 for s in prefer_p:
                     remaining_dates_p.remove(s)
 
             if len(remaining_dates_p)>0:
-                size= np.random.randint(0, len(remaining_dates_p)//2)
+                size= np.random.randint(0, n_dates//7)
                 unavail_p = np.random.choice(remaining_dates_p, size=size, replace=False)
                 unavail_col[p] = list(unavail_p)
 
@@ -106,18 +108,18 @@ def generateShiftData(empty_calendar, T, cl, demands, time_period):
     n_physicians = len(physician_df)
     n_shifts = len(empty_calendar) 
     
-    if cl < 3:
-        # DEMAND
-        demand_col = [demands['holiday'] + int(empty_calendar.loc[i,'is_holiday']==False)*(demands['weekday']-demands['holiday']) for i in range(n_shifts)]          
-        shift_data_df = pd.DataFrame({'date':empty_calendar['date'], 'demand': demand_col})
-
-    if cl >=3: 
+    if shiftsPerWeek(cl) == 21: 
         # 3 SHIFTS PER DAY
         demand_col =[]
         for s in range(len(empty_calendar)):
             shift_type, is_hol = empty_calendar[['shift type','is_holiday']].iloc[s]
             demand_col.append(demands[(shift_type, is_hol)])
         shift_data_df = pd.DataFrame({'date':empty_calendar['date'], 'shift type':empty_calendar['shift type'], 'demand':demand_col})
+
+    else:
+        # DEMAND
+        demand_col = [demands['holiday'] + int(empty_calendar.loc[i,'is_holiday']==False)*(demands['weekday']-demands['holiday']) for i in range(n_shifts)]          
+        shift_data_df = pd.DataFrame({'date':empty_calendar['date'], 'demand': demand_col})
 
     if cl >=2: 
         # SHIFT ATTRACTIVENESS
@@ -211,7 +213,7 @@ def convertPreferences(empty_calendar_df, t, only_prefer=False):
     physician_df[f'unavailable t{t}'] = unavailable_shifts_col
     physician_df.to_csv(f'data/intermediate/physician_data.csv', index=None)
 
-def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=False):
+def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False):
     # Both objectives & constraints formulated as Hamiltonians to be combined to QUBO form
     # Using sympy to simplify the H expressions
 
@@ -241,6 +243,7 @@ def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=Fals
             return 
         
         # Hfair = ∑ᵢ₌₁ᴾ (∑ⱼ₌₁ˢ xᵢⱼ − S/P)²                 S = n_demand, P = n_physicians
+        n_demand = sum(int(shifts_df['demand'].iloc[s]) for s in range(n_shifts)) #NOTE TESTING
         max_shifts_per_p = int((n_demand/n_physicians)+0.999 ) # fair distribution of shifts
         for p in range(n_physicians):
             H_fair_s_sum_p = sum(x_symbols[p][s] for s in range(n_shifts))   
@@ -275,22 +278,38 @@ def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=Fals
             # long term SATISFACTION fairness
             equality_priority = t/T        # Last t:s: prioritize fairness
             optimize_priority = 1-equality_priority # First weeks: optimize overall satisfaction
-            min_prio = 0.05 * optimize_priority      # so the most satisfied p still has some priority. (First week this applies to all p)
+            min_prio = 0.01 * optimize_priority      # so the most satisfied p still has some priority. (First week this applies to all p)
 
             prefer = {p:physician_df.loc[p,f'prefer t{t}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
             prefer_not = {p:physician_df.loc[p,f'prefer not t{t}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
             unavailable = {p:physician_df.loc[p,f'unavailable t{t}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
 
             if t == 0:
-                satisfaction = np.ones(n_physicians)
+                satisfaction = np.ones(n_physicians)*10
             else:
                 satisfaction = np.array([float(sat) for sat in physician_df['satisfaction']])
+
+                print('Sat:')
+                sat= ''
+                for p in range(n_physicians):
+                    sat += str(satisfaction[p])[:4]+'  '
+                print(sat)
+
                 min_sat = np.min(satisfaction)
                 satisfaction = satisfaction - min_sat + 1   # shift whole column to set least satisfied = 1
+            
             satisfaction_rate = satisfaction/np.max(satisfaction) 
-            #print(satisfaction_rate,'\trates')
+            print('rates:')
+            rat= ''
+            for p in range(n_physicians):
+                rat += str(satisfaction_rate[p])[:4]+'  '
+            print(rat)
             priority = np.where((1 - satisfaction_rate)>min_prio, (1 - satisfaction_rate), min_prio)   # less satisfied are more important & apply min_prio
-            #print(priority, '\tprios')
+            pri = ''
+            print('prios:')
+            for p in range(n_physicians):
+                pri += str(priority[p])[:4]+'  '
+            print(pri)
 
             for p in range(n_physicians):
                 priority_p = priority[p]
@@ -332,9 +351,7 @@ def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=Fals
 
 
         elif time_period == 'week':
-            shifts_per_week=7
-            if cl>=3:
-                shifts_per_week =21
+            shifts_per_week=shiftsPerWeek(cl)
 
             for p in range(n_physicians):
                 extent_p = int(physician_df['extent'].iloc[p])
@@ -343,7 +360,7 @@ def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=Fals
                 assigned_shifts = sum(x_symbols[p][s] for s in range(n_shifts))
                 H_extent += (assigned_shifts-n_shifts_target)**2
     
-        if cl>=3:
+        if shiftsPerWeek(cl)==21:
             # REST between shifts
             for p in range(n_physicians):
                 worked_last = int(physician_df['worked last'].iloc[p]) 
@@ -354,18 +371,28 @@ def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=Fals
                     for s in range(1,n_shifts):
                         H_rest += x_symbols[p][s]*x_symbols[p][s-1] # penalize working two following shift
 
-            if cl >=4:
-                # TODO TITLES constraint
-                    # TODO assign boss to necessary tasks
-                pass
-
+        if cl >=4:
+        
+            # TITLES constraint
+            s = 0                      # NOTE assumin only 1 shift per t!!!!
+            demand = shifts_df['demand'].iloc[s] # - ll -
+            all_with_title = {'ST':[],'AT':[],'ÖL':[],'Chef':[],'UL':[]}
+            for p in range(n_physicians):
+                title_p = physician_df['title'].iloc[p]
+                all_with_title[title_p].append(p) 
+            
+            n_ST = sum(x_symbols[p][s] for p in all_with_title['ST'])
+            n_UL = sum(x_symbols[p][s] for p in all_with_title['UL'])
+            n_ÖL = sum(x_symbols[p][s] for p in all_with_title['ÖL'])
+            
+            H_titles += (n_ST-(demand/4))**2 + (n_UL-(demand/4))**2 + (n_ÖL-(demand/4))**2 # Goal: 1/4 ST, 1/4 ÖL, 1/4 UL of demand, each day
 
     # DEMAND
     # ∑s=1 (demanded – (∑p=1  x_ps))^2
     for s in range(n_shifts): 
         demand_s = shifts_df['demand'].iloc[s]
         if time_period in ['day', 'shift']:
-            print('demand',demand_s)
+            pass#print('demand',demand_s)
         workers_s = sum(x_symbols[p][s] for p in range(n_physicians))   
         H_meet_demand_s = (workers_s-sp.Integer(demand_s))**2 
         H_meet_demand += H_meet_demand_s
@@ -376,7 +403,10 @@ def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=Fals
     H_pref = sp.expand(H_pref)
     H_unavail = sp.expand(H_unavail)
     H_rest = sp.expand(H_rest)
+    H_titles = sp.expand(H_titles)
+
     #print('H unavail:', sp.simplify(H_unavail*lambdas['unavail']))
+    #print('H titles:', sp.simplify(sp.expand(H_titles*lambdas['titles'])))
 
     if prints:
         print('H demand:', sp.simplify(H_meet_demand*lambdas['demand']))
@@ -385,7 +415,7 @@ def makeObjectiveFunctions(n_demand, t, T, cl, lambdas, time_period, prints=Fals
 
     # Combine all to one single H
     # H = λ₁H_fair + λ₂H_pref + λ₃H_meetDemand + ...
-    all_hamiltonians = sp.nsimplify(sp.expand(H_meet_demand*lambdas['demand'] + H_fair*lambdas['fair'] + H_pref*lambdas['pref'] + H_unavail*lambdas['unavail'] + H_extent*lambdas['extent'] + H_rest*lambdas['rest']))
+    all_hamiltonians = sp.nsimplify(sp.expand(H_meet_demand*lambdas['demand'] + H_fair*lambdas['fair'] + H_pref*lambdas['pref'] + H_unavail*lambdas['unavail'] + H_extent*lambdas['extent'] + H_rest*lambdas['rest'] + H_titles*lambdas['titles']))
     return all_hamiltonians, x_symbols
 
 def objectivesToQubo(all_hamiltonians, n_shifts, x_symbols, cl, mirror=True, prints=False):
