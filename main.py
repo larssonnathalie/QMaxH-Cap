@@ -1,5 +1,10 @@
 from qaoa.qaoa import *
-#from classical.classical import * 
+
+from classical.scheduler import * 
+from classical.gurobi_model import * 
+from classical.data_handler import *
+from classical.z3_model import * 
+
 from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
 from qaoa.testQandH import *
@@ -16,7 +21,7 @@ from qaoa.testQandH import *
 # Parameters
 start_date = '2025-06-01' 
 end_date = '2025-06-28'
-n_physicians = 7
+n_physicians = 2
 backend = 'aer'
 cl = 2               # complexity level: 
 cl_contents = ['',
@@ -28,7 +33,8 @@ cl_contents = ['',
 
 skip_unavailable_and_prefer_not = False 
 only_fulltime = False
-classical = False
+use_qaoa = False
+use_classical = True
 draw_circuit = False
 preference_seed = True
 init_seed = False
@@ -86,14 +92,53 @@ print('Lambdas:', lambdas)
 print('\nPhysicians:\t', n_physicians)
 print('Days:\t\t', n_days)
 print('Shifts:\t\t', len(all_shifts_df))
-print(f't:s ({time_period}:s)\t', T)
-print('Layers\t\t', n_layers)
+
 print('Seeds:\t\tPreference:', preference_seed,'\t\tInitialization:', init_seed)
-print('Initializations:', search_iterations)
-print(f'comparing top {n_candidates} most common solutions')
+
+if use_qaoa:
+    print('Initializations:', search_iterations)
+    print(f'comparing top {n_candidates} most common solutions')
+    print(f't:s ({time_period}:s)\t', T)
+    print('Layers\t\t', n_layers)
 
 
-for t in range(T):
+# TODO Store the results from classical
+# Solve using classical solvers
+if use_classical:
+    shifts_df = all_shifts_df
+    plots = True
+    print("\nSolving with Z3 (Classical)...")
+    z3_schedule, z3_solver_time, z3_overall_time = solve_and_save_results(solver_type="z3", cl=cl, lambdas=lambdas)
+    if z3_schedule:
+        print("Z3 schedule:")
+        for p, s in z3_schedule.items():
+            print(f"{p}: {s}")
+        z3_schedule_df = schedule_dict_to_df(z3_schedule, shifts_df)
+        z3_checked_df = controlSchedule(z3_schedule_df, shifts_df, cl=cl)
+
+    print("\nSolving with Gurobi (Classical)...")
+    gurobi_schedule, gurobi_solver_time, gurobi_overall_time = solve_and_save_results(solver_type="gurobi", cl=cl, lambdas=lambdas)
+    if gurobi_schedule:
+        print("Gurobi schedule:")
+        for p, s in gurobi_schedule.items():
+            print(f"{p}: {s}")
+        gurobi_schedule_df = schedule_dict_to_df(gurobi_schedule, shifts_df)
+        gurobi_checked_df = controlSchedule(gurobi_schedule_df, shifts_df, cl=cl)
+
+    print("\n--- Timing Comparison ---")
+    print(f"Z3 solver time:     {z3_solver_time:.4f} s")
+    print(f"Z3 overall time:    {z3_overall_time:.4f} s")
+    print(f"Gurobi solver time: {gurobi_solver_time:.4f} s")
+    print(f"Gurobi overall time:{gurobi_overall_time:.4f} s")
+
+    print("\n--- Relative Difference ---")
+    print(f"Solver time difference:  {z3_solver_time - gurobi_solver_time:.4f} s")
+    print(f"Overall time difference: {z3_overall_time - gurobi_overall_time:.4f} s")
+
+    if plots:
+        controlPlotDual(z3_checked_df, gurobi_checked_df)
+
+'''for t in range(T):
     #empty_calendar_df_t = pd.read_csv(f'data/intermediate/empty_calendar_t{t}.csv')
     calendar_df_t = all_dates_df.iloc[t*shifts_per_t: min((t+1)*shifts_per_t, len(all_shifts_df))]
 
@@ -130,11 +175,11 @@ for t in range(T):
     best_bitstring_t = qaoa.sampleSolutions(sampling_iterations, n_candidates, return_worst_solution=False)
     print('chosen bs',best_bitstring_t[::-1])
 
-    '''print('Hc(best)', costOfBitstring(best_bitstring_t, Hc))
+    print('Hc(best)', costOfBitstring(best_bitstring_t, Hc))
     print('xT Q x(best)', get_xT_Q_x(best_bitstring_t, Q))
 
     print('Hc(0000)', costOfBitstring('0'*n_vars, Hc))
-    print('xT Q x(0000)', get_xT_Q_x('0'*n_vars, Q))'''
+    print('xT Q x(0000)', get_xT_Q_x('0'*n_vars, Q))
 
     result_schedule_df_t = bitstringToSchedule(best_bitstring_t, calendar_df_t)
     full_solution.append(result_schedule_df_t)
@@ -173,4 +218,3 @@ if lambdas['pref'] != 0 and T>1:
 
 
 # (Evaluate & compare solution to classical methods)'''
-
