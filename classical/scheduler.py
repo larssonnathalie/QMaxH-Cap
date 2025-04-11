@@ -17,7 +17,7 @@ def solve_and_save_results(solver_type="z3", source="intermediate", cl=2, lambda
     if solver_type == "z3":
         solution = create_z3_model(physicians, shifts, demand, preference, cl=cl, lambdas=lambdas)
 
-        if solution is not None:
+        if solution[0] is not None:
             print("Z3: Optimal solution found.")
         else:
             print("Z3: No feasible solution found.")
@@ -26,7 +26,7 @@ def solve_and_save_results(solver_type="z3", source="intermediate", cl=2, lambda
     elif solver_type == "gurobi":
         solution = create_gurobi_model(physicians, shifts, demand, preference, cl=cl, lambdas=lambdas)
 
-        if solution is not None:
+        if solution[0] is not None:
             print("Gurobi: Optimal solution found.")
         else:
             print("Gurobi: No feasible solution found.")

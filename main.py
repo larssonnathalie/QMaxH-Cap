@@ -20,8 +20,8 @@ from qaoa.testQandH import *
 
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-28'
-n_physicians = 2
+end_date = '2025-06-07'
+n_physicians = 4
 backend = 'aer'
 cl = 2               # complexity level: 
 cl_contents = ['',
@@ -42,11 +42,14 @@ estimation_plots = False
 
 time_period = 'day' # NOTE work extent constraint is very different if t = 'week' 
 
+demands = {'weekday':2, 'holiday':1}
+
 if shiftsPerWeek(cl)==21:    
         # {(shift, is_holiday): num_workers_needed, ...} 
     demands = {('dag', False):2, ('kväll',False):1, ('natt',False):1, ('dag',True):1, ('kväll',True):1, ('natt',True):0} 
     if cl>=4:
        title_demands =  {('dag', False):{'ST': 0, 'AT': 0, 'UL':1, 'ÖL':1} , ('kväll',False):{'ST': 0, 'AT': 0, 'UL':1, 'ÖL':1} , ('natt',False):{'ST': 0, 'AT': 0, 'UL':1, 'ÖL':1} , ('dag',True):{'ST': 0, 'AT': 0, 'UL':0, 'ÖL':1} , ('kväll',True):{'ST': 0, 'AT': 0, 'UL':0, 'ÖL':1} , ('natt',True):{'ST': 0, 'AT': 0, 'UL':0, 'ÖL':1} }   # weekday should be > holiday 
+
 
 n_layers = 2
 search_iterations = 20
@@ -56,7 +59,7 @@ n_candidates = 20 # compare top X most common solutions
 plot_width = 10
 
 # lambdas = penalties (how hard a constraint is)
-lambdas = {'demand':2, 'fair':10, 'pref':5, 'unavail':10, 'extent':2, 'rest':0, 'titles':0}  # NOTE Must be integers
+lambdas = {'demand':2, 'fair':10, 'pref':5, 'unavail':10, 'extent':2, 'rest':0, 'titles':0, 'memory':3}  # NOTE Must be integers
 
 # Construct empty calendar with holidays etc.
 T, total_holidays, n_days = emptyCalendar(end_date, start_date, cl, time_period=time_period)
@@ -68,17 +71,6 @@ full_solution = []
 # preferences, titles etc.
 generatePhysicianData(all_dates_df, n_physicians,cl, seed=preference_seed, only_fulltime=only_fulltime)  
 physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
-
-if shiftsPerWeek(cl)==7:    
-    # DEMAND 
-    # set from amount of workers and their extent
-    target_n_shifts_total_per_week = sum(targetShiftsPerWeek(physician_df['extent'].iloc[p], cl) for p in range(n_physicians)) 
-    target_n_shifts_total = target_n_shifts_total_per_week * (len(all_dates_df) / shiftsPerWeek(cl))
-
-    demand_hd = max(target_n_shifts_total_per_week//12, 1)
-    demand_wd = max((target_n_shifts_total_per_week - 2*demand_hd)//5, 1)
-    demands = {'weekday': demand_wd, 'holiday': demand_hd}  
-    print('demands:', demands)
 
 # SHIFTS
 # assign demand & attractiveness for each shift
@@ -93,13 +85,7 @@ print('\nPhysicians:\t', n_physicians)
 print('Days:\t\t', n_days)
 print('Shifts:\t\t', len(all_shifts_df))
 
-print('Seeds:\t\tPreference:', preference_seed,'\t\tInitialization:', init_seed)
-
-if use_qaoa:
-    print('Initializations:', search_iterations)
-    print(f'comparing top {n_candidates} most common solutions')
-    print(f't:s ({time_period}:s)\t', T)
-    print('Layers\t\t', n_layers)
+print('Seeds:\t\tPreference:', preference_seed,'\t\tQAOA estimation initialization:', init_seed)    
 
 
 # TODO Store the results from classical
@@ -113,7 +99,7 @@ if use_classical:
         print("Z3 schedule:")
         for p, s in z3_schedule.items():
             print(f"{p}: {s}")
-        z3_schedule_df = schedule_dict_to_df(z3_schedule, shifts_df)
+        z3_schedule_df = schedule_dict_to_df(z3_schedule, shifts_df) # REMOVED INDENT TESTING
         z3_checked_df = controlSchedule(z3_schedule_df, shifts_df, cl=cl)
 
     print("\nSolving with Gurobi (Classical)...")
@@ -138,83 +124,102 @@ if use_classical:
     if plots:
         controlPlotDual(z3_checked_df, gurobi_checked_df)
 
-'''for t in range(T):
-    #empty_calendar_df_t = pd.read_csv(f'data/intermediate/empty_calendar_t{t}.csv')
-    calendar_df_t = all_dates_df.iloc[t*shifts_per_t: min((t+1)*shifts_per_t, len(all_shifts_df))]
 
-    print('\nt:\t', t)
+if use_qaoa:
+    print('Initializations:', search_iterations)
+    print(f'comparing top {n_candidates} most common solutions')
+    print(f't:s ({time_period}:s)\t', T)
+    print('Layers\t\t', n_layers)
 
-    shifts_df = pd.read_csv(f'data/intermediate/shift_data_t{t}.csv')
-    n_shifts = len(shifts_df)
-    n_dates = calendar_df_t.shape[0] 
-    n_demand = sum(shifts_df['demand']) # sum of workers demanded on all shifts
+    if shiftsPerWeek(cl)==7:    
+        # DEMAND 
+        # set from amount of workers and their extent
+        target_n_shifts_total_per_week = sum(targetShiftsPerWeek(physician_df['extent'].iloc[p], cl) for p in range(n_physicians)) 
+        target_n_shifts_total = target_n_shifts_total_per_week * (len(all_dates_df) / shiftsPerWeek(cl))
 
-    if cl >=2:
-        convertPreferences(calendar_df_t, t, only_prefer=skip_unavailable_and_prefer_not)   # Dates to shift-numbers
-
-    # Make sum of all objective functions and enforce penatlies (lambdas)
-    all_objectives, x_symbols = makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False)
-    n_vars = n_physicians*len(calendar_df_t)
-    subs0 = assignVariables('0'*n_vars, x_symbols)
-
-    # Extract Qubo Q-matrix from objectives           Y = x^T Qx
-    Q = objectivesToQubo(all_objectives, n_shifts, x_symbols, cl, mirror=False, prints = False)
-
-    #if t==0:
-     #   print('\nVariables:',Q.shape[0])
+        demand_hd = max(target_n_shifts_total_per_week//12, 1)
+        demand_wd = max((target_n_shifts_total_per_week - 2*demand_hd)//5, 1)
+        demands = {'weekday': demand_wd, 'holiday': demand_hd}  
+        print('demands:', demands)
 
 
-    # Q-matrix --> pauli operators --> cost hamiltonian (Hc)
-    b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
-    Hc = QToHc(Q, b) 
-    #for i in range(len(Hc.coeffs)):
-       # print(Hc.paulis[i], Hc.coeffs[i])
+    for t in range(T):
+        #empty_calendar_df_t = pd.read_csv(f'data/intermediate/empty_calendar_t{t}.csv')
+        calendar_df_t = all_dates_df.iloc[t*shifts_per_t: min((t+1)*shifts_per_t, len(all_shifts_df))]
 
-    qaoa = Qaoa(t, Hc, n_layers, plots=estimation_plots, seed=init_seed, backend=backend, instance='premium')
-    qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
-    best_bitstring_t = qaoa.sampleSolutions(sampling_iterations, n_candidates, return_worst_solution=False)
-    print('chosen bs',best_bitstring_t[::-1])
+        print('\nt:\t', t)
 
-    print('Hc(best)', costOfBitstring(best_bitstring_t, Hc))
-    print('xT Q x(best)', get_xT_Q_x(best_bitstring_t, Q))
+        shifts_df = pd.read_csv(f'data/intermediate/shift_data_t{t}.csv')
+        n_shifts = len(shifts_df)
+        n_dates = calendar_df_t.shape[0] 
+        n_demand = sum(shifts_df['demand']) # sum of workers demanded on all shifts
 
-    print('Hc(0000)', costOfBitstring('0'*n_vars, Hc))
-    print('xT Q x(0000)', get_xT_Q_x('0'*n_vars, Q))
+        if cl >=2:
+            convertPreferences(calendar_df_t, t, only_prefer=skip_unavailable_and_prefer_not)   # Dates to shift-numbers
 
-    result_schedule_df_t = bitstringToSchedule(best_bitstring_t, calendar_df_t)
-    full_solution.append(result_schedule_df_t)
-    controled_result_df_t = controlSchedule(result_schedule_df_t, shifts_df, cl)
-    #TODO check if result is ok (unavailable & demand met) rerun until ok if not
-    #print('result schedule')
-    #print(controled_result_df_t)
+        # Make sum of all objective functions and enforce penatlies (lambdas)
+        all_objectives, x_symbols = makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False)
+        n_vars = n_physicians*len(calendar_df_t)
+        subs0 = assignVariables('0'*n_vars, x_symbols)
 
-    if cl>=2:
-        recordHistory(controled_result_df_t, t,cl, time_period)
-    
+        # Extract Qubo Q-matrix from objectives           Y = x^T Qx
+        Q = objectivesToQubo(all_objectives, n_shifts, x_symbols, cl, mirror=False, prints = False)
 
-all_shifts_df = pd.read_csv('data/intermediate/shift_data_all_t.csv', index_col=None)
-n_shifts = len(all_shifts_df)    
-full_schedule_df = full_solution[0]
-for w in range(1,T):
-    full_schedule_df = pd.concat([full_schedule_df, full_solution[w]],axis=0)
-ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
-print(ok_full_schedule_df)
-#ok_full_schedule_df = pd.read_csv('data/results/result_and_demand_cl2.csv') # Use saved result
-fig = controlPlot(ok_full_schedule_df, range(T), cl, time_period, lambdas, width=plot_width) 
-fig.savefig('data/results/schedule.png')
+        #if t==0:
+        #   print('\nVariables:',Q.shape[0])
 
 
-if lambdas['pref'] != 0 and T>1:
-    satisfaction_plot = np.array(satisfaction_plot)
-    plt.figure()
-    plt.title('Preference satisfaction per time period')
-    physician_df = pd.read_csv('data/intermediate/physician_data.csv', index_col=None)
-    n_physicians = len(physician_df)
+        # Q-matrix --> pauli operators --> cost hamiltonian (Hc)
+        b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
+        Hc = QToHc(Q, b) 
+        #for i in range(len(Hc.coeffs)):
+        # print(Hc.paulis[i], Hc.coeffs[i])
 
-    for p in range(n_physicians):
-        plt.plot(satisfaction_plot[:,p], label=str(p))
-    plt.legend()
-    plt.show()
+        qaoa = Qaoa(t, Hc, n_layers, plots=estimation_plots, seed=init_seed, backend=backend, instance='premium')
+        qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
+        best_bitstring_t = qaoa.sampleSolutions(sampling_iterations, n_candidates, return_worst_solution=False)
+        print('chosen bs',best_bitstring_t[::-1])
+
+        print('Hc(best)', costOfBitstring(best_bitstring_t, Hc))
+        print('xT Q x(best)', get_xT_Q_x(best_bitstring_t, Q))
+
+        print('Hc(0000)', costOfBitstring('0'*n_vars, Hc))
+        print('xT Q x(0000)', get_xT_Q_x('0'*n_vars, Q))
+
+        result_schedule_df_t = bitstringToSchedule(best_bitstring_t, calendar_df_t)
+        full_solution.append(result_schedule_df_t)
+        controled_result_df_t = controlSchedule(result_schedule_df_t, shifts_df, cl)
+        #TODO check if result is ok (unavailable & demand met) rerun until ok if not
+        #print('result schedule')
+        #print(controled_result_df_t)
+
+        if cl>=2:
+            recordHistory(controled_result_df_t, t,cl, time_period)
+        
+
+    all_shifts_df = pd.read_csv('data/intermediate/shift_data_all_t.csv', index_col=None)
+    n_shifts = len(all_shifts_df)    
+    full_schedule_df = full_solution[0]
+    for t in range(1,T):
+        full_schedule_df = pd.concat([full_schedule_df, full_solution[t]],axis=0)
+    ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
+    print(ok_full_schedule_df)
+    #ok_full_schedule_df = pd.read_csv('data/results/result_and_demand_cl2.csv') # Use saved result
+    fig = controlPlot(ok_full_schedule_df, range(T), cl, time_period, lambdas, width=plot_width) 
+    fig.savefig('data/results/schedule.png')
 
 
-# (Evaluate & compare solution to classical methods)'''
+    if lambdas['pref'] != 0 and T>1:
+        satisfaction_plot = np.array(satisfaction_plot)
+        plt.figure()
+        plt.title('Preference satisfaction per time period')
+        physician_df = pd.read_csv('data/intermediate/physician_data.csv', index_col=None)
+        n_physicians = len(physician_df)
+
+        for p in range(n_physicians):
+            plt.plot(satisfaction_plot[:,p], label=str(p))
+        plt.legend()
+        plt.show()
+
+
+    # (Evaluate & compare solution to classical methods)'''
