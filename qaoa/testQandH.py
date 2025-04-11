@@ -1,7 +1,5 @@
 import sympy as sp
 import numpy as np
-from qaoa import *
-
 
 STRING = '101100110001011010'
 n_physicians = 3
@@ -12,28 +10,40 @@ lambda_demand = 2
 lambda_fair = 1
 
 # define decision variables (a list of lists)
-x_symbols = []
+'''x_symbols = []
 for p in range(n_physicians):
     x_symbols_p = [sp.symbols(f'x{p}_{s}') for s in range(n_shifts)]
-    x_symbols.append(x_symbols_p)
+    x_symbols.append(x_symbols_p)'''
 
-def assignVariables(bitstring:str)->dict:
+def assignVariables(bitstring:str, x_symbols)->dict:
     substitution = {}
     i=0
     for p in x_symbols:
         for x_ps in p:
-            substitution[x_ps] = bitstring[i]
+            substitution[x_ps] = int(bitstring[i])
             i+=1
     return substitution
 
+def get_xT_Q_x(bitstring:str, Q):
+    int_string =[]
+    for bit in bitstring:
+        int_string.append(int(bit))
+    x = np.array(int_string)
 
-substitution = assignVariables(STRING)
+    x.resize((len(bitstring),1))
+
+    xT_Q_x = x.T @ Q @ x
+    return xT_Q_x
+    
+
+
+'''substitution = assignVariables(STRING)
 
 #print('Variables:', substitution)"""
     
 # Make, sum and simplify all hamiltonians and enforce penatlies (lambdas)
 all_hamiltonians, x_symbols = makeObjectiveFunctions(n_demand, n_physicians, n_shifts, cl, lambda_demand=lambda_demand, lambda_fair=lambda_fair) # NOTE does not handle preferences yet
-Q = makeQuboNew(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='np', mirror=False)
+#Q = objectivesToQubo(all_hamiltonians, n_physicians, n_shifts, x_symbols, cl, output_type='np', mirror=False)
 
 hsum = all_hamiltonians.subs(substitution)
 print('Hsum',hsum)

@@ -26,9 +26,59 @@ def qToXIndex(q_index, n_shifts): #  [i,j] -->  [[p,s],[p,s]]   # TODO test func
 
 def bitstringToPauliZ(bitstring)->np.ndarray:
    # binary to ±1 eigenvalues of Z operators
+    '''z_eigenvalues = np.zeros(len(bitstring))
+    for i, bit in enumerate(bitstring):
+        if bit == '0':
+            z_eigenvalues[i]= 1
+        elif bit =='1':
+            z_eigenvalues[i]= -1 '''
+
     z_eigenvalues = np.array([1 if bit == "0" else -1 for bit in bitstring])
     return z_eigenvalues
 
+def getShiftsPerT(time_period:str, cl:int) -> int:
+    if time_period == 'week':
+        shifts_per_t = shiftsPerWeek(cl)
+            
+    elif time_period == 'day':
+        shifts_per_t = shiftsPerWeek(cl)/7
+
+    elif time_period == 'shift':
+        shifts_per_t = 1
+    return int(shifts_per_t)
+
+def shiftsPerWeek(cl):
+    if cl<3:
+        shifts_per_week = 7
+    elif cl>=3:
+        shifts_per_week = 21
+
+    shifts_per_week = 7 # NOTE TESTING
+    return int(shifts_per_week)
+
+def percentOfShifts(percentage, cl):
+    # assuming shifts are 8~hrs
+    shifts_per_week = shiftsPerWeek(cl)
+
+    target_percent_of_shifts = {25: 1.25/shifts_per_week, 50:2.5/shifts_per_week, 75:3.75/shifts_per_week, 100:5/shifts_per_week} 
+    return target_percent_of_shifts[percentage]
+
+def targetShiftsPerWeek(percentage, cl):
+    # assuming shifts are 8~hrs
+    shifts_per_week = shiftsPerWeek(cl)
+
+    target_percent_of_shifts = {25: 1.25/shifts_per_week, 50:2.5/shifts_per_week, 75:3.75/shifts_per_week, 100:5/shifts_per_week} 
+    target_shifts = target_percent_of_shifts[percentage]*shifts_per_week
+    return target_shifts
+    
+def getDaysPassed(t, time_period):
+    if time_period=='shift':
+        days = t//3
+    elif time_period =='week':
+        days = t*7
+    elif time_period =='day':
+        days = t
+    return days
 
 # Only for visualization, does not handle complex numbers
 '''def HcPaulisToQ(Hc:SparsePauliOp)-> np.ndarray: 
