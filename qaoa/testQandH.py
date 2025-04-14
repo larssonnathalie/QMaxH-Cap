@@ -1,13 +1,13 @@
 import sympy as sp
 import numpy as np
 
-STRING = '101100110001011010'
+'''STRING = '101100110001011010'
 n_physicians = 3
 n_shifts=6
 n_demand = 10
 cl=1
 lambda_demand = 2
-lambda_fair = 1
+lambda_fair = 1'''
 
 # define decision variables (a list of lists)
 '''x_symbols = []

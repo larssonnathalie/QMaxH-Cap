@@ -1,5 +1,4 @@
 import pandas as pd
-from plotnine import * # pip install plotnine
 import numpy as np
 import matplotlib.pyplot as plt
 from qaoa.converters import *
@@ -304,6 +303,7 @@ def controlPlotDual(result_df_z3, result_df_gurobi):
             if prefer_p != '[]':
                 prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')
                 for s in prefer_shifts_p:
+                    print(s)
                     if s:
                         prefer_matrix[p][int(s)] = 1
 

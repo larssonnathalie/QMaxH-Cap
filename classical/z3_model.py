@@ -1,4 +1,4 @@
-from z3 import *
+from z3 import Optimize
 import numpy as np
 import time
 

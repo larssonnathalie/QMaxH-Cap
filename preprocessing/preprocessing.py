@@ -239,7 +239,7 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
     # minimize UNFAIRNESS
     if cl == 1:
         if T !=1:
-            print('nERROR in makeObjectives..(): cl 1 not implemented for more than one t')  
+            print('\nERROR in makeObjectives..(): cl 1 not implemented for more than one t')  
             return 
         
         # Hfair = ∑ᵢ₌₁ᴾ (∑ⱼ₌₁ˢ xᵢⱼ − S/P)²                 S = n_demand, P = n_physicians

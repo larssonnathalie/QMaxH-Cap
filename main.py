@@ -1,13 +1,5 @@
-from qaoa.qaoa import *
-
-from classical.scheduler import * 
-from classical.gurobi_model import * 
-from classical.data_handler import *
-from classical.z3_model import * 
-
 from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
-from qaoa.testQandH import *
 
 # General TODO:s
     # Decide lambdas
@@ -15,8 +7,8 @@ from qaoa.testQandH import *
     # results
         # Classical(constr.) vs quantum(qubo)
         # quantum simulator vs quantum ibm
-        # (Classical(qubo) vs Classical(linear constraints))
-        # quantum(1 long qubo) vs quantum(many short qubo)
+        # quantum sim vs quantum ibm vs "random guess" for many qubits
+
 
 # Parameters
 start_date = '2025-06-01' 
@@ -33,8 +25,8 @@ cl_contents = ['',
 
 skip_unavailable_and_prefer_not = False 
 only_fulltime = False
-use_qaoa = False
-use_classical = True
+use_qaoa = True
+use_classical = False
 draw_circuit = False
 preference_seed = True
 init_seed = False
@@ -49,7 +41,6 @@ if shiftsPerWeek(cl)==21:
     demands = {('dag', False):2, ('kväll',False):1, ('natt',False):1, ('dag',True):1, ('kväll',True):1, ('natt',True):0} 
     if cl>=4:
        title_demands =  {('dag', False):{'ST': 0, 'AT': 0, 'UL':1, 'ÖL':1} , ('kväll',False):{'ST': 0, 'AT': 0, 'UL':1, 'ÖL':1} , ('natt',False):{'ST': 0, 'AT': 0, 'UL':1, 'ÖL':1} , ('dag',True):{'ST': 0, 'AT': 0, 'UL':0, 'ÖL':1} , ('kväll',True):{'ST': 0, 'AT': 0, 'UL':0, 'ÖL':1} , ('natt',True):{'ST': 0, 'AT': 0, 'UL':0, 'ÖL':1} }   # weekday should be > holiday 
-
 
 n_layers = 2
 search_iterations = 20
@@ -85,12 +76,19 @@ print('\nPhysicians:\t', n_physicians)
 print('Days:\t\t', n_days)
 print('Shifts:\t\t', len(all_shifts_df))
 
-print('Seeds:\t\tPreference:', preference_seed,'\t\tQAOA estimation initialization:', init_seed)    
-
+print('Seeds preference:', preference_seed)    
+print(cl)
 
 # TODO Store the results from classical
 # Solve using classical solvers
 if use_classical:
+    from classical.scheduler import * 
+    from classical.gurobi_model import * 
+    from classical.data_handler import *
+    from classical.z3_model import *
+    
+    print('\nOptimizing schedule using Classical methods')
+
     t=0 # Only 1 optimization
     convertPreferences(all_shifts_df, t, only_prefer=skip_unavailable_and_prefer_not)   # Dates to shift-numbers
 
@@ -102,7 +100,7 @@ if use_classical:
         print("Z3 schedule:")
         for p, s in z3_schedule.items():
             print(f"{p}: {s}")
-        z3_schedule_df = schedule_dict_to_df(z3_schedule, shifts_df) # REMOVED INDENT TESTING
+        z3_schedule_df = schedule_dict_to_df(z3_schedule, shifts_df) 
         z3_checked_df = controlSchedule(z3_schedule_df, shifts_df, cl=cl)
 
     print("\nSolving with Gurobi (Classical)...")
@@ -127,12 +125,17 @@ if use_classical:
     if plots:
         controlPlotDual(z3_checked_df, gurobi_checked_df)
 
-
 if use_qaoa:
-    print('Initializations:', search_iterations)
+    from qaoa.qaoa import *
+    from qaoa.testQandH import *
+
+    print('\nOptimizing schedule using QAOA')
+    print('Estimation initializations:', search_iterations)
+    print('Initialization seed:', init_seed)
     print(f'comparing top {n_candidates} most common solutions')
     print(f't:s ({time_period}:s)\t', T)
     print('Layers\t\t', n_layers)
+    print(cl)
 
     if shiftsPerWeek(cl)==7:    
         # DEMAND 
@@ -159,7 +162,7 @@ if use_qaoa:
 
         if cl >=2:
             convertPreferences(calendar_df_t, t, only_prefer=skip_unavailable_and_prefer_not)   # Dates to shift-numbers
-
+        print('CL        ',     cl)
         # Make sum of all objective functions and enforce penatlies (lambdas)
         all_objectives, x_symbols = makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False)
         n_vars = n_physicians*len(calendar_df_t)
