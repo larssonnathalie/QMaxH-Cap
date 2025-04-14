@@ -1,5 +1,11 @@
 from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
+from qaoa.testQandH import *
+
+
+print('-----')
+print(z3.__file__)
+print('-----')
 
 # General TODO:s
     # Decide lambdas
@@ -12,16 +18,14 @@ from postprocessing.postprocessing import *
 
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-07'
+end_date = '2025-06-28'
 n_physicians = 4
 backend = 'aer'
 cl = 2               # complexity level: 
 cl_contents = ['',
 'cl1: demand, fairness',
-'cl2: demand, fairness, preferences, unavailable, extent, (one shift per day)',
-'cl3: demand, fairness, preferences, unavailable, extent, shift_type, rest, (3 shifts per day)',
-'cl4: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles, (3 shifts per day), "titles" only handles 1 shift per t',
-'cl5: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles, side_tasks, (3 shifts per day)']
+'cl2: demand, fairness, preferences, unavailable, extent',
+'cl3: demand, fairness, preferences, unavailable, extent, titles']
 
 skip_unavailable_and_prefer_not = False 
 only_fulltime = False
@@ -39,7 +43,7 @@ demands = {'weekday':2, 'holiday':1}
 if shiftsPerWeek(cl)==21:    
         # {(shift, is_holiday): num_workers_needed, ...} 
     demands = {('dag', False):2, ('kväll',False):1, ('natt',False):1, ('dag',True):1, ('kväll',True):1, ('natt',True):0} 
-    if cl>=4:
+    if cl>=3:
        title_demands =  {('dag', False):{'ST': 0, 'AT': 0, 'UL':1, 'ÖL':1} , ('kväll',False):{'ST': 0, 'AT': 0, 'UL':1, 'ÖL':1} , ('natt',False):{'ST': 0, 'AT': 0, 'UL':1, 'ÖL':1} , ('dag',True):{'ST': 0, 'AT': 0, 'UL':0, 'ÖL':1} , ('kväll',True):{'ST': 0, 'AT': 0, 'UL':0, 'ÖL':1} , ('natt',True):{'ST': 0, 'AT': 0, 'UL':0, 'ÖL':1} }   # weekday should be > holiday 
 
 n_layers = 2

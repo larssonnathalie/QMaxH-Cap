@@ -371,7 +371,7 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
                     for s in range(1,n_shifts):
                         H_rest += x_symbols[p][s]*x_symbols[p][s-1] # penalize working two following shift
 
-        if cl >=4:
+        if cl >=3:
         
             # TITLES constraint
             s = 0                      # NOTE assumin only 1 shift per t!!!!
