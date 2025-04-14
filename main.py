@@ -2,11 +2,6 @@ from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
 from qaoa.testQandH import *
 
-
-print('-----')
-print(z3.__file__)
-print('-----')
-
 # General TODO:s
     # Decide lambdas
 
@@ -19,9 +14,9 @@ print('-----')
 # Parameters
 start_date = '2025-06-01' 
 end_date = '2025-06-28'
-n_physicians = 4
+n_physicians = 10
 backend = 'aer'
-cl = 2               # complexity level: 
+cl = 3               # complexity level: 
 cl_contents = ['',
 'cl1: demand, fairness',
 'cl2: demand, fairness, preferences, unavailable, extent',
@@ -38,13 +33,6 @@ estimation_plots = False
 
 time_period = 'day' # NOTE work extent constraint is very different if t = 'week' 
 
-demands = {'weekday':2, 'holiday':1}
-
-if shiftsPerWeek(cl)==21:    
-        # {(shift, is_holiday): num_workers_needed, ...} 
-    demands = {('dag', False):2, ('kväll',False):1, ('natt',False):1, ('dag',True):1, ('kväll',True):1, ('natt',True):0} 
-    if cl>=3:
-       title_demands =  {('dag', False):{'ST': 0, 'AT': 0, 'UL':1, 'ÖL':1} , ('kväll',False):{'ST': 0, 'AT': 0, 'UL':1, 'ÖL':1} , ('natt',False):{'ST': 0, 'AT': 0, 'UL':1, 'ÖL':1} , ('dag',True):{'ST': 0, 'AT': 0, 'UL':0, 'ÖL':1} , ('kväll',True):{'ST': 0, 'AT': 0, 'UL':0, 'ÖL':1} , ('natt',True):{'ST': 0, 'AT': 0, 'UL':0, 'ÖL':1} }   # weekday should be > holiday 
 
 n_layers = 2
 search_iterations = 20
@@ -69,19 +57,14 @@ physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
 
 # SHIFTS
 # assign demand & attractiveness for each shift
-generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
-all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=None)
-shifts_per_t = getShiftsPerT(time_period, cl)
+
 
 print()
 print(cl_contents[cl])
 print('Lambdas:', lambdas)
 print('\nPhysicians:\t', n_physicians)
 print('Days:\t\t', n_days)
-print('Shifts:\t\t', len(all_shifts_df))
-
-print('Seeds preference:', preference_seed)    
-print(cl)
+print('Seed preference:', preference_seed)    
 
 # TODO Store the results from classical
 # Solve using classical solvers
@@ -92,6 +75,14 @@ if use_classical:
     from classical.z3_model import *
     
     print('\nOptimizing schedule using Classical methods')
+
+    demands = {'weekday':2, 'holiday':1} # TODO make same demands for classical & Q
+    generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
+    all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=None)
+
+    print('-----')
+    print(z3.__file__)
+    print('-----')
 
     t=0 # Only 1 optimization
     convertPreferences(all_shifts_df, t, only_prefer=skip_unavailable_and_prefer_not)   # Dates to shift-numbers
@@ -139,10 +130,9 @@ if use_qaoa:
     print(f'comparing top {n_candidates} most common solutions')
     print(f't:s ({time_period}:s)\t', T)
     print('Layers\t\t', n_layers)
-    print(cl)
 
     if shiftsPerWeek(cl)==7:    
-        # DEMAND 
+        # DEMAND  # TODO make same demands for classical & Q
         # set from amount of workers and their extent
         target_n_shifts_total_per_week = sum(targetShiftsPerWeek(physician_df['extent'].iloc[p], cl) for p in range(n_physicians)) 
         target_n_shifts_total = target_n_shifts_total_per_week * (len(all_dates_df) / shiftsPerWeek(cl))
@@ -152,12 +142,15 @@ if use_qaoa:
         demands = {'weekday': demand_wd, 'holiday': demand_hd}  
         print('demands:', demands)
 
+    generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
+    all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=None)
+    shifts_per_t = getShiftsPerT(time_period, cl)   
 
     for t in range(T):
         #empty_calendar_df_t = pd.read_csv(f'data/intermediate/empty_calendar_t{t}.csv')
         calendar_df_t = all_dates_df.iloc[t*shifts_per_t: min((t+1)*shifts_per_t, len(all_shifts_df))]
 
-        print('\nt:\t', t)
+        print(f'\nt:\t{t}/{T}')
 
         shifts_df = pd.read_csv(f'data/intermediate/shift_data_t{t}.csv')
         n_shifts = len(shifts_df)
@@ -166,7 +159,6 @@ if use_qaoa:
 
         if cl >=2:
             convertPreferences(calendar_df_t, t, only_prefer=skip_unavailable_and_prefer_not)   # Dates to shift-numbers
-        print('CL        ',     cl)
         # Make sum of all objective functions and enforce penatlies (lambdas)
         all_objectives, x_symbols = makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False)
         n_vars = n_physicians*len(calendar_df_t)
@@ -190,11 +182,11 @@ if use_qaoa:
         best_bitstring_t = qaoa.sampleSolutions(sampling_iterations, n_candidates, return_worst_solution=False)
         print('chosen bs',best_bitstring_t[::-1])
 
-        print('Hc(best)', costOfBitstring(best_bitstring_t, Hc))
+        '''print('Hc(best)', costOfBitstring(best_bitstring_t, Hc))
         print('xT Q x(best)', get_xT_Q_x(best_bitstring_t, Q))
 
         print('Hc(0000)', costOfBitstring('0'*n_vars, Hc))
-        print('xT Q x(0000)', get_xT_Q_x('0'*n_vars, Q))
+        print('xT Q x(0000)', get_xT_Q_x('0'*n_vars, Q))'''
 
         result_schedule_df_t = bitstringToSchedule(best_bitstring_t, calendar_df_t)
         full_solution.append(result_schedule_df_t)

@@ -48,8 +48,8 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True, only_full
     
     #TODO look over all probabilities in random choices and set realistic values
 
-    all_dates = empty_calendar['date'] # TODO preferences on separate shifts instead of dates
-    n_dates = len(list(set(list(all_dates))))
+    all_dates = [str(empty_calendar['date'].iloc[s]) for s in range(len(empty_calendar))] # TODO preferences on separate shifts instead of dates
+    n_dates = len(all_dates) #list(set(list(all_dates))))
     possible_extents = [25,50,50,75,75,100,100,100,100,100,100]  # more copies -> more likely
     if only_fulltime:
         possible_extents = [100]
@@ -72,7 +72,7 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True, only_full
         np.random.seed(56)
     
     for p in range(n_physicians):
-        remaining_dates_p = list(set(list(all_dates)))
+        remaining_dates_p = all_dates.copy()#list(set(list(all_dates)))
         name_col.append(f'physician{p}')
         extent_col.append(np.random.choice(possible_extents))
         title_col.append(possible_titles[p]) 
@@ -80,21 +80,24 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True, only_full
         if cl >=2:
             # RANDOM PREFERENCES
             size = np.random.randint(0, int(n_dates/7*2))
-            prefer_not_p = np.random.choice(remaining_dates_p, size=size, replace=False) # NOTE temporary upper size limit 
+            prefer_not_p = np.random.choice(remaining_dates_p, size=size, replace=False).tolist() # NOTE temporary upper size limit
+            print(prefer_not_p, type(prefer_not_p))
+            if len(prefer_not_p) != 0:
+                print(type(prefer_not_p[0]), type(remaining_dates_p[0]))
             prefer_not_col[p] =(list(prefer_not_p))
             for s in prefer_not_p:
                 remaining_dates_p.remove(s)
 
             if len(remaining_dates_p)>0:
                 size = np.random.randint(0, int(n_dates/7*3))
-                prefer_p = np.random.choice(remaining_dates_p, size=size, replace=False)
+                prefer_p = np.random.choice(remaining_dates_p, size=size, replace=False).tolist()
                 prefer_col[p]=list(prefer_p)
                 for s in prefer_p:
                     remaining_dates_p.remove(s)
 
             if len(remaining_dates_p)>0:
                 size= np.random.randint(0, n_dates//7)
-                unavail_p = np.random.choice(remaining_dates_p, size=size, replace=False)
+                unavail_p = np.random.choice(remaining_dates_p, size=size, replace=False).tolist()
                 unavail_col[p] = list(unavail_p)
 
     physician_data_df = pd.DataFrame({'name':name_col, 'title':title_col, 'extent': extent_col, 'shifts worked':worked_shifts_col, 'work rate':work_rate_col, 'prefer':prefer_col, 'prefer not':prefer_not_col, 'unavailable':unavail_col, 'satisfaction':satisfaction_col, 'worked last':worked_last_col})
@@ -289,27 +292,27 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
             else:
                 satisfaction = np.array([float(sat) for sat in physician_df['satisfaction']])
 
-                print('Sat:')
+                #print('Sat:')
                 sat= ''
                 for p in range(n_physicians):
                     sat += str(satisfaction[p])[:4]+'  '
-                print(sat)
+                #print(sat)
 
                 min_sat = np.min(satisfaction)
                 satisfaction = satisfaction - min_sat + 1   # shift whole column to set least satisfied = 1
             
             satisfaction_rate = satisfaction/np.max(satisfaction) 
-            print('rates:')
+            #print('rates:')
             rat= ''
             for p in range(n_physicians):
                 rat += str(satisfaction_rate[p])[:4]+'  '
-            print(rat)
+            #print(rat)
             priority = np.where((1 - satisfaction_rate)>min_prio, (1 - satisfaction_rate), min_prio)   # less satisfied are more important & apply min_prio
             pri = ''
-            print('prios:')
+            #print('prios:')
             for p in range(n_physicians):
                 pri += str(priority[p])[:4]+'  '
-            print(pri)
+            #print(pri)
 
             for p in range(n_physicians):
                 priority_p = priority[p]
