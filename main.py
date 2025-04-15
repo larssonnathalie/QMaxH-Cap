@@ -35,14 +35,14 @@ time_period = 'day' # NOTE work extent constraint is very different if t = 'week
 
 
 n_layers = 2
-search_iterations = 20
+search_iterations = 15
 estimation_iterations = n_layers * 500
 sampling_iterations = 4000
 n_candidates = 20 # compare top X most common solutions
-plot_width = 10
+plot_width = 20
 
 # lambdas = penalties (how hard a constraint is)
-lambdas = {'demand':2, 'fair':10, 'pref':5, 'unavail':10, 'extent':2, 'rest':0, 'titles':0, 'memory':3}  # NOTE Must be integers
+lambdas = {'demand':2, 'fair':10, 'pref':5, 'unavail':10, 'extent':5, 'rest':0, 'titles':5, 'memory':3}  # NOTE Must be integers
 
 # Construct empty calendar with holidays etc.
 T, total_holidays, n_days = emptyCalendar(end_date, start_date, cl, time_period=time_period)

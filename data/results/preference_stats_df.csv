@@ -1,5 +1,4 @@
 ,name,title,# prefered,% prefered,# prefered not,% prefered not
-0,physician0,ÖL,2.0,1.0,4.0,0.75
-1,physician1,ST,4.0,1.0,7.0,0.8571428571428571
-2,physician2,UL,5.0,1.0,1.0,1.0
-3,physician3,AT,5.0,0.8,6.0,1.0
+0,physician0,ÖL,1.0,1.0,0.0,
+1,physician1,ST,1.0,0.0,0.0,
+2,physician2,UL,0.0,,0.0,

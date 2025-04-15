@@ -106,7 +106,7 @@ def recordHistory(result_schedule_df_t, t, cl, time_period):
 
     # EXTENT
     shifts_worked_col, work_rate_col, worked_last_col = [],[],[]
-    total_shifts = (t+1)*getShiftsPerT(time_period, cl)
+    total_shifts = (t)*getShiftsPerT(time_period, cl) + len(result_schedule_df_t)
     percentage = {p:physician_df['extent'].iloc[p] for p in range(n_physicians)}
     for p in range(n_physicians):
 
@@ -267,7 +267,7 @@ def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
 
     ax.set_xticks(ticks=xticks, labels=xlabels,fontsize=8) # NOTE removed year from ticks
     yticks = [i for i in np.arange(n_physicians)]+[n_physicians-0.4]
-    ax.set_yticks(ticks=yticks, labels=[f'P{num} ({title})' for num, title in enumerate(physician_df['title'])]+['OK n.o.\nworkers'])
+    ax.set_yticks(ticks=yticks, labels=[f'P{name[-1]} ({title})({ext}%)' for name, title, ext in zip(physician_df['name'],physician_df['title'],physician_df['extent'])]+['OK n.o.\nworkers'])
     ax.spines["right"].set_linewidth(0) # remove right side of frame
     ax.spines["top"].set_linewidth(0) 
     plt.subplots_adjust(left=0.05, right=0.95,bottom=0.3) # Adjust padding

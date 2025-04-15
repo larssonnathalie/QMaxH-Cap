@@ -1,2 +1,4 @@
 date,demand,attractiveness,is_holiday,weekday,staff,shift covered
-2025-06-02,7.0,0.0,False,Monday,"['9', '7', '6', '5', '4', '3', '1']",ok
+2025-06-04,2.0,0.0,False,Wednesday,"['3', '2']",ok
+2025-06-05,2.0,0.0,False,Thursday,"['3', '2', '0']",NOT ok!
+2025-06-06,1.0,0.0,True,Friday,"['3', '2', '1']",NOT ok!

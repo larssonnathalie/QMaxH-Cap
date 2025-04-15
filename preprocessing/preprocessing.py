@@ -50,7 +50,7 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True, only_full
 
     all_dates = [str(empty_calendar['date'].iloc[s]) for s in range(len(empty_calendar))] # TODO preferences on separate shifts instead of dates
     n_dates = len(all_dates) #list(set(list(all_dates))))
-    possible_extents = [25,50,50,75,75,100,100,100,100,100,100]  # more copies -> more likely
+    possible_extents = [50,50,75,75,100,100,100,100,100,100]  # more copies -> more likely
     if only_fulltime:
         possible_extents = [100]
     #possible_titles = ['ÖL', 'ST', 'AT','Chef','UL'] * (n_physicians//5+1)
@@ -79,24 +79,22 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True, only_full
 
         if cl >=2:
             # RANDOM PREFERENCES
-            size = np.random.randint(0, int(n_dates/7*2))
+            size = np.random.randint(0, max(int(n_dates/7*2),1))
             prefer_not_p = np.random.choice(remaining_dates_p, size=size, replace=False).tolist() # NOTE temporary upper size limit
-            print(prefer_not_p, type(prefer_not_p))
-            if len(prefer_not_p) != 0:
-                print(type(prefer_not_p[0]), type(remaining_dates_p[0]))
+
             prefer_not_col[p] =(list(prefer_not_p))
             for s in prefer_not_p:
                 remaining_dates_p.remove(s)
 
             if len(remaining_dates_p)>0:
-                size = np.random.randint(0, int(n_dates/7*3))
+                size = np.random.randint(0, max(int(n_dates/7*3),1))
                 prefer_p = np.random.choice(remaining_dates_p, size=size, replace=False).tolist()
                 prefer_col[p]=list(prefer_p)
                 for s in prefer_p:
                     remaining_dates_p.remove(s)
 
             if len(remaining_dates_p)>0:
-                size= np.random.randint(0, n_dates//7)
+                size= np.random.randint(0, max(n_dates//7,1))
                 unavail_p = np.random.choice(remaining_dates_p, size=size, replace=False).tolist()
                 unavail_col[p] = list(unavail_p)
 
@@ -360,9 +358,10 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
                 extent_p = int(physician_df['extent'].iloc[p])
                 n_shifts_target = targetShiftsPerWeek(extent_p, cl)
                 n_shifts_target = n_shifts_target * (n_shifts/shifts_per_week)
+                #print('target',p, n_shifts_target)
                 assigned_shifts = sum(x_symbols[p][s] for s in range(n_shifts))
-                H_extent += (assigned_shifts-n_shifts_target)**2
-    
+                H_extent += (assigned_shifts-sp.Integer(n_shifts_target))**2
+                #print('sum', sp.simplify(sp.expand((assigned_shifts-sp.Integer(n_shifts_target))**2)))
         if shiftsPerWeek(cl)==21:
             # REST between shifts
             for p in range(n_physicians):
@@ -413,7 +412,7 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
 
     if prints:
         print('H demand:', sp.simplify(H_meet_demand*lambdas['demand']))
-        #print('\nH fair:', sp.simplify(H_fair*lambdas['fair']))
+        print('\nH fair:', sp.simplify(H_fair*lambdas['fair']))
         print('\nH extent:', sp.simplify(H_extent*lambdas['extent']))
 
     # Combine all to one single H

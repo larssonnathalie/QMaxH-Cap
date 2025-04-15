@@ -3,40 +3,37 @@ from qaoa.qaoa import *
 from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
 from qaoa.testQandH import *
+import time
 
 all_Hc = []
 all_n_vars = []
+all_times = []
+all_Hc_random =[]
 
 # Parameters
-start_date = '2025-03-24' 
-end_date = '2025-03-30'
+start_date = '2025-06-04' 
+end_date = '2025-06-06'
 #n_physicians = 3
-backend = 'aer'
-cl = 2                 # complexity level: 
-cl_contents = ['',
-'cl1: demand, fairness',
-'cl2: demand, fairness, preferences, unavailable, extent, (one shift per day)',
-'cl3: demand, fairness, preferences, unavailable, extent, shift_type, rest, (3 shifts per day)',
-'cl4: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles, (3 shifts per day)',
-'cl5: demand, fairness, preferences, unavailable, extent, shift_type, rest, titles, side_tasks, (3 shifts per day)']
+backend = 'ibm'
+cl = 3                 # complexity level: 
 
 skip_unavailable_and_prefer_not = False 
 only_fulltime = False
-preference_seed = True
+preference_seed = False
 init_seed = True
-estimation_plots = True
+estimation_plots = False
 
 time_period = 'week' # NOTE work extent constraint is very different if t = 'week' 
 
-n_layers = 2
+n_layers = 1
 search_iterations = 20
 estimation_iterations = n_layers * 500
 sampling_iterations = 4000
 n_candidates = 20 # compare top X most common solutions
-plot_width = 10
+plot_width = 15
 
 # lambdas = penalties (how hard a constraint is) 
-lambdas = {'demand':5, 'fair':8, 'pref':5, 'unavail':10, 'extent':0, 'rest':10}  # NOTE Must be integers
+lambdas = {'demand':5, 'fair':5, 'pref':5, 'unavail':5, 'extent':8, 'rest':0, 'titles':10}  # NOTE Must be integers
 # NOTE 'fair' -> 'pref' if T =1                              if t='week': extent is not fit for n_days < 7
 
 # Construct empty calendar with holidays etc.
@@ -46,14 +43,25 @@ all_dates_df = pd.read_csv(f'data/intermediate/empty_calendar.csv',index_col=Non
 
 
 print()
-print(cl_contents[cl])
+print('cl:', cl)
 #print(f't:s ({time_period}:s)\t', T)
 print('Layers\t', n_layers)
 print('Seeds:\t\tPreference:', preference_seed,'\t\tInitialization:', init_seed)
 print('Initializations:', search_iterations)
 print(f'comparing top {n_candidates} most common solutions')
 
+def generateRandomSolution(n_vars):
+    solution = ''
+    for i in range(n_vars):
+        if np.random.random()>0.5:
+            solution += '1'
+        else:
+            solution += '0'
+    return solution
+
 for n_physicians in [3,4]:
+    start_time = time.time()
+
     # loop START
     print('\nPhysicians:\t', n_physicians)
     print('dates:\t', start_date, 'to:', end_date)
@@ -65,10 +73,10 @@ for n_physicians in [3,4]:
 
     # DEMAND
     target_n_shifts_total_per_week = sum(targetShiftsPerWeek(physician_df['extent'].iloc[p], cl) for p in range(n_physicians)) #NOTE assuming 7 days!!
-    print('target per week',target_n_shifts_total_per_week)
+    #print('target per week',target_n_shifts_total_per_week)
     target_n_shifts_total = target_n_shifts_total_per_week*(n_days/7)
-    print('target total',target_n_shifts_total)
-    print(physician_df['extent'])
+    #print('target total',target_n_shifts_total)
+    #print(physician_df['extent'])
 
     demand_hd = max(target_n_shifts_total_per_week//12,1)
     demand_wd = max((target_n_shifts_total_per_week - 2*demand_hd)//5,1)
@@ -109,17 +117,24 @@ for n_physicians in [3,4]:
     qaoa = Qaoa(0, Hc, n_layers, plots=estimation_plots, seed=init_seed, backend=backend, instance='premium')
     qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
     best_bitstring_t = qaoa.sampleSolutions(sampling_iterations, n_candidates, return_worst_solution=False)
-    print('chosen bs',best_bitstring_t[::-1])
     final_cost = costOfBitstring(best_bitstring_t, Hc)
-    print('Hc:', final_cost)
+    print('chosen bs',best_bitstring_t[::-1],'Hc:', final_cost)
     all_Hc.append(final_cost)
+
+    random_sol = generateRandomSolution(n_vars)
+    Hc_random = costOfBitstring(random_sol, Hc)
+
+    print('random:', random_sol, 'Hc',Hc_random)
+    all_Hc_random.append(Hc_random)
 
     result_schedule_df = bitstringToSchedule(best_bitstring_t, calendar_df)
     controled_result_df = controlSchedule(result_schedule_df, shifts_df, cl)
     print(controled_result_df)  
     recordHistory(result_schedule_df, 0, cl, time_period)
-    fig = controlPlot(controled_result_df, range(T), cl, time_period, lambdas, width=plot_width) 
-    fig.savefig(f'data/results/increasing_qubits/{backend}-backend_{n_vars}vars_cl{cl}.png')
+    end_time = time.time()
+    all_times.append(int(end_time - start_time))
+    #fig = controlPlot(controled_result_df, range(T), cl, time_period, lambdas, width=plot_width) 
+    #fig.savefig(f'data/results/increasing_qubits/{backend}-backend_{n_vars}vars_cl{cl}.png')
 
-save_results = pd.DataFrame({'Hc:s':all_Hc, 'variables':all_n_vars})
-save_results.to_csv(f'data/results/increasing_qubits/{backend}-backend_{n_vars}vars_cl{cl}.csv')
+save_results = pd.DataFrame({'Hc:s':all_Hc, 'variables':all_n_vars, 'time':all_times, 'random Hc':all_Hc_random})
+save_results.to_csv(f'data/results/increasing_qubits/{backend}-backend_{n_vars}vars_cl{cl}.csv', index=None)
