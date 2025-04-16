@@ -1,4 +1,4 @@
 name,title,extent,shifts worked,work rate,prefer,prefer not,unavailable,satisfaction,worked last,prefer t0,prefer not t0,unavailable t0
-physician0,ÖL,75,0,0,[],[],[],0,0,[],[],[]
-physician1,ST,75,0,0,[],[],[],0,0,[],[],[]
-physician2,UL,100,0,0,[],[],[],0,0,[],[],[]
+physician0,ÖL,50,2,1.8666666666666665,[],[],[],0,1,[],[],[]
+physician1,ST,50,2,1.8666666666666665,[],[],[],0,1,[],[],[]
+physician2,UL,75,2,1.2444444444444445,[],[],[],0,1,[],[],[]
