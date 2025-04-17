@@ -48,12 +48,12 @@ def getShiftsPerT(time_period:str, cl:int) -> int:
     return int(shifts_per_t)
 
 def shiftsPerWeek(cl):
-    if cl<3:
+    '''if cl<3:
         shifts_per_week = 7
     elif cl>=3:
-        shifts_per_week = 21
+        shifts_per_week = 21'''
 
-    shifts_per_week = 7 # NOTE TESTING
+    shifts_per_week = 7 # NOTE removed 3 shifts/day
     return int(shifts_per_week)
 
 def percentOfShifts(percentage, cl):

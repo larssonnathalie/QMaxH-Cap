@@ -35,7 +35,7 @@ def bitstringToSchedule(bitstring:str, empty_calendar_df) -> pd.DataFrame:
 def controlSchedule(result_schedule_df, shift_data_df, cl):
     combined_df = shift_data_df.merge(result_schedule_df, on='date', how='outer')
 
-    if shiftsPerWeek(cl) ==21:
+    if shiftsPerWeek(cl) == 21:
         combined_df = shift_data_df.merge(result_schedule_df, on=['date', 'shift type'], how='outer')
     ok_col = []
 
@@ -47,7 +47,6 @@ def controlSchedule(result_schedule_df, shift_data_df, cl):
     combined_df['shift covered']=ok_col
     combined_df.to_csv(f'data/results/result_and_demand_cl{cl}.csv', index=False)
     return combined_df
-
 
 # Remember previous PREFERENCE SATISFACTION and EXTENT to ensure fairness and correct # hours
 satisfaction_plot = []
@@ -279,6 +278,7 @@ def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
 
 
 def controlPlotDual(result_df_z3, result_df_gurobi):
+
     """
     Plots Z3 and Gurobi results side-by-side with preference annotations and coverage info.
     """
@@ -347,3 +347,18 @@ def controlPlotDual(result_df_z3, result_df_gurobi):
 
     plt.tight_layout()
     plt.show()
+
+
+def classicalToBitstring(schedule_df, n_physicians): #NOTE needs testing
+    n_shifts = len(schedule_df)
+    bitstring = ''
+    for p in range(n_physicians):
+        for s in range(n_shifts):
+            if str(p) in schedule_df['staff'].iloc[s]:
+                bitstring += '1'
+            else:
+                bitstring += '0'
+
+    print('Bitstring:', bitstring)
+    return bitstring
+
