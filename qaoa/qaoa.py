@@ -280,7 +280,6 @@ class Qaoa:
                 x_min = cost_i
             elif cost_i > x_max:
                 x_max = cost_i
-        self.x_min, self.x_max = x_min, x_max
         
         # RANDOM 
         if random_distribution is not None:
@@ -295,8 +294,8 @@ class Qaoa:
 
             label = 'Random solutions'  
             color = 'orange'
-            self.x_min = min(min(all_costs_random), self.x_min) # ensure same x-lims for plots
-            self.x_max = max(max(all_costs_random), self.x_max)
+            self.x_min = min(min(all_costs_random), x_min) # ensure same x-lims for plots
+            self.x_max = max(max(all_costs_random), x_max)
         
 
         else:
@@ -309,6 +308,8 @@ class Qaoa:
             plot_costs = all_costs
             label = str(self.backend_name)+' quantum backend'
             color = 'skyblue'
+            self.x_min, self.x_max = x_min, x_max
+
 
         n, bins, bars = plt.hist(plot_costs, bins=bins, label=label, color=color, range=(self.x_min, self.x_max), alpha=0.8)
         print('summa', sum(n))
@@ -316,6 +317,6 @@ class Qaoa:
         plt.xlabel('Cost (Hc)')
         plt.ylabel('Probability [%]')
         plt.yticks(ticks=np.linspace(0,self.sampling_iterations,11), labels=['','10', '20', '30', '40', '50', '60', '70', '80', '90', '100'])
-        plt.xlim((self.x_min,self.x_max))
+        plt.xlim((self.x_min, self.x_max))
         plt.ylim((0,self.sampling_iterations))
         return n, bins

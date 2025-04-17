@@ -349,7 +349,7 @@ def controlPlotDual(result_df_z3, result_df_gurobi):
     plt.show()
 
 
-def classicalToBitstring(schedule_df, n_physicians): #NOTE needs testing
+def scheduleToBitstring(schedule_df, n_physicians): #NOTE needs testing
     n_shifts = len(schedule_df)
     bitstring = ''
     for p in range(n_physicians):
