@@ -188,7 +188,7 @@ if use_qaoa:
 
         qaoa = Qaoa(t, Hc, n_layers, plots=estimation_plots, seed=init_seed, backend=backend, instance='premium')
         qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
-        best_bitstring_t = qaoa.sampleSolutions(sampling_iterations, n_candidates, return_worst_solution=False)
+        best_bitstring_t = qaoa.samplerSearch(sampling_iterations, n_candidates, return_worst_solution=False)
         print('chosen bs',best_bitstring_t[::-1])
 
         '''print('Hc(best)', costOfBitstring(best_bitstring_t, Hc))

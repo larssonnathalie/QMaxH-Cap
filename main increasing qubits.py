@@ -3,18 +3,20 @@ from qaoa.qaoa import *
 from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
 from qaoa.testQandH import *
+from collections import Counter
 import time
 
-all_Hc = []
+all_counted_costs = []
 all_n_vars = []
 all_times = []
-all_Hc_random =[]
+all_counted_costs_random =[]
+all_bins = []
 
 # Parameters
 start_date = '2025-06-04' 
 end_date = '2025-06-06'
 #n_physicians = 3
-backend = 'ibm'
+backend = 'aer'
 cl = 3                 # complexity level: 
 
 skip_unavailable_and_prefer_not = False 
@@ -25,10 +27,10 @@ estimation_plots = False
 
 time_period = 'week' # NOTE work extent constraint is very different if t = 'week' 
 
-n_layers = 1
+n_layers = 2
 search_iterations = 20
 estimation_iterations = n_layers * 500
-sampling_iterations = 4000
+sampling_iterations = 100000
 n_candidates = 20 # compare top X most common solutions
 plot_width = 15
 
@@ -50,16 +52,21 @@ print('Seeds:\t\tPreference:', preference_seed,'\t\tInitialization:', init_seed)
 print('Initializations:', search_iterations)
 print(f'comparing top {n_candidates} most common solutions')
 
-def generateRandomSolution(n_vars):
-    solution = ''
-    for i in range(n_vars):
-        if np.random.random()>0.5:
-            solution += '1'
-        else:
-            solution += '0'
-    return solution
+def generateRandomSolutions(n_vars, sampling_iterations):
+    all_solutions = []
+    for s in range(sampling_iterations):
+        solution = ''
+        for var in range(n_vars):
+            if np.random.random()>0.5:
+                solution += '1'
+            else:
+                solution += '0'
+        all_solutions.append(solution)
+    solution_distribution = dict(Counter(all_solutions))
+    
+    return solution_distribution
 
-for n_physicians in [3,4]:
+for n_physicians in [3,4,5,6,7,8]:
     start_time = time.time()
 
     # loop START
@@ -116,25 +123,34 @@ for n_physicians in [3,4]:
 
     qaoa = Qaoa(0, Hc, n_layers, plots=estimation_plots, seed=init_seed, backend=backend, instance='premium')
     qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
-    best_bitstring_t = qaoa.sampleSolutions(sampling_iterations, n_candidates, return_worst_solution=False)
+    best_bitstring_t = qaoa.samplerSearch(sampling_iterations, n_candidates, return_worst_solution=False)
+    end_time = time.time()
+    time_passed = int(end_time - start_time)
+    all_times.append(time_passed)
+    
+    plt.figure(figsize=(10, 8))
+    plt.subplot(2,1,1)
+    plt.title('Sampling distributions \n# vars = '+str(n_vars))
+    random_distribution = generateRandomSolutions(n_vars, sampling_iterations)
+    counts_random, bins = qaoa.costCountsDistribution(random_distribution=random_distribution)
+    all_counted_costs_random.append(counts_random)
+    all_bins.append(bins)
+    
+    plt.subplot(2,1,2)
+    counts, bins = qaoa.costCountsDistribution() # vars ='+str(n_vars))
+    all_counted_costs.append(counts)
+    plt.savefig(f'data/results/increasing_qubits/cost_distribution_{n_vars}vars_cl{cl}_{n_layers}layers_time{int(end_time)}')
+    plt.show()
+
+
     final_cost = costOfBitstring(best_bitstring_t, Hc)
     print('chosen bs',best_bitstring_t[::-1],'Hc:', final_cost)
-    all_Hc.append(final_cost)
-
-    random_sol = generateRandomSolution(n_vars)
-    Hc_random = costOfBitstring(random_sol, Hc)
-
-    print('random:', random_sol, 'Hc',Hc_random)
-    all_Hc_random.append(Hc_random)
-
     result_schedule_df = bitstringToSchedule(best_bitstring_t, calendar_df)
     controled_result_df = controlSchedule(result_schedule_df, shifts_df, cl)
     print(controled_result_df)  
     recordHistory(result_schedule_df, 0, cl, time_period)
-    end_time = time.time()
-    all_times.append(int(end_time - start_time))
     #fig = controlPlot(controled_result_df, range(T), cl, time_period, lambdas, width=plot_width) 
     #fig.savefig(f'data/results/increasing_qubits/{backend}-backend_{n_vars}vars_cl{cl}.png')
 
-save_results = pd.DataFrame({'Hc:s':all_Hc, 'variables':all_n_vars, 'time':all_times, 'random Hc':all_Hc_random})
+save_results = pd.DataFrame({'# variables':all_n_vars, 'counted costs':all_counted_costs, 'counted costs random':all_counted_costs_random, 'bins':all_bins,'time':all_times})
 save_results.to_csv(f'data/results/increasing_qubits/{backend}-backend_{n_vars}vars_cl{cl}.csv', index=None)
