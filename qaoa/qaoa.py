@@ -140,6 +140,7 @@ class Qaoa:
     
     def samplerSearch(self, sampling_iterations=4000, n_candidates=20, return_worst_solution=False):
         self.sampleSolutions(sampling_iterations, plots=self.plots)
+        self.sampling_iterations = sampling_iterations
         best_bitstring = self.findBestBitstring(n_candidates, worst_solution=return_worst_solution)
         return best_bitstring
 
@@ -269,26 +270,52 @@ class Qaoa:
         #print('best cost', costOfBitstring(best_bitstring, Hc))
         return best_bitstring
 
-    def costCountsDistribution(self, random=False, sampling_distribution=None, bins=40):
-        if sampling_distribution is None:
-            sampling_distribution = self.sampling_distribution
-
-        all_costs = []
-        for bitstring_i in sampling_distribution.keys():
-            count_i = sampling_distribution[bitstring_i]
+    def costCountsDistribution(self, random_distribution=None, bins=50):
+        # QUANTUM
+        all_costs, x_min, x_max = [], np.inf, -np.inf
+        for bitstring_i in self.sampling_distribution.keys():
+            count_i = self.sampling_distribution[bitstring_i]
             cost_i = np.real(costOfBitstring(bitstring_i, self.Hc))
-            all_costs += [cost_i]*count_i
+            if cost_i < x_min:
+                x_min = cost_i
+            elif cost_i > x_max:
+                x_max = cost_i
+        self.x_min, self.x_max = x_min, x_max
         
-        #plt.figure()
-        #plt.title(title)
-        if random:
+        # RANDOM 
+        if random_distribution is not None:
+            plot_costs = []
+            all_costs_random = []
+            for bitstring_i in random_distribution.keys():
+                count_i = random_distribution[bitstring_i]
+                cost_i = np.real(costOfBitstring(bitstring_i, self.Hc))
+                all_costs_random += [cost_i]*count_i
+            plot_costs = all_costs_random
+            print(len(all_costs), len(all_costs_random), len(plot_costs))
+
             label = 'Random solutions'  
-        else: 
-            label = str(self.backend_name)
-            
-        counted = plt.hist(all_costs, bins=bins, label=label, alpha=0.6)
-        #plt.legend()
-        plt.xlim((-40,80))
-        plt.ylim((0,7000))
-        return counted
-        #plt.show()
+            color = 'orange'
+            self.x_min = min(min(all_costs_random), self.x_min) # ensure same x-lims for plots
+            self.x_max = max(max(all_costs_random), self.x_max)
+        
+
+        else:
+            # QUANTUM
+            all_costs = []
+            for bitstring_i in self.sampling_distribution.keys():
+                count_i = self.sampling_distribution[bitstring_i]
+                cost_i = np.real(costOfBitstring(bitstring_i, self.Hc))
+                all_costs += [cost_i]*count_i
+            plot_costs = all_costs
+            label = str(self.backend_name)+' quantum backend'
+            color = 'skyblue'
+
+        n, bins, bars = plt.hist(plot_costs, bins=bins, label=label, color=color, range=(self.x_min, self.x_max), alpha=0.8)
+        print('summa', sum(n))
+        plt.legend()
+        plt.xlabel('Cost (Hc)')
+        plt.ylabel('Probability [%]')
+        plt.yticks(ticks=np.linspace(0,self.sampling_iterations,11), labels=['','10', '20', '30', '40', '50', '60', '70', '80', '90', '100'])
+        plt.xlim((self.x_min,self.x_max))
+        plt.ylim((0,self.sampling_iterations))
+        return n, bins
