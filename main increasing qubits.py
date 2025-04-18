@@ -29,7 +29,7 @@ time_period = 'week' # NOTE work extent constraint is very different if t = 'wee
 
 n_layers = 2
 search_iterations = 20
-estimation_iterations = n_layers * 500
+estimation_iterations = 4000
 sampling_iterations = 100000
 n_candidates = 20 # compare top X most common solutions
 plot_width = 15
@@ -44,7 +44,7 @@ T, total_holidays, n_days = emptyCalendar(end_date, start_date, cl, time_period=
 all_dates_df = pd.read_csv(f'data/intermediate/empty_calendar.csv',index_col=None)
 
 
-print()
+print('lambdas:',lambdas)
 print('cl:', cl)
 #print(f't:s ({time_period}:s)\t', T)
 print('Layers\t', n_layers)

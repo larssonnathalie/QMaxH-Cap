@@ -78,7 +78,7 @@ def estimateHc(parameters, ansatz, hamiltonian, estimator:Estimator):
     results = job.result()[0] # This takes time
     #print('job done')
     cost = results.data.evs
-    #print(cost, parameters)
+    print(cost, parameters)
     Hc_values.append(cost) # NOTE global list
     return cost
 
@@ -147,10 +147,10 @@ class Qaoa:
     def findParameters(self, estimation_iterations, search_iterations): 
         
         #NOTE current version of COBYLA does not support bounds
-        bounds = [(0, np.pi/2) for _ in range(self.n_layers)] # gammas have period =  pi/2, given integer penalties
-        bounds += [(0, np.pi) for _ in range(self.n_layers)] # betas have period = 1 pi
+        bounds = [(0, np.pi/2) for _ in range(self.n_layers)] # gammas have period =  π/2, given integer penalties
+        bounds += [(0, np.pi) for _ in range(self.n_layers)] # ß:s have period π
         
-        # SIMULATOR TO FIND CANDIDATES
+        # AER SIMULATOR 
         if self.backend_name=='aer':
             candidates, costs = [],np.zeros(search_iterations)
             for i in range(search_iterations):
@@ -177,7 +177,7 @@ class Qaoa:
             if self.plots:
                 plt.figure()
                 plt.plot(Hc_values)
-                plt.title(f'Estimated Hc using simulator. \n(with {search_iterations} random initializations)')
+                plt.title(f'Estimated Hc ufsing simulator. \n(with {search_iterations} random initializations)')
                 plt.show()
             Hc_values.clear()
             
@@ -187,9 +187,9 @@ class Qaoa:
             if self.seed:
                     np.random.seed(10)
             max_init_distance = 0.2
-            initial_betas = 0.2  +  max_init_distance * np.random.random(size=self.n_layers)  # initial ß ≈ π/2
-            initial_gammas = (1.9-max_init_distance) + np.random.random(size=self.n_layers) * max_init_distance   # initial gamma ≈ 0
-            initial_parameters = np.concatenate([ initial_gammas, initial_betas])
+            initial_betas = [np.pi,0] #*self.n_layers # TESTING #0.2  +  max_init_distance * np.random.random(size=self.n_layers)  # initial ß ≈ π/2
+            initial_gammas = [1.75,0] #* self.n_layers # TESTING (1.9-max_init_distance) + np.random.random(size=self.n_layers) * max_init_distance   # initial gamma ≈ 0
+            initial_parameters = np.concatenate([initial_gammas, initial_betas])
 
             token = open('../token.txt').readline().strip()
             service = QiskitRuntimeService(
@@ -198,7 +198,8 @@ class Qaoa:
                 token=token)
             self.backend = service.least_busy(min_num_qubits=127)
 
-            circuit_candicates, circuit_n_doubles = [], []
+            # Best circuit transpilation out of 10, compare n.o. 2 qubit gates
+            circuit_candicates, circuit_n_doubles = [], [] 
             for i in range(10):
                 pass_manager = generate_preset_pass_manager(optimization_level=3, backend=self.backend) 
                 circuit_i = pass_manager.run(self.circuit) 
@@ -208,24 +209,36 @@ class Qaoa:
 
             best_idx = np.argmin(circuit_n_doubles)
             print('n doubles', circuit_n_doubles)
-            print('best idx', best_idx)
             self.transpiled_circuit = circuit_candicates[best_idx]
 
             print('\ntranspiled')
 
+            #grid_bounds = [(np.pi/2-0.1, np.pi/2+0.1), (0,0.2), (np.pi-0.2, np.pi), (0,0.2)]
+
             with Session(backend=self.backend) as session:
                 estimator = Estimator(mode=session, options={"default_shots": estimation_iterations})
+                
+                '''# PLOT ENERGY LANDSCAPE
+                brute_result = brute(estimateHc, grid_bounds, args=(self.transpiled_circuit, self.Hc, estimator), Ns=2, disp=True, workers=1, full_output=True)
+
+                x0, fval, grid, Jout =  brute_result
+
+                plt.figure(figsize=(10,8))
+                plt.imshow(Jout, origin='lower', extent=(0, np.pi/2, 0, np.pi/2))            
+                plt.show()
+                Hc_values.clear()
+            print('DONE WITH GRID SEARCH')'''
                 result = minimize(
                     estimateHc,
                     initial_parameters,
                     args=(self.transpiled_circuit, self.Hc, estimator),
-                    method="COBYLA", # or 'SLSQP'
+                    method="COBYLA",
                     bounds=bounds,
                     tol=1e-3,
                     options={"rhobeg": 1e-1}  
                 )
                 found_parameters = result.x 
-                print('Found params using ibm:', result.x, 'Hc:', result.fun)
+                print('Found params using ibm:', result.x, 'estimated Hc:', result.fun)
 
             if self.plots:
                 plt.figure()

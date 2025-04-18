@@ -55,11 +55,9 @@ full_solution = []
 generatePhysicianData(all_dates_df, n_physicians,cl, seed=preference_seed, only_fulltime=only_fulltime)  
 physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
 
-
-# TODO SET SAME DEMAND FOR CLASSIC AND QUANTUM
+# DEMAND  
 if shiftsPerWeek(cl)==7:    
-    # DEMAND  # TODO make same demands for classical & Q
-    # set from amount of workers and their extent
+    # Set from amount of workers and their extent
     target_n_shifts_total_per_week = sum(targetShiftsPerWeek(physician_df['extent'].iloc[p], cl) for p in range(n_physicians)) 
     target_n_shifts_total = target_n_shifts_total_per_week * (len(all_dates_df) / shiftsPerWeek(cl))
 
@@ -68,7 +66,6 @@ if shiftsPerWeek(cl)==7:
     demands = {'weekday': demand_wd, 'holiday': demand_hd}  
     print('demands:', demands)
 
-
 print()
 print(cl_contents[cl])
 print('Lambdas:', lambdas)
@@ -76,9 +73,10 @@ print('\nPhysicians:\t', n_physicians)
 print('Days:\t\t', n_days)
 print('Seed preference:', preference_seed)    
 
-# TODO Store the results from classical
-# Solve using classical solvers
-if use_classical:
+
+
+# CLASSICAL
+if use_classical: # TODO Store the results from classical
     from classical.scheduler import * 
     from classical.gurobi_model import * 
     from classical.data_handler import *
@@ -90,7 +88,7 @@ if use_classical:
     generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
     all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=None)
 
-    t=0 # Only 1 optimization
+    t=-1 # Only 1 optimization
     convertPreferences(all_shifts_df, t, only_prefer=skip_unavailable_and_prefer_not)   # Dates to shift-numbers
 
     shifts_df = all_shifts_df

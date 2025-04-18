@@ -152,11 +152,16 @@ def generateShiftData(empty_calendar, T, cl, demands, time_period):
     for t in range(T):
         start_idx,stop_idx = t*shifts_per_t, min((t+1)*shifts_per_t, len(shift_data_df))
         shift_data_df_w = shift_data_df.iloc[start_idx:stop_idx]
-        shift_data_df_w.to_csv(f'data/intermediate/shift_data_t{t}.csv', index=False)
+        shift_data_df_w.to_csv(f'data/intermediate/shift many t/shift_data_t{t}.csv', index=False)
 
 # PREFERENCES from dates to shift-numbers
-def convertPreferences(empty_calendar_df, t, only_prefer=False):
-    shifts_df = pd.read_csv(f'data/intermediate/shift_data_t{t}.csv')
+def convertPreferences(shifts_df, t, only_prefer=False):
+    '''if t == -1:
+        shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv')
+    else:
+        shifts_df = pd.read_csv(f'data/intermediate/shift_many_t/shift_data_t{t}.csv')'''
+    
+
     n_shifts=len(shifts_df)
     date_to_s={}
     for s in range(n_shifts):
@@ -166,6 +171,8 @@ def convertPreferences(empty_calendar_df, t, only_prefer=False):
         else:
             date_to_s[date] = [s]
     included_dates = list(shifts_df['date'])
+
+    
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv') 
     n_physicians = physician_df.shape[0]
 
@@ -219,6 +226,7 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
     # Using sympy to simplify the H expressions
 
     shifts_df = pd.read_csv(f'data/intermediate/shift_data_t{t}.csv')
+
     n_shifts = len(shifts_df)
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
     n_physicians = len(physician_df)
