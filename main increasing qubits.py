@@ -16,7 +16,7 @@ all_bins = []
 start_date = '2025-06-04' 
 end_date = '2025-06-06'
 #n_physicians = 3
-backend = 'aer'
+backend = 'ibm'
 cl = 3                 # complexity level: 
 
 skip_unavailable_and_prefer_not = False 

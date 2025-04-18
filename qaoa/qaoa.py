@@ -201,7 +201,7 @@ class Qaoa:
             circuit_candicates, circuit_n_doubles = [], []
             for i in range(10):
                 pass_manager = generate_preset_pass_manager(optimization_level=3, backend=self.backend) 
-                circuit_i = pass_manager.run(self.transpiled_circuit)
+                circuit_i = pass_manager.run(self.circuit) 
                 circuit_candicates.append(circuit_i)
                 two_qubit_gate_count = sum(1 for instr, qargs, _ in circuit_i.data if len(qargs) == 2)
                 circuit_n_doubles.append(two_qubit_gate_count)
@@ -253,8 +253,6 @@ class Qaoa:
             plt.xticks(rotation=90)
             plt.show()
 
-        return self.sampling_distribution
-
     def findBestBitstring(self, n_candidates, worst_solution=False): # No prints temporary
         reverse = (worst_solution==False)
         sorted_distribution = dict(sorted(self.sampling_distribution.items(), key=lambda item:item[1], reverse=reverse)) #NOTE sorting might be memory expensive
@@ -280,7 +278,6 @@ class Qaoa:
                 x_min = cost_i
             elif cost_i > x_max:
                 x_max = cost_i
-        self.x_min, self.x_max = x_min, x_max
         
         # RANDOM 
         if random_distribution is not None:
@@ -291,16 +288,18 @@ class Qaoa:
                 cost_i = np.real(costOfBitstring(bitstring_i, self.Hc))
                 all_costs_random += [cost_i]*count_i
             plot_costs = all_costs_random
+            print('RANDOM')
             print(len(all_costs), len(all_costs_random), len(plot_costs))
 
             label = 'Random solutions'  
             color = 'orange'
-            self.x_min = min(min(all_costs_random), self.x_min) # ensure same x-lims for plots
-            self.x_max = max(max(all_costs_random), self.x_max)
+            self.x_min = min(min(all_costs_random), x_min) # ensure same x-lims for plots
+            self.x_max = max(max(all_costs_random), x_max)
         
 
         else:
             # QUANTUM
+            print('QUANTUM')
             all_costs = []
             for bitstring_i in self.sampling_distribution.keys():
                 count_i = self.sampling_distribution[bitstring_i]
@@ -309,6 +308,7 @@ class Qaoa:
             plot_costs = all_costs
             label = str(self.backend_name)+' quantum backend'
             color = 'skyblue'
+
 
         n, bins, bars = plt.hist(plot_costs, bins=bins, label=label, color=color, range=(self.x_min, self.x_max), alpha=0.8)
         print('summa', sum(n))
