@@ -1,4 +1,8 @@
 date,is_holiday,weekday
+2025-06-01,True,Sunday
+2025-06-02,False,Monday
+2025-06-03,False,Tuesday
 2025-06-04,False,Wednesday
 2025-06-05,False,Thursday
 2025-06-06,True,Friday
+2025-06-07,True,Saturday

@@ -13,7 +13,7 @@ from qaoa.testQandH import *
 
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-28'
+end_date = '2025-06-07'
 n_physicians = 10
 backend = 'aer'
 cl = 3               # complexity level: 
@@ -159,13 +159,13 @@ if use_qaoa:
 
         print(f'\nt:\t{t}/{T}')
 
-        shifts_df = pd.read_csv(f'data/intermediate/shift_data_t{t}.csv')
+        shifts_df = pd.read_csv(f'data/intermediate/shift many t/shift_data_t{t}.csv')
         n_shifts = len(shifts_df)
         n_dates = calendar_df_t.shape[0] 
         n_demand = sum(shifts_df['demand']) # sum of workers demanded on all shifts
 
         if cl >=2:
-            convertPreferences(calendar_df_t, t, only_prefer=skip_unavailable_and_prefer_not)   # Dates to shift-numbers
+            convertPreferences(shifts_df, t, only_prefer=skip_unavailable_and_prefer_not)   # Dates to shift-numbers
         # Make sum of all objective functions and enforce penatlies (lambdas)
         all_objectives, x_symbols = makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False)
         n_vars = n_physicians*len(calendar_df_t)
@@ -232,3 +232,17 @@ if use_qaoa:
 
 
     # (Evaluate & compare solution to classical methods)'''
+
+
+# Get Hc of classical solution
+if use_classical and use_qaoa: # must run qaoa to get Hc for now
+    gurobi_Hc = np.real(costOfBitstring(gurobi_bitstring, Hc))
+    z3_Hc = np.real(costOfBitstring(z3_bitstring, Hc))
+
+    qaoa_bitstring = classicalToBitstring(ok_full_schedule_df, n_physicians)
+    qaoa_Hc = np.real(costOfBitstring(qaoa_bitstring, Hc))
+    
+    print('Hc:s')
+    print('gurobi:', gurobi_Hc)
+    print('z3:', z3_Hc)
+    print('QAOA:', qaoa_Hc)

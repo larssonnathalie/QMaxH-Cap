@@ -224,8 +224,10 @@ def convertPreferences(shifts_df, t, only_prefer=False):
 def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False):
     # Both objectives & constraints formulated as Hamiltonians to be combined to QUBO form
     # Using sympy to simplify the H expressions
-
-    shifts_df = pd.read_csv(f'data/intermediate/shift_data_t{t}.csv')
+    if T == 1:
+        shifts_df =  pd.read_csv(f'data/intermediate/shift_data_all_t.csv')
+    else:
+        shifts_df = pd.read_csv(f'data/intermediate/shift many t/shift_data_t{t}.csv')
 
     n_shifts = len(shifts_df)
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
@@ -236,7 +238,7 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
     for p in range(n_physicians):
         x_symbols_p = [sp.symbols(f'x{p}_{s}') for s in range(n_shifts)]
         x_symbols.append(x_symbols_p)
-    
+
     H_fair = 0
     H_extent = 0
     H_meet_demand = 0

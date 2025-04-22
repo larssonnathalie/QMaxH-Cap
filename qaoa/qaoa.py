@@ -17,8 +17,9 @@ import qiskit
 import pandas as pd
 import numpy as np
 import sympy as sp
+import time
 
-Hc_values = []
+all_costs, all_parameters = [], []
 
 def QToHc(Q, b):
     # Takes qubo and returns ising hamiltonian
@@ -70,20 +71,30 @@ def QToHc(Q, b):
 
 
 def estimateHc(parameters, ansatz, hamiltonian, estimator:Estimator): 
-    #print('estimation start')
     isa_hamiltonian = hamiltonian.apply_layout(ansatz.layout)
     pub = (ansatz, isa_hamiltonian, parameters)
     job = estimator.run([pub])
-    #print('start')
     results = job.result()[0] # This takes time
-    #print('job done')
     cost = results.data.evs
-    print(cost, parameters)
-    Hc_values.append(cost) # NOTE global list
+
+    all_costs.append(cost) # NOTE global lists
+    all_parameters.append(parameters)
+
     return cost
 
+def estimateHcWithPrints(parameters, ansatz, hamiltonian, estimator:Estimator): 
+    isa_hamiltonian = hamiltonian.apply_layout(ansatz.layout)
+    pub = (ansatz, isa_hamiltonian, parameters)
+    job = estimator.run([pub])
+    results = job.result()[0] # This takes time
+    cost = results.data.evs
 
+    print(cost, parameters)
 
+    all_costs.append(cost) # NOTE global lists
+    all_parameters.append(parameters)
+
+    return cost
 
 def costOfBitstring(bitstring:str, Hc:SparsePauliOp):
     bitstring_z = bitstringToPauliZ(bitstring)
@@ -112,15 +123,13 @@ class Qaoa:
         if instance =='open':
             self.instance = 'ibm-q/open/main'
 
-        if t == 0:
-            if self.backend_name == 'ibm':
-                print('\nUsing ibm hardware as quantum backend')
-                self.backend=None
-            else:
+        if self.backend_name == 'ibm':
+            print('\nUsing ibm hardware as quantum backend')
+            self.backend=None
+        else:
+            self.backend = AerSimulator() 
+            if t == 0:
                 print('\nUsing "aer" quantum simulator')
-
-                self.backend = AerSimulator() 
-
 
             
     def findOptimalCircuit(self, estimation_iterations=2000, search_iterations=20):
@@ -150,7 +159,7 @@ class Qaoa:
         bounds = [(0, np.pi/2) for _ in range(self.n_layers)] # gammas have period =  π/2, given integer penalties
         bounds += [(0, np.pi) for _ in range(self.n_layers)] # ß:s have period π
         
-        # AER SIMULATOR 
+        # AER SIMULATOR   TODO use best historical as in ibm
         if self.backend_name=='aer':
             candidates, costs = [],np.zeros(search_iterations)
             for i in range(search_iterations):
@@ -170,33 +179,36 @@ class Qaoa:
                     tol=1e-4, #NOTE should be 1e-3 or smaller
                     options={"rhobeg": 0.5}   # Sets initial step size (manages exploration)
                     )
-                candidates.append(result.x) 
-                costs[i] = result.fun 
+                
+                # TESTING Use best historical params instead of last (each iteration)
+                best_idx = np.argmin(np.real(np.array(all_costs)))
+                found_parameters = all_parameters[best_idx]
+                candidates.append(found_parameters)#result.x) 
+                costs[i] = all_costs[best_idx] #result.fun 
+                all_costs.clear()
+                all_parameters.clear() 
             found_parameters = candidates[np.argmin(costs)]
+            self.params_best = [found_parameters, np.min(costs)]
 
             if self.plots:
-                plt.figure()
-                plt.plot(Hc_values)
-                plt.title(f'Estimated Hc ufsing simulator. \n(with {search_iterations} random initializations)')
+                plt.figure() # NOTE clearing lists so now this only shows last iterations' search
+                plt.plot(all_costs)
+                plt.title(f'Estimated Hc using simulator. \n(with {search_iterations} random initializations)')
                 plt.show()
-            Hc_values.clear()
+            all_costs.clear()
             
 
         # IBM HARDWARE
         elif self.backend_name == 'ibm':
-            if self.seed:
-                    np.random.seed(10)
-            max_init_distance = 0.2
-            initial_betas = [np.pi,0] #*self.n_layers # TESTING #0.2  +  max_init_distance * np.random.random(size=self.n_layers)  # initial ß ≈ π/2
-            initial_gammas = [1.75,0] #* self.n_layers # TESTING (1.9-max_init_distance) + np.random.random(size=self.n_layers) * max_init_distance   # initial gamma ≈ 0
-            initial_parameters = np.concatenate([initial_gammas, initial_betas])
+           
 
             token = open('../token.txt').readline().strip()
             service = QiskitRuntimeService(
                 channel='ibm_quantum',
                 instance=self.instance,
                 token=token)
-            self.backend = service.least_busy(min_num_qubits=127)
+            min_qubits = max(self.n_vars, 127)
+            self.backend = service.least_busy(min_num_qubits=min_qubits)
 
             # Best circuit transpilation out of 10, compare n.o. 2 qubit gates
             circuit_candicates, circuit_n_doubles = [], [] 
@@ -210,40 +222,48 @@ class Qaoa:
             best_idx = np.argmin(circuit_n_doubles)
             print('n doubles', circuit_n_doubles)
             self.transpiled_circuit = circuit_candicates[best_idx]
-
             print('\ntranspiled')
 
-            #grid_bounds = [(np.pi/2-0.1, np.pi/2+0.1), (0,0.2), (np.pi-0.2, np.pi), (0,0.2)]
+            all_costs.clear()
+            all_parameters.clear()
+
+            grid_bounds = [(0,np.pi/2),(0,np.pi/2),(0,np.pi/2),(0,np.pi/2)]
 
             with Session(backend=self.backend) as session:
                 estimator = Estimator(mode=session, options={"default_shots": estimation_iterations})
                 
-                '''# PLOT ENERGY LANDSCAPE
-                brute_result = brute(estimateHc, grid_bounds, args=(self.transpiled_circuit, self.Hc, estimator), Ns=2, disp=True, workers=1, full_output=True)
+                # Brute grid search to find good start params
+                brute_result = brute(estimateHcWithPrints, grid_bounds, args=(self.transpiled_circuit, self.Hc, estimator), Ns=2, disp=False, workers=1, full_output=False, finish=None)
 
-                x0, fval, grid, Jout =  brute_result
+                print('\nGRID SEARCH:')
+                best_idx = np.argmin(np.real(np.array(all_costs)))
+                initial_parameters = all_parameters[best_idx]
+                print('Best initial params:', initial_parameters)
 
-                plt.figure(figsize=(10,8))
-                plt.imshow(Jout, origin='lower', extent=(0, np.pi/2, 0, np.pi/2))            
-                plt.show()
-                Hc_values.clear()
-            print('DONE WITH GRID SEARCH')'''
                 result = minimize(
-                    estimateHc,
+                    estimateHcWithPrints,
                     initial_parameters,
                     args=(self.transpiled_circuit, self.Hc, estimator),
                     method="COBYLA",
                     bounds=bounds,
-                    tol=1e-3,
+                    tol=1e-1,
                     options={"rhobeg": 1e-1}  
                 )
-                found_parameters = result.x 
-                print('Found params using ibm:', result.x, 'estimated Hc:', result.fun)
+                #found_parameters = result.x 
+                
+                #TESTING Use best parameters instead of last
+                best_idx = np.argmin(np.real(np.array(all_costs)))
+                found_parameters = all_parameters[best_idx]
+
+                print('Using COBYLA:', result.x, 'estimated Hc ( before, new):', result.fun, estimateHcWithPrints(result.x, self.transpiled_circuit, self.Hc, estimator))
+                print('Used instead:', found_parameters, 'estimated Hc  (before, new):', all_costs[best_idx], estimateHcWithPrints(found_parameters, self.transpiled_circuit, self.Hc, estimator))
+                self.params_cobyla = [result.x, result.fun]
+                self.params_best = [found_parameters, all_costs[best_idx]]
 
             if self.plots:
                 plt.figure()
-                plt.plot(Hc_values)
-                print(Hc_values)
+                plt.plot(all_costs)
+                print(all_costs)
                 plt.title('Hc estimations using IBM')
                 plt.show()
 
@@ -257,6 +277,9 @@ class Qaoa:
         pub = (self.optimized_circuit,)
         job = sampler.run([pub])
         self.sampling_distribution = job.result()[0].data.meas.get_counts()
+        self.sampler_id = job.job_id()
+
+        #print('\nID',self.sampler_id)
 
         if plots:
             plt.figure(figsize=(10,8))
@@ -282,7 +305,7 @@ class Qaoa:
         return best_bitstring
 
     def costCountsDistribution(self, random_distribution=None, bins=50):
-        # QUANTUM
+        # Get x-lims from quantum
         all_costs, x_min, x_max = [], np.inf, -np.inf
         for bitstring_i in self.sampling_distribution.keys():
             count_i = self.sampling_distribution[bitstring_i]
@@ -302,12 +325,17 @@ class Qaoa:
                 all_costs_random += [cost_i]*count_i
             plot_costs = all_costs_random
             print('RANDOM')
-            print(len(all_costs), len(all_costs_random), len(plot_costs))
 
             label = 'Random solutions'  
             color = 'orange'
             self.x_min = min(min(all_costs_random), x_min) # ensure same x-lims for plots
             self.x_max = max(max(all_costs_random), x_max)
+            
+            timestamp = time.time()
+            n_vars = len(list(random_distribution.keys())[0])
+            with open(f'data/results/increasing_qubits/distributions/random_{n_vars}vars_time-{int(timestamp)}.txt', 'x') as f:     
+                f.write(str(random_distribution))  
+                f.close()
         
 
         else:
@@ -321,6 +349,16 @@ class Qaoa:
             plot_costs = all_costs
             label = str(self.backend_name)+' quantum backend'
             color = 'skyblue'
+
+            timestamp = time.time()
+            n_vars = len(list(self.sampling_distribution.keys())[0])
+            with open(f'data/results/increasing_qubits/distributions/{self.backend_name}_{n_vars}vars_time-{int(timestamp)}.txt', 'x') as f:     
+                f.write(str(self.sampling_distribution)+'\n')
+                f.write('Best params and their cost:'+str(self.params_best)+'\n')  
+                f.write('Sampler job ID:'+str(self.sampler_id))
+                f.close()
+
+        print('\nSamples:',len(plot_costs))
 
 
         n, bins, bars = plt.hist(plot_costs, bins=bins, label=label, color=color, range=(self.x_min, self.x_max), alpha=0.8)
