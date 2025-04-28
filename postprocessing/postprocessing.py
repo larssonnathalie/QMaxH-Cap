@@ -52,7 +52,9 @@ def controlSchedule(result_schedule_df, shift_data_df, cl):
 satisfaction_plot = []
 def recordHistory(result_schedule_df_t, t, cl, time_period):
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
-    shift_df_t = pd.read_csv(f'data/intermediate/shift_data_t{t}.csv')
+    shift_df_t = pd.read_csv(f'data/intermediate/shift many t/shift_data_t{t}.csv')
+    if time_period=='all':
+        shift_df_t = pd.read_csv(f'data/intermediate/shift_data_all_t.csv')
     n_physicians = len(physician_df)
     n_shifts = len(result_schedule_df_t)
     
