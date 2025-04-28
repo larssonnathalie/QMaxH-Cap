@@ -14,7 +14,7 @@ from qaoa.testQandH import *
 # Parameters
 start_date = '2025-06-01' 
 end_date = '2025-06-28'
-n_physicians = 10
+n_physicians = 4
 backend = 'aer'
 cl = 3               # complexity level: 
 cl_contents = ['',
@@ -24,8 +24,8 @@ cl_contents = ['',
 
 skip_unavailable_and_prefer_not = False 
 only_fulltime = False
-use_qaoa = True
-use_classical = False
+use_qaoa = False
+use_classical = True
 draw_circuit = False
 preference_seed = True
 init_seed = False
@@ -73,10 +73,10 @@ generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
 all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=None)
 
 # MAKE Hc FOR FULL PROBLEM TO EVALUATE CLASSICAL 
-all_hamiltonians_full_T, x_symbols_full_T = makeObjectiveFunctions(demands, 0, 1, cl, lambdas, time_period='all')
-Q_full_T = objectivesToQubo(all_hamiltonians_full_T, len(all_shifts_df),x_symbols_full_T, cl, mirror=False )
-b_full_T = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
-Hc_full_T = QToHc(Q_full_T, b_full_T)
+#all_hamiltonians_full_T, x_symbols_full_T = makeObjectiveFunctions(demands, 0, 1, cl, lambdas, time_period='all')
+#Q_full_T = objectivesToQubo(all_hamiltonians_full_T, len(all_shifts_df),x_symbols_full_T, cl, mirror=False )
+#b_full_T = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
+#Hc_full_T = QToHc(Q_full_T, b_full_T)
 
 print()
 print(cl_contents[cl])
@@ -96,9 +96,9 @@ if use_classical:
     
     print('\nOptimizing schedule using Classical methods')
 
-    #demands = {'weekday':2, 'holiday':1} # TODO make same demands for classical & Q when extent works
-    #generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
-    #all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=None)
+    demands = {'weekday':2, 'holiday':1} # TODO make same demands for classical & Q when extent works
+    generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
+    all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=None)
 
     t=0 # Only 1 optimization
     convertPreferences(all_shifts_df, t, only_prefer=skip_unavailable_and_prefer_not)   # Dates to shift-numbers
@@ -241,21 +241,20 @@ if use_qaoa:
         plt.show()
 
 
-    # (Evaluate & compare solution to classical methods)'''
 
+# COMPARE Hc
+if compare_Hc_costs and use_qaoa: # Must run qaoa to get Hc
+    bitstring_qaoa = scheduleToBitstring(full_schedule_df, n_physicians)
+    print('Hc for QAOA:', costOfBitstring(bitstring_qaoa, Hc))
 
-if compare_Hc_costs:
-    if use_qaoa:
-        bitstring_qaoa = scheduleToBitstring(full_schedule_df, n_physicians)
-        print('Hc for QAOA:', costOfBitstring(bitstring_qaoa))
     if use_classical:
         try:
             gurobi_bitstring = scheduleToBitstring(gurobi_checked_df, n_physicians) 
-            print('Hc for Gurobi:',costOfBitstring(gurobi_bitstring))
+            print('Hc for Gurobi:',costOfBitstring(gurobi_bitstring, Hc))
         except:
             print('No gurobi bitstring')
         try:
             z3_bitstring = scheduleToBitstring(z3_checked_df, n_physicians) 
-            print('Hc for z3:',costOfBitstring(z3_bitstring))
+            print('Hc for z3:',costOfBitstring(z3_bitstring, Hc))
         except:
             print('No z3 bitstring')
