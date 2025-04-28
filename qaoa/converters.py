@@ -1,6 +1,6 @@
 import numpy as np
 from qiskit.quantum_info import SparsePauliOp
-
+import pandas as pd
 
 def xToQIndex(first_x, second_x, n_shifts, upper=True): # [[p,s],[p,s]] --> [i,j]    # TODO test function
     # Takes ps-indices of 2 x-variables that are combined in Q, 
@@ -79,6 +79,16 @@ def getDaysPassed(t, time_period):
     elif time_period =='day':
         days = t
     return days
+
+def dictToSchedule(dict, shifts_df):
+    staff = [[] for _ in range(len(shifts_df))]
+    for p in dict.keys():
+        shifts_p = dict[p]
+        for s in shifts_p:
+            staff[s].append(p)
+    schedule_df = pd.DataFrame({'date':shifts_df['date']})
+    schedule_df['staff'] = staff
+    return schedule_df
 
 # Only for visualization, does not handle complex numbers
 '''def HcPaulisToQ(Hc:SparsePauliOp)-> np.ndarray: 

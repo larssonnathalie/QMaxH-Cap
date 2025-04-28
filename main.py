@@ -68,6 +68,15 @@ if shiftsPerWeek(cl)==7:
     demands = {'weekday': demand_wd, 'holiday': demand_hd}  
     print('demands:', demands)
 
+# SHIFTS
+generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
+all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=None)
+
+# MAKE Hc FOR FULL PROBLEM TO EVALUATE CLASSICAL 
+all_hamiltonians_full_T, x_symbols_full_T = makeObjectiveFunctions(demands, 0, 1, cl, lambdas, time_period='all')
+Q_full_T = objectivesToQubo(all_hamiltonians_full_T, len(all_shifts_df),x_symbols_full_T, cl, mirror=False )
+b_full_T = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
+Hc_full_T = QToHc(Q_full_T, b_full_T)
 
 print()
 print(cl_contents[cl])
@@ -75,6 +84,7 @@ print('Lambdas:', lambdas)
 print('\nPhysicians:\t', n_physicians)
 print('Days:\t\t', n_days)
 print('Seed preference:', preference_seed)    
+
 
 # TODO Store the results from classical
 # Solve using classical solvers
@@ -86,9 +96,9 @@ if use_classical:
     
     print('\nOptimizing schedule using Classical methods')
 
-    demands = {'weekday':2, 'holiday':1} # TODO make same demands for classical & Q when extent works
-    generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
-    all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=None)
+    #demands = {'weekday':2, 'holiday':1} # TODO make same demands for classical & Q when extent works
+    #generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
+    #all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=None)
 
     t=0 # Only 1 optimization
     convertPreferences(all_shifts_df, t, only_prefer=skip_unavailable_and_prefer_not)   # Dates to shift-numbers
@@ -103,7 +113,6 @@ if use_classical:
             print(f"{p}: {s}")
         z3_schedule_df = schedule_dict_to_df(z3_schedule, shifts_df) 
         z3_checked_df = controlSchedule(z3_schedule_df, shifts_df, cl=cl)
-        z3_bitstring = classicalToBitstring(z3_checked_df, n_physicians) # NOTE needs testing
 
     print("\nSolving with Gurobi (Classical)...")
     gurobi_schedule, gurobi_solver_time, gurobi_overall_time = solve_and_save_results(solver_type="gurobi", cl=cl, lambdas=lambdas)
@@ -113,7 +122,6 @@ if use_classical:
             print(f"{p}: {s}")
         gurobi_schedule_df = schedule_dict_to_df(gurobi_schedule, shifts_df)
         gurobi_checked_df = controlSchedule(gurobi_schedule_df, shifts_df, cl=cl)
-        gurobi_bitstring = classicalToBitstring(gurobi_checked_df, n_physicians) # NOTE needs testing
 
     print("\n--- Timing Comparison ---")
     print(f"Z3 solver time:     {z3_solver_time:.4f} s")
@@ -191,11 +199,11 @@ if use_qaoa:
         best_bitstring_t = qaoa.samplerSearch(sampling_iterations, n_candidates, return_worst_solution=False)
         print('chosen bs',best_bitstring_t[::-1])
 
-        '''print('Hc(best)', costOfBitstring(best_bitstring_t, Hc))
+        print('Hc(best)', costOfBitstring(best_bitstring_t, Hc))
         print('xT Q x(best)', get_xT_Q_x(best_bitstring_t, Q))
 
         print('Hc(0000)', costOfBitstring('0'*n_vars, Hc))
-        print('xT Q x(0000)', get_xT_Q_x('0'*n_vars, Q))'''
+        print('xT Q x(0000)', get_xT_Q_x('0'*n_vars, Q))
 
         result_schedule_df_t = bitstringToSchedule(best_bitstring_t, calendar_df_t)
         full_solution.append(result_schedule_df_t)
@@ -234,3 +242,20 @@ if use_qaoa:
 
 
     # (Evaluate & compare solution to classical methods)'''
+
+
+if compare_Hc_costs:
+    if use_qaoa:
+        bitstring_qaoa = scheduleToBitstring(full_schedule_df, n_physicians)
+        print('Hc for QAOA:', costOfBitstring(bitstring_qaoa))
+    if use_classical:
+        try:
+            gurobi_bitstring = scheduleToBitstring(gurobi_checked_df, n_physicians) 
+            print('Hc for Gurobi:',costOfBitstring(gurobi_bitstring))
+        except:
+            print('No gurobi bitstring')
+        try:
+            z3_bitstring = scheduleToBitstring(z3_checked_df, n_physicians) 
+            print('Hc for z3:',costOfBitstring(z3_bitstring))
+        except:
+            print('No z3 bitstring')

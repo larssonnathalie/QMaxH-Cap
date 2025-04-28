@@ -21,7 +21,7 @@ def emptyCalendar(end_date, start_date, cl, time_period):
     
     get_T = {'shift':n_days+(n_days*2*int(shiftsPerWeek(cl)==21)), 'day':n_days, 'week':(n_days+6)//7}
     T = get_T[time_period]
-    print('\nNew optimization for each '+time_period)
+    #print('\nNew optimization for each '+time_period)
     print(str(T)+' '+time_period+':s')
     print('\ntotal holidays:',total_holidays)
 
@@ -217,8 +217,11 @@ def convertPreferences(empty_calendar_df, t, only_prefer=False):
 def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False):
     # Both objectives & constraints formulated as Hamiltonians to be combined to QUBO form
     # Using sympy to simplify the H expressions
-
-    shifts_df = pd.read_csv(f'data/intermediate/shift_data_t{t}.csv')
+    if time_period == 'all':
+        shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv')
+    else:
+        shifts_df = pd.read_csv(f'data/intermediate/shift_data_t{t}.csv')
+        
     n_shifts = len(shifts_df)
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
     n_physicians = len(physician_df)
@@ -358,10 +361,16 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
                 extent_p = int(physician_df['extent'].iloc[p])
                 n_shifts_target = targetShiftsPerWeek(extent_p, cl)
                 n_shifts_target = n_shifts_target * (n_shifts/shifts_per_week)
-                #print('target',p, n_shifts_target)
                 assigned_shifts = sum(x_symbols[p][s] for s in range(n_shifts))
                 H_extent += (assigned_shifts-sp.Integer(n_shifts_target))**2
-                #print('sum', sp.simplify(sp.expand((assigned_shifts-sp.Integer(n_shifts_target))**2)))
+        
+        elif time_period == 'all':
+            for p in range(n_physicians):
+                extent_p = int(physician_df['extent'].iloc[p])
+                n_shifts_target = targetShiftsPerWeek(extent_p, cl)
+                n_shifts_target = n_shifts_target * (n_shifts/7)
+                assigned_shifts = sum(x_symbols[p][s] for s in range(n_shifts))
+                H_extent += (assigned_shifts-sp.Integer(n_shifts_target))**2
         if shiftsPerWeek(cl)==21:
             # REST between shifts
             for p in range(n_physicians):
@@ -424,7 +433,7 @@ def objectivesToQubo(all_hamiltonians, n_shifts, x_symbols, cl, mirror=True, pri
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
     n_physicians = len(physician_df)
     
-    x_list = {(f'{p}_{s}'):x_symbols[p][s] for p in range(n_physicians) for s in range(n_shifts)} #TEST
+    #x_list = {(f'{p}_{s}'):x_symbols[p][s] for p in range(n_physicians) for s in range(n_shifts)} #TEST
 
     n_vars = n_physicians*n_shifts
     Q = np.zeros((n_vars,n_vars))
