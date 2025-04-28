@@ -7,18 +7,19 @@ import time
 def create_z3_model(physicians, shifts, demand, preference, cl=1, lambdas=None):
     overall_start = time.time()
     solver = Optimize()
-    set_param("parallel.enable", True)
+    set_param("parallel.enable", True)  # Use all CPU cores
 
     if lambdas is None:
         lambdas = {'demand': 5, 'fair': 2, 'pref': 100, 'unavail': 5, 'memory': 3, 'extent': 2}
 
+    # Decision variables: x[p, s] ∈ {0,1}
     x = {(p, s): Int(f"x_{p}_{s}") for p in physicians for s in shifts if preference[p][s] != -2}
     for var in x.values():
-        solver.add(Or(var == 0, var == 1))
+        solver.add(Or(var == 0, var == 1))  # Binary constraint
 
     physician_df = pd.read_csv('data/intermediate/physician_data.csv')
 
-    # Compute days passed per shift
+    # Precompute days passed per shift (for extent balancing)
     start_date = datetime.strptime(shifts[0].split(' ')[0], "%Y-%m-%d")
     shift_days_passed = {}
     for s in shifts:
@@ -27,17 +28,21 @@ def create_z3_model(physicians, shifts, demand, preference, cl=1, lambdas=None):
         days_passed = (shift_date - start_date).days
         shift_days_passed[s] = days_passed
 
+    # Initialize penalty term lists
     preference_terms = []
     fairness_terms = []
     memory_terms = []
     extent_terms = []
 
+    # === Constraints and penalties depending on complexity level ===
     if cl >= 1:
+        # Demand satisfaction constraints
         for s in shifts:
             relevant_vars = [x[(p, s)] for p in physicians if (p, s) in x]
             if relevant_vars:
                 solver.add(Sum(relevant_vars) == demand[s])
 
+        # Fairness penalties (deviation from average assignments)
         total_demand = sum(demand.values())
         avg_assignments = int(np.ceil(total_demand / len(physicians)))
 
@@ -51,6 +56,7 @@ def create_z3_model(physicians, shifts, demand, preference, cl=1, lambdas=None):
                 fairness_terms.append(u_p)
 
     if cl >= 2:
+        # Preference penalties
         for (p, s), var in x.items():
             val = preference[p][s]
             if val == 1:
@@ -58,13 +64,15 @@ def create_z3_model(physicians, shifts, demand, preference, cl=1, lambdas=None):
             elif val == -1:
                 preference_terms.append(var)
 
-        shift_days = [s.split(' ')[0] for s in shifts]
-        for i in range(1, len(shifts)):
-            if shift_days[i] == shift_days[i-1]:
-                for p in physicians:
-                    if (p, shifts[i]) in x and (p, shifts[i-1]) in x:
-                        memory_terms.append(x[(p, shifts[i-1])] * x[(p, shifts[i])])
+        # === Corrected MEMORY penalty ===
+        # Penalize total number of shifts assigned to physicians
+        for p in physicians:
+            assigned_vars_p = [x[(p, s)] for s in shifts if (p, s) in x]
+            if assigned_vars_p:
+                total_assigned_p = Sum(assigned_vars_p)
+                memory_terms.append(total_assigned_p)
 
+        # Extent balancing penalties
         for idx_p, p in enumerate(physicians):
             work_rate_p = physician_df['work rate'].iloc[idx_p]
             for s in shifts:
@@ -78,6 +86,7 @@ def create_z3_model(physicians, shifts, demand, preference, cl=1, lambdas=None):
                     else:
                         extent_terms.append(priority_p * x[(p, s)])
 
+    # Define the full objective function
     total_cost = (
         lambdas['pref'] * Sum(preference_terms) +
         lambdas['fair'] * Sum(fairness_terms) +
@@ -86,6 +95,7 @@ def create_z3_model(physicians, shifts, demand, preference, cl=1, lambdas=None):
     )
     solver.minimize(total_cost)
 
+    # Solve the model
     solve_start = time.time()
     result = solver.check()
     solve_end = time.time()
