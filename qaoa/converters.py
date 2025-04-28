@@ -36,7 +36,7 @@ def bitstringToPauliZ(bitstring)->np.ndarray:
     z_eigenvalues = np.array([1 if bit == "0" else -1 for bit in bitstring])
     return z_eigenvalues
 
-def getShiftsPerT(time_period:str, cl:int) -> int:
+def getShiftsPerT(time_period:str, cl:int, n_shifts=-1) -> int:
     if time_period == 'week':
         shifts_per_t = shiftsPerWeek(cl)
             
@@ -45,6 +45,10 @@ def getShiftsPerT(time_period:str, cl:int) -> int:
 
     elif time_period == 'shift':
         shifts_per_t = 1
+
+    elif time_period =='all':
+        shifts_per_t = n_shifts
+
     return int(shifts_per_t)
 
 def shiftsPerWeek(cl):

@@ -107,7 +107,8 @@ def recordHistory(result_schedule_df_t, t, cl, time_period):
 
     # EXTENT
     shifts_worked_col, work_rate_col, worked_last_col = [],[],[]
-    total_shifts = (t)*getShiftsPerT(time_period, cl) + len(result_schedule_df_t)
+    shifts_per_t = getShiftsPerT(time_period, cl, n_shifts=len(result_schedule_df_t))
+    total_shifts = t * shifts_per_t + len(result_schedule_df_t)
     percentage = {p:physician_df['extent'].iloc[p] for p in range(n_physicians)}
     for p in range(n_physicians):
 
@@ -133,7 +134,7 @@ def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
     n_physicians = len(physician_df)
     n_shifts = len(result_df)
 
-    shifts_per_t = getShiftsPerT(time_period, cl)
+    shifts_per_t = getShiftsPerT(time_period, cl, n_shifts=len(result_df))
 
     result_matrix = np.zeros((n_physicians,n_shifts))
     for s in range(n_shifts):

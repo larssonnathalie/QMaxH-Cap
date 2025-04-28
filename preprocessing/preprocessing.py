@@ -19,7 +19,7 @@ def emptyCalendar(end_date, start_date, cl, time_period):
     #if len(all_dates)%7!=0 and cl<3:
         #print('\nWarning: Dates should be a [int] number of weeks for cl<3\n') # (start on tuesday end on monday works too)
     
-    get_T = {'shift':n_days+(n_days*2*int(shiftsPerWeek(cl)==21)), 'day':n_days, 'week':(n_days+6)//7}
+    get_T = {'shift':n_days+(n_days*2*int(shiftsPerWeek(cl)==21)), 'day':n_days, 'week':(n_days+6)//7, 'all':1}
     T = get_T[time_period]
     #print('\nNew optimization for each '+time_period)
     print(str(T)+' '+time_period+':s')
@@ -44,12 +44,13 @@ def emptyCalendar(end_date, start_date, cl, time_period):
     return T, total_holidays, n_days
 
 # PHYSICIAN DATA with random preferences on relevant dates
-def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True, only_fulltime=False):
+def generatePhysicianData(empty_calendar, n_physicians, cl, seed=None, only_fulltime=False):
     
     #TODO look over all probabilities in random choices and set realistic values
 
     all_dates = [str(empty_calendar['date'].iloc[s]) for s in range(len(empty_calendar))] # TODO preferences on separate shifts instead of dates
     n_dates = len(all_dates) #list(set(list(all_dates))))
+    print(n_dates)
     possible_extents = [50,50,75,75,100,100,100,100,100,100]  # more copies -> more likely
     if only_fulltime:
         possible_extents = [100]
@@ -68,8 +69,8 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=True, only_full
     satisfaction_col = [0 for _ in range(n_physicians)]
     worked_last_col = [0 for _ in range(n_physicians)] 
 
-    if seed:
-        np.random.seed(56)
+    if seed is not None:
+        np.random.seed(seed)
     
     for p in range(n_physicians):
         remaining_dates_p = all_dates.copy()#list(set(list(all_dates)))
@@ -147,7 +148,7 @@ def generateShiftData(empty_calendar, T, cl, demands, time_period):
     shift_data_df.to_csv('data/intermediate/shift_data_all_t.csv', index=False)
 
     # ONE FILE PER t
-    shifts_per_t = getShiftsPerT(time_period, cl)
+    shifts_per_t = getShiftsPerT(time_period, cl, n_shifts=n_shifts)
 
     for t in range(T):
         start_idx,stop_idx = t*shifts_per_t, min((t+1)*shifts_per_t, len(shift_data_df))
@@ -160,8 +161,8 @@ def convertPreferences(shifts_df, t, only_prefer=False):
         shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv')
     else:
         shifts_df = pd.read_csv(f'data/intermediate/shift_many_t/shift_data_t{t}.csv')'''
-    
-
+    print('\nShifts df in convert')
+    print(shifts_df)
     n_shifts=len(shifts_df)
     date_to_s={}
     for s in range(n_shifts):

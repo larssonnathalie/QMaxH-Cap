@@ -126,11 +126,14 @@ class Qaoa:
 
         if self.backend_name == 'ibm':
             print('\nUsing ibm hardware as quantum backend')
+            print(self.n_vars, 'qubits')
             self.backend=None
         else:
             self.backend = AerSimulator() 
             if t == 0:
                 print('\nUsing "aer" quantum simulator')
+                print(self.n_vars, 'qubits')
+
 
             
     def findOptimalCircuit(self, estimation_iterations=2000, search_iterations=20):
