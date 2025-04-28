@@ -1,11 +1,11 @@
 ,name,title,# prefered,% prefered,# prefered not,% prefered not
-0,physician0,ÖL,2.0,1.0,0.0,
-1,physician1,ÖL,1.0,0.0,1.0,1.0
+0,physician0,ÖL,2.0,0.5,0.0,
+1,physician1,ÖL,1.0,1.0,1.0,1.0
 2,physician2,ÖL,2.0,1.0,0.0,
 3,physician3,ST,2.0,1.0,0.0,
 4,physician4,ST,0.0,,1.0,1.0
 5,physician5,ST,0.0,,0.0,
 6,physician6,UL,2.0,1.0,1.0,1.0
-7,physician7,UL,1.0,1.0,0.0,
+7,physician7,UL,1.0,0.0,0.0,
 8,physician8,UL,0.0,,1.0,1.0
-9,physician9,AT,0.0,,1.0,1.0
+9,physician9,AT,0.0,,1.0,0.0

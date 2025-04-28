@@ -15,7 +15,7 @@ from qaoa.testQandH import *
 start_date = '2025-06-01' 
 end_date = '2025-06-07'
 n_physicians = 10
-backend = 'aer'
+backend = 'ibm'
 cl = 3               # complexity level: 
 cl_contents = ['',
 'cl1: demand, fairness',
@@ -127,6 +127,10 @@ if use_classical: # TODO Store the results from classical
     if plots:
         controlPlotDual(z3_checked_df, gurobi_checked_df)
 
+
+all_sampler_ids, all_times = [], []
+
+# QUANTUM OPTIMIZATION: QAOA
 if use_qaoa:
     from qaoa.qaoa import *
     from qaoa.testQandH import *
@@ -188,7 +192,8 @@ if use_qaoa:
         qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
         best_bitstring_t = qaoa.samplerSearch(sampling_iterations, n_candidates, return_worst_solution=False)
         print('chosen bs',best_bitstring_t[::-1])
-
+        all_sampler_ids.append(qaoa.sampler_id)
+        all_times.append(int(qaoa.end_time - qaoa.start_time))
         '''print('Hc(best)', costOfBitstring(best_bitstring_t, Hc))
         print('xT Q x(best)', get_xT_Q_x(best_bitstring_t, Q))
 
@@ -198,7 +203,6 @@ if use_qaoa:
         result_schedule_df_t = bitstringToSchedule(best_bitstring_t, calendar_df_t)
         full_solution.append(result_schedule_df_t)
         controled_result_df_t = controlSchedule(result_schedule_df_t, shifts_df, cl)
-        #TODO check if result is ok (unavailable & demand met) rerun until ok if not
         #print('result schedule')
         #print(controled_result_df_t)
 
@@ -215,7 +219,10 @@ if use_qaoa:
     print(ok_full_schedule_df)
     #ok_full_schedule_df = pd.read_csv('data/results/result_and_demand_cl2.csv') # Use saved result
     fig = controlPlot(ok_full_schedule_df, range(T), cl, time_period, lambdas, width=plot_width) 
-    fig.savefig('data/results/schedule.png')
+    timestamp = int(time.time())
+    fig.savefig(f'data/results/plots/{backend}_{n_physicians}phys_time{timestamp}.png')
+    save_data_per_t = pd.DataFrame({'date':full_schedule_df['date'],'staff':full_schedule_df['staff'],'sampler id:s':all_sampler_ids, 'time':all_times, 'pref seed':[preference_seed]*T  })
+    save_data_per_t.to_csv(f'data/results/runs/{backend}_{n_physicians}phys_cl{cl}_time{timestamp}.csv')
 
 
     if lambdas['pref'] != 0 and T>1:

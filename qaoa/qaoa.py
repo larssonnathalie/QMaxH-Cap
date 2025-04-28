@@ -119,6 +119,7 @@ class Qaoa:
         self.backend_name = backend
         self.instance='wacqt/partners/scheduling-of-me'
         self.n_vars = len(self.Hc.paulis[0])
+        self.start_time = time.time()
 
         if instance =='open':
             self.instance = 'ibm-q/open/main'
@@ -288,6 +289,7 @@ class Qaoa:
             plt.xticks(ticks = [i for i in range(len(self.sampling_distribution))], labels=self.sampling_distribution.keys())
             plt.xticks(rotation=90)
             plt.show()
+        self.end_time = time.time()
 
     def findBestBitstring(self, n_candidates, worst_solution=False): # No prints temporary
         reverse = (worst_solution==False)
