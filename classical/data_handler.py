@@ -4,7 +4,7 @@ import os
 def load_data_from_intermediate():
     base_dir = os.path.dirname(os.path.abspath(__file__))  # path to classical/
     data_dir = os.path.join(base_dir, "..", "data", "intermediate")
-    shifts_path = os.path.join(data_dir, "shift_data.csv")
+    shifts_path = os.path.join(data_dir, "shift_data_all_t.csv")
     physicians_path = os.path.join(data_dir, "physician_data.csv")
 
     shifts_df = pd.read_csv(shifts_path)

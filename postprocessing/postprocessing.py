@@ -277,14 +277,23 @@ def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
     return fig
 
 
-def controlPlotDual(result_df_z3, result_df_gurobi):
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 
+def controlPlotDual(result_df_z3, result_df_gurobi):
     """
     Plots Z3 and Gurobi results side-by-side with preference annotations and coverage info.
+    Handles both 'prefer t0' and 'prefer' field versions automatically.
     """
     physician_df = pd.read_csv('data/intermediate/physician_data.csv', index_col=False)
     n_physicians = len(physician_df)
     n_shifts = len(result_df_z3)
+
+    # Determine which preference columns exist
+    prefer_column = 'prefer t0' if 'prefer t0' in physician_df.columns else 'prefer'
+    prefer_not_column = 'prefer not t0' if 'prefer not t0' in physician_df.columns else 'prefer not'
+    unavail_column = 'unavailable t0' if 'unavailable t0' in physician_df.columns else 'unavailable'
 
     fig, axes = plt.subplots(1, 2, figsize=(2 * 5, n_physicians / n_shifts * 6), sharey=True)
     titles = ["Z3 Result", "Gurobi Result"]
@@ -299,30 +308,32 @@ def controlPlotDual(result_df_z3, result_df_gurobi):
 
         prefer_matrix = np.zeros((n_physicians, n_shifts))
         for p in range(n_physicians):
-            prefer_p = physician_df['prefer t0'].iloc[p]
+            prefer_p = physician_df[prefer_column].iloc[p]
             if prefer_p != '[]':
-                prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')
+                prefer_shifts_p = prefer_p.strip('[]').split(',')
                 for s in prefer_shifts_p:
-                    print(s)
-                    if s:
+                    s = s.strip()
+                    if s.isdigit():
                         prefer_matrix[p][int(s)] = 1
 
-            prefer_not_p = physician_df['prefer not t0'].iloc[p]
+            prefer_not_p = physician_df[prefer_not_column].iloc[p]
             if prefer_not_p != '[]':
-                prefer_not_shifts_p = prefer_not_p.strip('[').strip(']').split(',')
+                prefer_not_shifts_p = prefer_not_p.strip('[]').split(',')
                 for s in prefer_not_shifts_p:
-                    if s:
+                    s = s.strip()
+                    if s.isdigit():
                         prefer_matrix[p][int(s)] = -1
 
-            unavail_p = physician_df['unavailable t0'].iloc[p]
+            unavail_p = physician_df[unavail_column].iloc[p]
             if unavail_p != '[]':
-                unavail_shifts_p = unavail_p.strip('[').strip(']').split(',')
+                unavail_shifts_p = unavail_p.strip('[]').split(',')
                 for s in unavail_shifts_p:
-                    if s:
+                    s = s.strip()
+                    if s.isdigit():
                         prefer_matrix[p][int(s)] = -2
 
         ok_row = np.zeros((1, n_shifts))
-        ok_row[0,:] = result_df['shift covered'] == 'ok'
+        ok_row[0, :] = result_df['shift covered'] == 'ok'
 
         prefer_colors = np.where(prefer_matrix.flatten() == 1, 'lightgreen', prefer_matrix.flatten())
         prefer_colors = np.where(prefer_matrix.flatten() == -1, 'pink', prefer_colors)
@@ -347,6 +358,7 @@ def controlPlotDual(result_df_z3, result_df_gurobi):
 
     plt.tight_layout()
     plt.show()
+
 
 
 def scheduleToBitstring(schedule_df, n_physicians): #NOTE needs testing
