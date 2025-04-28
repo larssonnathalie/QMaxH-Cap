@@ -241,21 +241,20 @@ if use_qaoa:
         plt.show()
 
 
-    # (Evaluate & compare solution to classical methods)'''
 
+# COMPARE Hc
+if compare_Hc_costs and use_qaoa: # Must run qaoa to get Hc
+    bitstring_qaoa = scheduleToBitstring(full_schedule_df, n_physicians)
+    print('Hc for QAOA:', costOfBitstring(bitstring_qaoa, Hc))
 
-if compare_Hc_costs:
-    if use_qaoa:
-        bitstring_qaoa = scheduleToBitstring(full_schedule_df, n_physicians)
-        print('Hc for QAOA:', costOfBitstring(bitstring_qaoa))
     if use_classical:
         try:
             gurobi_bitstring = scheduleToBitstring(gurobi_checked_df, n_physicians) 
-            print('Hc for Gurobi:',costOfBitstring(gurobi_bitstring))
+            print('Hc for Gurobi:',costOfBitstring(gurobi_bitstring, Hc))
         except:
             print('No gurobi bitstring')
         try:
             z3_bitstring = scheduleToBitstring(z3_checked_df, n_physicians) 
-            print('Hc for z3:',costOfBitstring(z3_bitstring))
+            print('Hc for z3:',costOfBitstring(z3_bitstring, Hc))
         except:
             print('No z3 bitstring')
