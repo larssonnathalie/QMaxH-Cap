@@ -13,7 +13,7 @@ def create_z3_model(physicians, shifts, demand, preference, cl=1, lambdas=None):
         lambdas = {'demand': 5, 'fair': 2, 'pref': 100, 'unavail': 5, 'memory': 3, 'extent': 2}
 
     # Decision variables: x[p, s] ∈ {0,1}
-    x = {(p, s): Int(f"x_{p}_{s}") for p in physicians for s in shifts if preference[p][s] != -2}
+    x = {(p, s): Int(f"x_{p}_{s}") for p in physicians for s in shifts}
     for var in x.values():
         solver.add(Or(var == 0, var == 1))  # Binary constraint
 
@@ -34,29 +34,32 @@ def create_z3_model(physicians, shifts, demand, preference, cl=1, lambdas=None):
     memory_terms = []
     extent_terms = []
 
-    # === Constraints and penalties depending on complexity level ===
+    # === Hard constraints ===
+    # Demand satisfaction
     if cl >= 1:
-        # Demand satisfaction constraints
         for s in shifts:
-            relevant_vars = [x[(p, s)] for p in physicians if (p, s) in x]
-            if relevant_vars:
-                solver.add(Sum(relevant_vars) == demand[s])
+            relevant_vars = [x[(p, s)] for p in physicians]
+            solver.add(Sum(relevant_vars) == demand[s])
 
-        # Fairness penalties (deviation from average assignments)
+        # Fairness constraints
         total_demand = sum(demand.values())
         avg_assignments = int(np.ceil(total_demand / len(physicians)))
 
         for p in physicians:
-            assigned_vars = [x[(p, s)] for s in shifts if (p, s) in x]
-            if assigned_vars:
-                assigned_sum = Sum(assigned_vars)
-                u_p = Int(f"u_{p}")
-                solver.add(u_p >= assigned_sum - avg_assignments)
-                solver.add(u_p >= avg_assignments - assigned_sum)
-                fairness_terms.append(u_p)
+            assigned_vars = [x[(p, s)] for s in shifts]
+            assigned_sum = Sum(assigned_vars)
+            u_p = Int(f"u_{p}")
+            solver.add(u_p >= assigned_sum - avg_assignments)
+            solver.add(u_p >= avg_assignments - assigned_sum)
+            fairness_terms.append(u_p)
 
+    # Unavailability: hard constraint
+    for (p, s) in x:
+        if preference[p][s] == -2:
+            solver.add(x[(p, s)] == 0)
+
+    # === Penalty terms ===
     if cl >= 2:
-        # Preference penalties
         for (p, s), var in x.items():
             val = preference[p][s]
             if val == 1:
@@ -64,29 +67,23 @@ def create_z3_model(physicians, shifts, demand, preference, cl=1, lambdas=None):
             elif val == -1:
                 preference_terms.append(var)
 
-        # === Corrected MEMORY penalty ===
-        # Penalize total number of shifts assigned to physicians
         for p in physicians:
-            assigned_vars_p = [x[(p, s)] for s in shifts if (p, s) in x]
-            if assigned_vars_p:
-                total_assigned_p = Sum(assigned_vars_p)
-                memory_terms.append(total_assigned_p)
+            assigned_vars_p = [x[(p, s)] for s in shifts]
+            memory_terms.append(Sum(assigned_vars_p))
 
-        # Extent balancing penalties
         for idx_p, p in enumerate(physicians):
             work_rate_p = physician_df['work rate'].iloc[idx_p]
             for s in shifts:
-                if (p, s) in x:
-                    days_passed = shift_days_passed[s]
-                    extent_priority = min(days_passed / 7, 1)
-                    priority_p = abs(extent_priority * (1 - float(work_rate_p)))
+                days_passed = shift_days_passed[s]
+                extent_priority = min(days_passed / 7, 1)
+                priority_p = abs(extent_priority * (1 - float(work_rate_p)))
 
-                    if work_rate_p < 1:
-                        extent_terms.append(-priority_p * x[(p, s)])
-                    else:
-                        extent_terms.append(priority_p * x[(p, s)])
+                if work_rate_p < 1:
+                    extent_terms.append(-priority_p * x[(p, s)])
+                else:
+                    extent_terms.append(priority_p * x[(p, s)])
 
-    # Define the full objective function
+    # Objective function
     total_cost = (
         lambdas['pref'] * Sum(preference_terms) +
         lambdas['fair'] * Sum(fairness_terms) +

@@ -11,13 +11,13 @@ from qaoa.testQandH import *
         # quantum sim vs quantum ibm vs "random guess" for many qubits
 
 
-use_qaoa = True
-use_classical = False
+use_qaoa = False
+use_classical = True
 
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-05'
-n_physicians = 3
+end_date = '2025-06-28'
+n_physicians = 10
 backend = 'aer'
 cl = 3               # complexity level: 
 cl_contents = ['',
@@ -114,16 +114,16 @@ if use_classical: # TODO Store the results from classical
     print("\n--- Timing Comparison ---")
     print(f"Z3 solver time:     {z3_solver_time:.4f} s")
     print(f"Z3 overall time:    {z3_overall_time:.4f} s")
-    #print(f"Gurobi solver time: {gurobi_solver_time:.4f} s")
-    #print(f"Gurobi overall time:{gurobi_overall_time:.4f} s")
+    print(f"Gurobi solver time: {gurobi_solver_time:.4f} s")
+    print(f"Gurobi overall time:{gurobi_overall_time:.4f} s")
 
     print("\n--- Relative Difference ---")
-    #print(f"Solver time difference:  {z3_solver_time - gurobi_solver_time:.4f} s")
-    #print(f"Overall time difference: {z3_overall_time - gurobi_overall_time:.4f} s")
+    print(f"Solver time difference:  {z3_solver_time - gurobi_solver_time:.4f} s")
+    print(f"Overall time difference: {z3_overall_time - gurobi_overall_time:.4f} s")
 
 
-    #if plots:
-        #controlPlotDual(z3_checked_df, gurobi_checked_df)
+    if plots:
+        controlPlotDual(z3_checked_df, gurobi_checked_df)
 
 
 all_sampler_ids, all_times = [], []
