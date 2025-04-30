@@ -279,7 +279,14 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
                     unavail_shifts_p = unavail_shifts_p.strip('[').strip(']').split(',')  
                     H_unavail_p = sum(x_symbols[p][int(s)] for s in unavail_shifts_p)
                     H_unavail += H_unavail_p
-                    max_shifts_per_p = int((n_demand/n_physicians)+0.999 ) # fair distribution of shifts
+                
+                # EXTENT
+                percentage = physician_df['extent'].iloc[p]
+                target_shifts_per_week_p = targetShiftsPerWeek(percentage, cl) #int((n_demand/n_physicians)+0.999 ) # fair distribution of shifts
+                target_shifts_p = target_shifts_per_week_p * (n_shifts/7)
+                n_shifts_p = sum(x_symbols[p][s] for s in range(n_shifts))
+                H_extent += (n_shifts_p-target_shifts_p)**2
+
 
         elif T != 1: 
             # long term SATISFACTION fairness
@@ -381,23 +388,25 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
                     for s in range(1,n_shifts):
                         H_rest += x_symbols[p][s]*x_symbols[p][s-1] # penalize working two following shift
 
-        if cl >=3:
-            if getShiftsPerT(time_period, cl) != 1:
-                print('\nTitles constraint only applies for 1 shift per t!')
-            else:
-                # TITLES constraint
-                s = 0    
-                demand = shifts_df['demand'].iloc[s] 
-                all_with_title = {'ST':[],'AT':[],'ÖL':[],'Chef':[],'UL':[]}
-                for p in range(n_physicians):
-                    title_p = physician_df['title'].iloc[p]
-                    all_with_title[title_p].append(p) 
-                
-                n_ST = sum(x_symbols[p][s] for p in all_with_title['ST'])
-                n_UL = sum(x_symbols[p][s] for p in all_with_title['UL'])
-                n_ÖL = sum(x_symbols[p][s] for p in all_with_title['ÖL'])
-                
-                H_titles += (n_ST-(demand/4))**2 + (n_UL-(demand/4))**2 + (n_ÖL-(demand/4))**2 # Goal: 1/4 ST, 1/4 ÖL, 1/4 UL of demand, each day
+    if cl >=3:
+        #if getShiftsPerT(time_period, cl) != 1:
+            #print('\nTitles constraint only applies for 1 shift per t. (Titles will not be considered in computation of full Hc)')
+        #else:
+        for s in range(n_shifts):
+            # TITLES constraint
+            #s = 0    
+            demand = shifts_df['demand'].iloc[s] 
+            all_with_title = {'ST':[],'AT':[],'ÖL':[],'Chef':[],'UL':[]}
+            for p in range(n_physicians):
+                title_p = physician_df['title'].iloc[p]
+                all_with_title[title_p].append(p) 
+            
+            n_ST = sum(x_symbols[p][s] for p in all_with_title['ST'])
+            n_UL = sum(x_symbols[p][s] for p in all_with_title['UL'])
+            n_ÖL = sum(x_symbols[p][s] for p in all_with_title['ÖL'])
+            
+            H_titles_s = (n_ST-(demand/4))**2 + (n_UL-(demand/4))**2 + (n_ÖL-(demand/4))**2 # Goal: 1/4 ST, 1/4 ÖL, 1/4 UL of demand, each day
+            H_titles += H_titles_s/n_shifts 
 
     # DEMAND
     # ∑s=1 (demanded – (∑p=1  x_ps))^2
@@ -456,11 +465,16 @@ def objectivesToQubo(all_hamiltonians, n_shifts, x_symbols, cl, mirror=True, pri
         elif len(variables) == 2: # Quadratic terms
             ps_strings1 = str(variables[0]).split('_')
             p1 = ps_strings1[0].strip('x')
-            s1 = ps_strings1[1].strip('**2') 
+            s1 = ps_strings1[1]
+            if len(ps_strings1[1])>3 and ps_strings1[1][-2]=='*':
+                s1 = s1.strip('**2')                 
 
             ps_strings2 = str(variables[1]).split('_')
             p2 = ps_strings2[0].strip('x')
-            s2 = ps_strings2[1].strip('**2') 
+            s2 = ps_strings2[1]
+            if len(ps_strings2[1])>3 and ps_strings2[1][-2]=='*':
+                s2 = s2.strip('**2') 
+            
             if p1 != '' and s1 != '' and p2 != '' and s2!='':
                 p1, s1, p2, s2 = int(p1), int(s1), int(p2), int(s2)
                 idx1,idx2 = xToQIndex((p1,s1),(p2,s2),n_shifts)
@@ -474,7 +488,9 @@ def objectivesToQubo(all_hamiltonians, n_shifts, x_symbols, cl, mirror=True, pri
                     if mirror:
                         Q[idx2, idx1] += coeff  # Symmetric QUBO matrix
                 else:
-                    print('\nTHIS SHOULD NOT OCCUR')
+                    print('\nINDICES', idx1,idx2)
+                    print('variables',variables)
+                    print('THIS SHOULD NOT OCCUR')
 
             
     # Save Q to csv

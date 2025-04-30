@@ -11,14 +11,13 @@ from qaoa.testQandH import *
         # quantum simulator vs quantum ibm
         # quantum sim vs quantum ibm vs "random guess" for many qubits
 
-
 use_qaoa = True
 use_classical = False
 
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-05'
-n_physicians = 4
+end_date = '2025-06-14'
+n_physicians = 10
 backend = 'aer'
 cl = 3               # complexity level: 
 cl_contents = ['',
@@ -129,14 +128,30 @@ if use_classical: # TODO Store the results from classical
     z3_Hc_cost = computeHcCost(z3_bitstring, Hc_full, costOfBitstring)
     gurobi_Hc_cost = computeHcCost(gurobi_bitstring, Hc_full, costOfBitstring)
 
+    # TODO USE EVALUATOR class 
+    # (something like this:)
+    '''
+    z3_evaluator = Evaluator(z3_checked_df, cl, time_period, lambdas)
+    z3_evaluator.makeResultMatrix()
+    z3_constraint_scores = z3_evaluator.evaluateConstraints(T)
+    print(z3_constraint_scores) # Save these in some file
+    fig = z3_evaluator.controlPlot(width=10)
+
+    # and same for gurobi...
+    '''
+
     # SAVE RESULT DATA
     timestamp = time.time()
-    gurobi_data = pd.DataFrame({'date':gurobi_checked_df['date'], 'staff':gurobi_checked_df['staff'], 'Hc full':gurobi_Hc_cost, 'bitstring':gurobi_bitstring, 'lambdas':str(lambdas)})
+    #gurobi_data = pd.DataFrame({'date':gurobi_checked_df['date'], 'staff':gurobi_checked_df['staff'],
+    gurobi_data = pd.DataFrame({'Hc full':gurobi_Hc_cost, 'bitstring':gurobi_bitstring, 'demands':demands,'lambdas':str(lambdas)}, index=[0])
     gurobi_data.to_csv(f'data/results/schedules/gurobi_{n_physicians}phys_cl{cl}_time{timestamp}.csv', index=None)
 
-    z3_data = pd.DataFrame({'date':z3_checked_df['date'], 'staff':z3_checked_df['staff'], 'Hc full':z3_Hc_cost, 'bitstring':z3_bitstring, 'lambdas':str(lambdas)})
+    #z3_data = pd.DataFrame({'date':z3_checked_df['date'], 'staff':z3_checked_df['staff'], 'Hc full':z3_Hc_cost, 'bitstring':z3_bitstring, 'lambdas':str(lambdas)}, index=[0])
+    z3_data = pd.DataFrame({'Hc full':z3_Hc_cost, 'bitstring':z3_bitstring, 'demands':demands, 'lambdas':str(lambdas)}, index=[0])
     z3_data.to_csv(f'data/results/schedules/z3_{n_physicians}phys_cl{cl}_time{timestamp}.csv', index=None)
 
+    #Save prefs and extents etc
+    physician_df.to_csv(f'data/results/physician/classical_time{int(timestamp)}.csv', index=None)
 
 all_sampler_ids, all_times = [], []
 n_layers = 2
@@ -159,7 +174,7 @@ if use_qaoa:
     print(f'comparing top {n_candidates} most common solutions')
     print(f't:s ({time_period}:s)\t', T)
     print('Layers\t\t', n_layers)
-
+    start_time = time.time()
     if shiftsPerWeek(cl)==7:    
         # DEMAND  # TODO make same demands for classical & Q
         # set from amount of workers and their extent
@@ -245,28 +260,39 @@ if use_qaoa:
         full_schedule_df = pd.concat([full_schedule_df, full_solution[t]],axis=0)
     ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
     print(ok_full_schedule_df)
-    
-    timestamp = int(time.time())
+
+    end_time = time.time()
+    # EVALUATE
+    qaoa_evaluator = Evaluator(ok_full_schedule_df, cl, time_period, lambdas)
+    qaoa_evaluator.makeResultMatrix()
+    constraint_scores = qaoa_evaluator.evaluateConstraints(T)
+    print(constraint_scores)
+    fig = qaoa_evaluator.controlPlot(width=10)
 
     # PLOT SCHEDULE
-    fig = controlPlot(ok_full_schedule_df, range(T), cl, time_period, lambdas, width=plot_width) 
-    fig.savefig(f'data/results/plots/{backend}_{n_physicians}phys_time{timestamp}.png')
-    
-    # SAVE RUNS
-    run_data_per_t = pd.DataFrame({'sampler id:s':all_sampler_ids, 'time':all_times, 'pref seed':[preference_seed]*T  })
-    run_data_per_t.to_csv(f'data/results/runs/{backend}_{n_physicians}phys_cl{cl}_time{timestamp}.csv', index=None)
+    #fig = controlPlot(ok_full_schedule_df, range(T), cl, time_period, lambdas, width=plot_width) 
+    fig.savefig(f'data/results/plots/{backend}_{n_physicians}phys_time{int(end_time)}.png')
 
-    # SAVE RESULTS
     # Hc full
     qaoa_bitstring = scheduleToBitstring(full_schedule_df,n_physicians)
     Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
     qaoa_Hc_cost = computeHcCost(qaoa_bitstring, Hc_full, costOfBitstring)
+    
+    # SAVE RUNS
+    run_data_per_t = pd.DataFrame({'sampler id:s':all_sampler_ids, 'time':all_times })
+    run_data_per_t.to_csv(f'data/results/runs/{backend}_{n_physicians}phys_cl{cl}_time{int(end_time)}.csv', index=None)
+    run_data_full = pd.DataFrame({'full time':end_time-start_time, 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring, 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':str(lambdas)}, index=[0])
+    run_data_full.to_csv(f'data/results/runs/{backend}_full_{n_physicians}phys_cl{cl}_time{int(end_time)}.csv', index=None)
 
-    schedule_data = pd.DataFrame({'date':full_schedule_df['date'], 'staff':full_schedule_df['staff'], 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring,'lambdas':str(lambdas)})
-    schedule_data.to_csv(f'data/results/schedules/{backend}_{n_physicians}phys_cl{cl}_time{timestamp}.csv', index=None)
+    # SAVE EXTENT & PREF
+    physician_df.to_csv(f'data/results/physician/{backend}_time{int(end_time)}.csv', index=None)
+
+    # SAVE RESULTS
+    schedule_data = pd.DataFrame({'date':full_schedule_df['date'], 'staff':full_schedule_df['staff']})
+    schedule_data.to_csv(f'data/results/schedules/{backend}_{n_physicians}phys_cl{cl}_time{int(end_time)}.csv', index=None)
 
     # PLOT SATISFACTION
-    if lambdas['pref'] != 0 and T>1:
+    '''if lambdas['pref'] != 0 and T>1:
         satisfaction_plot = np.array(satisfaction_plot)
         plt.figure()
         plt.title('Preference satisfaction per time period')
@@ -276,6 +302,6 @@ if use_qaoa:
         for p in range(n_physicians):
             plt.plot(satisfaction_plot[:,p], label=str(p))
         plt.legend()
-        plt.show()
+        plt.show()'''
 
 
