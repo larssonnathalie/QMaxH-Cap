@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from qaoa.converters import *
+#from ..preprocessing.preprocessing import makeObjectiveFunctions, objectivesToQubo
+#from ..qaoa.qaoa import QToHc, costOfBitstring
 
 def bitstringIndexToPS(idx, n_vars, n_shifts):
     idx=int((n_vars-1)-idx) # NOTE assuming strings are reversed 
@@ -377,3 +379,17 @@ def scheduleToBitstring(schedule_df, n_physicians): #NOTE needs testing
     print('Bitstring:', bitstring)
     return bitstring
 
+
+def generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc):
+    # MAKE NEW Hc FOR FULL PROBLEM
+    print('\nGenerating cost hamiltonian for full problem')
+    all_hamiltonians_full_T, x_symbols_full_T = makeObjectiveFunctions(demands, 0, 1, cl, lambdas, time_period='all')
+    Q_full_T = objectivesToQubo(all_hamiltonians_full_T, len(all_shifts_df),x_symbols_full_T, cl, mirror=False )
+    b_full_T = - sum(Q_full_T[i,:] + Q_full_T[:,i] for i in range(Q_full_T.shape[0]))
+    Hc_full_T = QToHc(Q_full_T, b_full_T)
+    return Hc_full_T
+
+def computeHcCost(bitstring, Hc, costOfBitstring):
+    Hc_cost = np.real(costOfBitstring(bitstring, Hc))
+    print('Hc cost:', Hc_cost)
+    return Hc_cost

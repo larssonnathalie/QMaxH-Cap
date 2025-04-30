@@ -1,0 +1,6 @@
+date,staff,Hc full,bitstring,lambdas
+2025-06-01,['3'],-2.5,01111011110110010011,"{'demand': 2, 'fair': 10, 'pref': 5, 'unavail': 10, 'extent': 5, 'rest': 0, 'titles': 5, 'memory': 3}"
+2025-06-02,"['2', '1', '0']",-2.5,01111011110110010011,"{'demand': 2, 'fair': 10, 'pref': 5, 'unavail': 10, 'extent': 5, 'rest': 0, 'titles': 5, 'memory': 3}"
+2025-06-03,"['2', '1', '0']",-2.5,01111011110110010011,"{'demand': 2, 'fair': 10, 'pref': 5, 'unavail': 10, 'extent': 5, 'rest': 0, 'titles': 5, 'memory': 3}"
+2025-06-04,"['3', '1', '0']",-2.5,01111011110110010011,"{'demand': 2, 'fair': 10, 'pref': 5, 'unavail': 10, 'extent': 5, 'rest': 0, 'titles': 5, 'memory': 3}"
+2025-06-05,"['3', '1', '0']",-2.5,01111011110110010011,"{'demand': 2, 'fair': 10, 'pref': 5, 'unavail': 10, 'extent': 5, 'rest': 0, 'titles': 5, 'memory': 3}"

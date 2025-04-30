@@ -133,7 +133,7 @@ class Qaoa:
             if t == 0:
                 print('\nUsing "aer" quantum simulator')
                 print(self.n_vars, 'qubits')
-
+                
 
             
     def findOptimalCircuit(self, estimation_iterations=2000, search_iterations=20):

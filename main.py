@@ -4,6 +4,7 @@ from qaoa.testQandH import *
 
 # General TODO:s
     # Decide lambdas
+    # Evaluate each constraint from bitstring
 
     # results
         # Classical(constr.) vs quantum(qubo)
@@ -11,13 +12,13 @@ from qaoa.testQandH import *
         # quantum sim vs quantum ibm vs "random guess" for many qubits
 
 
-use_qaoa = False
-use_classical = True
+use_qaoa = True
+use_classical = False
 
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-28'
-n_physicians = 10
+end_date = '2025-06-05'
+n_physicians = 4
 backend = 'aer'
 cl = 3               # complexity level: 
 cl_contents = ['',
@@ -30,7 +31,7 @@ only_fulltime = False
 draw_circuit = False
 preference_seed = 10
 
-time_period = 'all' # NOTE work extent constraint is very different if t = 'week' 
+time_period = 'day' # NOTE work extent constraint is very different if t = 'week' 
 plot_width = 20
 
 # LAMBDAS = penalties (how hard a constraint is)
@@ -60,12 +61,6 @@ if shiftsPerWeek(cl)==7:
 # SHIFTS
 generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
 all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=None)
-
-# MAKE Hc FOR FULL PROBLEM TO EVALUATE CLASSICAL 
-#all_hamiltonians_full_T, x_symbols_full_T = makeObjectiveFunctions(demands, 0, 1, cl, lambdas, time_period='all')
-#Q_full_T = objectivesToQubo(all_hamiltonians_full_T, len(all_shifts_df),x_symbols_full_T, cl, mirror=False )
-#b_full_T = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
-#Hc_full_T = QToHc(Q_full_T, b_full_T)
 
 print()
 print(cl_contents[cl])
@@ -125,6 +120,23 @@ if use_classical: # TODO Store the results from classical
     if plots:
         controlPlotDual(z3_checked_df, gurobi_checked_df)
 
+    # Hc COST OF SOLUTIONS
+    z3_bitstring = scheduleToBitstring(z3_checked_df, n_physicians)
+    gurobi_bitstring = scheduleToBitstring(gurobi_checked_df, n_physicians)
+
+    Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
+
+    z3_Hc_cost = computeHcCost(z3_bitstring, Hc_full, costOfBitstring)
+    gurobi_Hc_cost = computeHcCost(gurobi_bitstring, Hc_full, costOfBitstring)
+
+    # SAVE RESULT DATA
+    timestamp = time.time()
+    gurobi_data = pd.DataFrame({'date':gurobi_checked_df['date'], 'staff':gurobi_checked_df['staff'], 'Hc full':gurobi_Hc_cost, 'bitstring':gurobi_bitstring, 'lambdas':str(lambdas)})
+    gurobi_data.to_csv(f'data/results/schedules/gurobi_{n_physicians}phys_cl{cl}_time{timestamp}.csv', index=None)
+
+    z3_data = pd.DataFrame({'date':z3_checked_df['date'], 'staff':z3_checked_df['staff'], 'Hc full':z3_Hc_cost, 'bitstring':z3_bitstring, 'lambdas':str(lambdas)})
+    z3_data.to_csv(f'data/results/schedules/z3_{n_physicians}phys_cl{cl}_time{timestamp}.csv', index=None)
+
 
 all_sampler_ids, all_times = [], []
 n_layers = 2
@@ -166,7 +178,6 @@ if use_qaoa:
     shifts_per_t = getShiftsPerT(time_period, cl, n_shifts=len(all_shifts_df))   
 
     for t in range(T):
-        #empty_calendar_df_t = pd.read_csv(f'data/intermediate/empty_calendar_t{t}.csv')
         calendar_df_t = all_dates_df.iloc[t*shifts_per_t: min((t+1)*shifts_per_t, len(all_shifts_df))]
 
         print(f'\nt:\t{t}/{T}')
@@ -174,40 +185,47 @@ if use_qaoa:
         shifts_df = pd.read_csv(f'data/intermediate/shift many t/shift_data_t{t}.csv')
         n_shifts = len(shifts_df)
         n_dates = calendar_df_t.shape[0] 
-        n_demand = sum(shifts_df['demand']) # sum of workers demanded on all shifts
+        #n_demand = sum(shifts_df['demand']) # sum of workers demanded on all shifts
 
         if cl >=2:
             convertPreferences(shifts_df, t, only_prefer=skip_unavailable_and_prefer_not)   # Dates to shift-numbers
-        # Make sum of all objective functions and enforce penatlies (lambdas)
+        
+        # OBJECTIVES
         all_objectives, x_symbols = makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False)
         n_vars = n_physicians*len(calendar_df_t)
         subs0 = assignVariables('0'*n_vars, x_symbols)
 
-        # Extract Qubo Q-matrix from objectives           Y = x^T Qx
+        # QUBO MATRIX          Y = x^T Qx
         Q = objectivesToQubo(all_objectives, n_shifts, x_symbols, cl, mirror=False, prints = False)
 
         #if t==0:
         #   print('\nVariables:',Q.shape[0])
 
-
-        # Q-matrix --> pauli operators --> cost hamiltonian (Hc)
+        # COST HAMILTONIAN
+        # Q-matrix --> pauli operators --> Hc
         b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
         Hc = QToHc(Q, b) 
         #for i in range(len(Hc.coeffs)):
         # print(Hc.paulis[i], Hc.coeffs[i])
 
+        # RUN QAOA
         qaoa = Qaoa(t, Hc, n_layers, plots=estimation_plots, seed=init_seed, backend=backend, instance='premium')
         qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
         best_bitstring_t = qaoa.samplerSearch(sampling_iterations, n_candidates, return_worst_solution=False)
+        
         print('chosen bs',best_bitstring_t[::-1])
+        
+        # SAVE RUNS
         all_sampler_ids.append(qaoa.sampler_id)
-        all_times.append(int(qaoa.end_time - qaoa.start_time))
-        print('Hc(best)', costOfBitstring(best_bitstring_t, Hc))
-        print('xT Q x(best)', get_xT_Q_x(best_bitstring_t, Q))
+        all_times.append(qaoa.end_time - qaoa.start_time)
+        
+        #print('Hc(best)', costOfBitstring(best_bitstring_t, Hc))
+        #print('xT Q x(best)', get_xT_Q_x(best_bitstring_t, Q))
 
-        print('Hc(0000)', costOfBitstring('0'*n_vars, Hc))
-        print('xT Q x(0000)', get_xT_Q_x('0'*n_vars, Q))
+        #print('Hc(0000)', costOfBitstring('0'*n_vars, Hc))
+        #print('xT Q x(0000)', get_xT_Q_x('0'*n_vars, Q))
 
+        # GET SCHEDULE
         result_schedule_df_t = bitstringToSchedule(best_bitstring_t, calendar_df_t)
         full_solution.append(result_schedule_df_t)
         controled_result_df_t = controlSchedule(result_schedule_df_t, shifts_df, cl)
@@ -219,25 +237,35 @@ if use_qaoa:
         
 
     all_shifts_df = pd.read_csv('data/intermediate/shift_data_all_t.csv', index_col=None)
-    n_shifts = len(all_shifts_df)    
+    n_shifts = len(all_shifts_df)
+
+    # GET FULL SCHEDULE    
     full_schedule_df = full_solution[0]
     for t in range(1,T):
         full_schedule_df = pd.concat([full_schedule_df, full_solution[t]],axis=0)
     ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
     print(ok_full_schedule_df)
-    #ok_full_schedule_df = pd.read_csv('data/results/result_and_demand_cl2.csv') # Use saved result
-    fig = controlPlot(ok_full_schedule_df, range(T), cl, time_period, lambdas, width=plot_width) 
+    
     timestamp = int(time.time())
+
+    # PLOT SCHEDULE
+    fig = controlPlot(ok_full_schedule_df, range(T), cl, time_period, lambdas, width=plot_width) 
     fig.savefig(f'data/results/plots/{backend}_{n_physicians}phys_time{timestamp}.png')
     
-
+    # SAVE RUNS
     run_data_per_t = pd.DataFrame({'sampler id:s':all_sampler_ids, 'time':all_times, 'pref seed':[preference_seed]*T  })
-    run_data_per_t.to_csv(f'data/results/runs/{backend}_{n_physicians}phys_cl{cl}_time{timestamp}.csv')
+    run_data_per_t.to_csv(f'data/results/runs/{backend}_{n_physicians}phys_cl{cl}_time{timestamp}.csv', index=None)
 
-    schedule_data = pd.DataFrame({'date':full_schedule_df['date'],'staff':full_schedule_df['staff']})
-    schedule_data.to_csv(f'data/results/schedules/{backend}_{n_physicians}phys_cl{cl}_time{timestamp}.csv')
+    # SAVE RESULTS
+    # Hc full
+    qaoa_bitstring = scheduleToBitstring(full_schedule_df,n_physicians)
+    Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
+    qaoa_Hc_cost = computeHcCost(qaoa_bitstring, Hc_full, costOfBitstring)
 
+    schedule_data = pd.DataFrame({'date':full_schedule_df['date'], 'staff':full_schedule_df['staff'], 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring,'lambdas':str(lambdas)})
+    schedule_data.to_csv(f'data/results/schedules/{backend}_{n_physicians}phys_cl{cl}_time{timestamp}.csv', index=None)
 
+    # PLOT SATISFACTION
     if lambdas['pref'] != 0 and T>1:
         satisfaction_plot = np.array(satisfaction_plot)
         plt.figure()
@@ -251,16 +279,3 @@ if use_qaoa:
         plt.show()
 
 
-# (Evaluate & compare solution to classical methods)
-# Get Hc of classical solution
-if use_classical and use_qaoa: # must run qaoa to get Hc for now
-    gurobi_Hc = np.real(costOfBitstring(gurobi_bitstring, Hc))
-    z3_Hc = np.real(costOfBitstring(z3_bitstring, Hc))
-
-    qaoa_bitstring = classicalToBitstring(ok_full_schedule_df, n_physicians)
-    qaoa_Hc = np.real(costOfBitstring(qaoa_bitstring, Hc))
-    
-    print('Hc:s')
-    print('gurobi:', gurobi_Hc)
-    print('z3:', z3_Hc)
-    print('QAOA:', qaoa_Hc) 
