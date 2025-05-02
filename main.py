@@ -10,13 +10,12 @@ from qaoa.testQandH import *
         # quantum simulator vs quantum ibm
         # quantum sim vs quantum ibm vs "random guess" for many qubits
 
-
 use_qaoa = False
 use_classical = True
 
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-28'
+end_date = '2025-06-17'
 n_physicians = 10
 backend = 'aer'
 cl = 3               # complexity level: 
@@ -28,13 +27,13 @@ cl_contents = ['',
 skip_unavailable_and_prefer_not = False 
 only_fulltime = False
 draw_circuit = False
-preference_seed = 10
+preference_seed = 1
 
 time_period = 'all' # NOTE work extent constraint is very different if t = 'week' 
 plot_width = 20
 
 # LAMBDAS = penalties (how hard a constraint is)
-lambdas = {'demand':2, 'fair':10, 'pref':5, 'unavail':10, 'extent':5, 'rest':0, 'titles':5, 'memory':3}  # NOTE Must be integers
+lambdas = {'demand':3, 'fair':10, 'pref':5, 'unavail':10, 'extent':5, 'rest':0, 'titles':5, 'memory':3}  # NOTE Must be integers
 
 # Construct empty CALENDAR with holidays etc.
 T, total_holidays, n_days = emptyCalendar(end_date, start_date, cl, time_period=time_period)
@@ -46,6 +45,7 @@ full_solution = []
 generatePhysicianData(all_dates_df, n_physicians, cl, seed=preference_seed, only_fulltime=only_fulltime)  
 physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
 
+
 # DEMAND  
 if shiftsPerWeek(cl)==7:    
     # Set from amount of workers and their extent
@@ -55,7 +55,7 @@ if shiftsPerWeek(cl)==7:
     demand_hd = max(target_n_shifts_total_per_week//12, 1)
     demand_wd = max((target_n_shifts_total_per_week - 2*demand_hd)//5, 1)
     demands = {'weekday': demand_wd, 'holiday': demand_hd}  
-    print('demands:', demands)
+#    print('demands:', demands)
 
 # SHIFTS
 generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
@@ -67,50 +67,55 @@ all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=
 #b_full_T = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
 #Hc_full_T = QToHc(Q_full_T, b_full_T)
 
-print()
-print(cl_contents[cl])
-print('Lambdas:', lambdas)
-print('\nPhysicians:\t', n_physicians)
-print('Days:\t\t', n_days)
-print('Seed preference:', preference_seed)    
+#print()
+#print(cl_contents[cl])
+#print('Lambdas:', lambdas)
+#print('\nPhysicians:\t', n_physicians)
+#print('Days:\t\t', n_days)
+#print('Seed preference:', preference_seed)
 
 
 # CLASSICAL
-if use_classical: # TODO Store the results from classical
-    from classical.scheduler import * 
-    from classical.gurobi_model import * 
+if use_classical:  # TODO Store the results from classical
+    from classical.scheduler import *
+    from classical.gurobi_model import *
     from classical.data_handler import *
     from classical.z3_model import *
-    
+
     print('\nOptimizing schedule using Classical methods')
 
-    demands = {'weekday':2, 'holiday':1} # TODO make same demands for classical & Q when extent works
-    generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
-    all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=None)
+    demands = {'weekday': 2, 'holiday': 1}  # TODO make same demands for classical & Q when extent works
+    generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)  # cl is still required here
+    all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv', index_col=None)
 
-    t= 0 # Only 1 optimization
-    convertPreferences(all_shifts_df, t, only_prefer=skip_unavailable_and_prefer_not)   # Dates to shift-numbers
+    t = 0  # Only 1 optimization
+    convertPreferences(all_shifts_df, t, only_prefer=skip_unavailable_and_prefer_not)
 
     shifts_df = all_shifts_df
     plots = True
+
     print("\nSolving with Z3 (Classical)...")
-    z3_schedule, z3_solver_time, z3_overall_time = solve_and_save_results(solver_type="z3", cl=cl, lambdas=lambdas)
+    z3_schedule, z3_solver_time, z3_overall_time = solve_and_save_results(
+        solver_type="z3", lambdas=lambdas
+    )
     if z3_schedule:
         print("Z3 schedule:")
         for p, s in z3_schedule.items():
             print(f"{p}: {s}")
-        z3_schedule_df = schedule_dict_to_df(z3_schedule, shifts_df) 
+        z3_schedule_df = schedule_dict_to_df(z3_schedule, shifts_df)
         z3_checked_df = controlSchedule(z3_schedule_df, shifts_df, cl=cl)
-    
+
     print("\nSolving with Gurobi (Classical)...")
-    gurobi_schedule, gurobi_solver_time, gurobi_overall_time = solve_and_save_results(solver_type="gurobi", cl=cl, lambdas=lambdas)
+    gurobi_schedule, gurobi_solver_time, gurobi_overall_time = solve_and_save_results(
+        solver_type="gurobi", lambdas=lambdas
+    )
     if gurobi_schedule:
         print("Gurobi schedule:")
         for p, s in gurobi_schedule.items():
             print(f"{p}: {s}")
         gurobi_schedule_df = schedule_dict_to_df(gurobi_schedule, shifts_df)
         gurobi_checked_df = controlSchedule(gurobi_schedule_df, shifts_df, cl=cl)
-    
+
     print("\n--- Timing Comparison ---")
     print(f"Z3 solver time:     {z3_solver_time:.4f} s")
     print(f"Z3 overall time:    {z3_overall_time:.4f} s")
@@ -121,9 +126,8 @@ if use_classical: # TODO Store the results from classical
     print(f"Solver time difference:  {z3_solver_time - gurobi_solver_time:.4f} s")
     print(f"Overall time difference: {z3_overall_time - gurobi_overall_time:.4f} s")
 
+    controlPlotDual(z3_checked_df, gurobi_checked_df)
 
-    if plots:
-        controlPlotDual(z3_checked_df, gurobi_checked_df)
 
 
 all_sampler_ids, all_times = [], []
