@@ -339,18 +339,44 @@ class Evaluator:
             plt.show()
 
         return fig
+
+import json
+
+def plotStats(backend, n_physicians, timestamp):
     
+    
+    
+    json_file_path = f'data/results/runs/june_{backend}_full_{n_physicians}phys_time{int(timestamp)}.json'
+    with open(json_file_path, "r") as f:
+        run_data = json.load(f)
+    comp_time = run_data['full time']
+    Hc = run_data['Hc full']
 
-def stingToDictionary(string_dict):
-    pass
+    # CONSTRAINTS
+    constraints = run_data['constraints'] # 'constraints': {'demand': {'correct rate': 1.0, 'too many': 0, 'too few': 0}, 'titles': {'ST error': 0, 'UL error': 0, 'ÖL error': 0}, 'preference': {'satisfaction': [0.0, 0.0, 0.0, 0.0], 'prefer satisfied': [nan, nan, nan, nan], 'prefer not satisfied': [nan, nan, nan, nan]}, 'extent': {'error': [[-53.33333333333334, -6.666666666666677, -6.666666666666677, -6.666666666666677]]}, 'unavail': {'unavail': 0.0}}}
 
-def plotConstraintScores():
-    pass
+    demand = constraints['demand']
+    correct_rate = demand['correct rate']
+    too_many = demand['too many']
+    too_few = demand['too few']
 
+    titles = constraints['titles']
+    #{'ST error': 0, 'UL error': 0, 'ÖL error': 0},
 
-# controlPlot is REPLACED WITH Evaluator CLASS METHOD 
-'''def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10): 
-    physician_df =pd.read_csv('data/intermediate/physician_data.csv', index_col=False) #TODO (change to /input/, compare specific dates?)
+    preference = constraints['preference'] #  'preference': {'satisfaction': [0.0, 0.0, 0.0, 0.0], 'prefer satisfied': [nan, nan, nan, nan], 'prefer not satisfied': [nan, nan, nan, nan]},
+    satisfaction_scores = preference['satisfaction']
+    prefer_rates = preference['prefer satisfied']
+    prefer_not_rates = preference['prefer not satisfied']
+    print('pref not (nan?)', type(prefer_not_rates[0]), prefer_not_rates)
+
+    extents = constraints['extent'] # 'extent': {'error': [[-53.33333333333334, -6.666666666666677, -6.666666666666677, -6.666666666666677]]}
+    unavail = constraints['unavail'] #  'unavail': {'unavail': 0.0}}}
+
+# controlPlot is REPLACED with method in Evaluator class 
+def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
+    pass 
+    '''
+    physician_df =pd.read_csv('data/intermediate/physician_data.csv', index_col=False) 
     n_physicians = len(physician_df)
     n_shifts = len(result_df)
 
@@ -498,8 +524,6 @@ def plotConstraintScores():
     plt.show()
 
     return fig'''
-
-
 
 
 

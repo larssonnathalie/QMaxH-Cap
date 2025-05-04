@@ -18,6 +18,7 @@ import pandas as pd
 import numpy as np
 import sympy as sp
 import time
+import json
 
 all_costs, all_parameters = [], []
 
@@ -360,9 +361,8 @@ class Qaoa:
             #timestamp = time.time()
             n_vars = len(list(self.sampling_distribution.keys())[0])
             
-            with open(f'data/results/increasing_qubits/distributions/{self.backend_name}_{n_physicians}phys_{n_vars}vars_time-{int(timestamp)}.txt', 'x') as f:     
-                f.write(str(self.sampling_distribution)+'\n')
-                f.write('Best params and their cost:'+str(self.params_best)+'\n')  
+            with open(f'data/results/increasing_qubits/distributions/{self.backend_name}_{n_physicians}phys_{n_vars}vars_time-{int(timestamp)}.json', 'w') as f:     
+                json.dump(self.sampling_distribution, f)
                 #f.write('Sampler job ID:'+str(self.sampler_id))
                 f.close()
 

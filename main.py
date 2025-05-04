@@ -163,15 +163,19 @@ if use_classical: # TODO Store the results from classical
 
     # SAVE RESULT DATA
     timestamp = time.time()
-    incr_str = 'incr_' if increasing_qubits else 'june_'
-    gurobi_data = pd.DataFrame({'Hc full':gurobi_Hc_cost, 'bitstring':gurobi_bitstring, 'demands':demands,'lambdas':str(lambdas)}, index=[0])
-    gurobi_data.to_csv(f'data/results/schedules/{incr_str}gurobi_{n_physicians}phys_cl{cl}_time{timestamp}.csv', index=None)
+    incr_str = '/increasing_qubits' if increasing_qubits else ''
+    gurobi_data = {'Hc full':gurobi_Hc_cost, 'bitstring':gurobi_bitstring, 'demands':demands,'lambdas':str(lambdas)}
+    with open(f'data/results{incr_str}/schedules/gurobi_{n_physicians}phys_cl{cl}_time{timestamp}.json', "w") as f:
+            json.dump(gurobi_data, f)
+            f.close()
 
-    z3_data = pd.DataFrame({'Hc full':z3_Hc_cost, 'bitstring':z3_bitstring, 'demands':demands, 'lambdas':str(lambdas)}, index=[0])
-    z3_data.to_csv(f'data/results/schedules/{incr_str}z3_{n_physicians}phys_cl{cl}_time{timestamp}.csv', index=None)
+    z3_data = {'Hc full':z3_Hc_cost, 'bitstring':z3_bitstring, 'demands':demands, 'lambdas':str(lambdas)}
+    with open(f'data/results{incr_str}/schedules/z3_{n_physicians}phys_cl{cl}_time{timestamp}.json', "w") as f:
+            json.dump(z3_data, f)
+            f.close()
 
     #Save prefs and extents etc
-    physician_df.to_csv(f'data/results/physician/classical_time{int(timestamp)}.csv', index=None)
+    physician_df.to_csv(f'data/results{incr_str}/physician/classical_time{int(timestamp)}.csv', index=None)
 
 all_sampler_ids, all_times = [], []
 
@@ -288,7 +292,7 @@ if use_qaoa:
     print(ok_full_schedule_df)
 
     end_time = time.time()
-    incr_str = 'incr_' if increasing_qubits else 'june_'
+    incr_str = '/increasing_qubits' if increasing_qubits else ''
 
     # EVALUATE
     qaoa_evaluator = Evaluator(ok_full_schedule_df, cl, time_period, lambdas)
@@ -299,7 +303,7 @@ if use_qaoa:
 
     # PLOT SCHEDULE
     #fig = controlPlot(ok_full_schedule_df, range(T), cl, time_period, lambdas, width=plot_width) 
-    fig.savefig(f'data/results/plots/{incr_str}{backend}_{n_physicians}phys_time{int(start_time)}.png')
+    fig.savefig(f'data/results{incr_str}/plots/{backend}_{n_physicians}phys_time{int(start_time)}.png')
 
     # Hc full
     qaoa_bitstring = scheduleToBitstring(full_schedule_df,n_physicians)
@@ -308,31 +312,24 @@ if use_qaoa:
     
     # SAVE RUNS
     #run_data_per_t = pd.DataFrame({'sampler id:s':all_sampler_ids, 'time':all_times })
-    #run_data_per_t.to_csv(f'data/results/runs/{incr_str}{backend}_{n_physicians}phys_cl{cl}_time{int(start_time)}.csv', index=None)
+    #run_data_per_t.to_csv(f'data/results{incr_str}/runs/{backend}_{n_physicians}phys_cl{cl}_time{int(start_time)}.csv', index=None)
     if not increasing_qubits:
-        #run_data_full = pd.DataFrame({'full time':end_time-start_time, 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring, 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':str(lambdas), 'constraints':str(constraint_scores)}, index=[0])
-        #run_data_full.to_csv(f'data/results/runs/{incr_str}{backend}_full_{n_physicians}phys_time{int(start_time)}.csv', index=None)
-        #TESTING
-        for key in list(constraint_scores.keys()):
-            print(key, type(constraint_scores[key]), constraint_scores[key] )
         run_data_full_dict = {'full time':end_time-start_time, 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring, 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas, 'constraints':constraint_scores}
-        with open(f'data/results/runs/{incr_str}{backend}_full_{n_physicians}phys_time{int(start_time)}.json', "w") as f:
-            json.dump(run_data_full_dict, f)
-            f.close()
-        with open(f'data/results/runs/{incr_str}{backend}_full_{n_physicians}phys_time{int(start_time)}.json', "r") as f:
-            my_dict = json.load(f)
+    if increasing_qubits:
+        run_data_full_dict = {'best params':qaoa.params_best[0], 'best params cost':qaoa.params_best[1], 'demands':demands,'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas}
 
-        print()
-        print(type(my_dict), my_dict)  
-        print(my_dict['constraints']['unavail'])          
+    with open(f'data/results{incr_str}/runs/{backend}_full_{n_physicians}phys_time{int(start_time)}.json', "w") as f:
+        json.dump(run_data_full_dict, f)
+        f.close()
+
 
     # SAVE EXTENT & PREF
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
-    physician_df.to_csv(f'data/results/physician/{incr_str}{backend}_time{int(start_time)}.csv', index=None)
+    physician_df.to_csv(f'data/results{incr_str}/physician/{backend}_time{int(start_time)}.csv', index=None)
 
     # SAVE RESULTS
     schedule_data = pd.DataFrame({'date':full_schedule_df['date'], 'staff':full_schedule_df['staff']})
-    schedule_data.to_csv(f'data/results/schedules/{incr_str}{backend}_{n_physicians}phys_time{int(start_time)}.csv', index=None)
+    schedule_data.to_csv(f'data/results{incr_str}/schedules/{backend}_{n_physicians}phys_time{int(start_time)}.csv', index=None)
 
     # PLOT SATISFACTION
     '''if lambdas['pref'] != 0 and T>1:
