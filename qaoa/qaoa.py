@@ -133,7 +133,7 @@ class Qaoa:
             if t == 0:
                 print('\nUsing "aer" quantum simulator')
                 print(self.n_vars, 'qubits')
-                
+
 
             
     def findOptimalCircuit(self, estimation_iterations=2000, search_iterations=20):
@@ -281,7 +281,7 @@ class Qaoa:
         pub = (self.optimized_circuit,)
         job = sampler.run([pub])
         self.sampling_distribution = job.result()[0].data.meas.get_counts()
-        self.sampler_id = job.job_id()
+        #self.sampler_id = job.job_id()
 
         #print('\nID',self.sampler_id)
 
@@ -309,7 +309,7 @@ class Qaoa:
         #print('best cost', costOfBitstring(best_bitstring, Hc))
         return best_bitstring
 
-    def costCountsDistribution(self, random_distribution=None, bins=50):
+    def costCountsDistribution(self, timestamp, n_physicians, random_distribution=None, bins=50):
         # Get x-lims from quantum
         all_costs, x_min, x_max = [], np.inf, -np.inf
         for bitstring_i in self.sampling_distribution.keys():
@@ -336,9 +336,9 @@ class Qaoa:
             self.x_min = min(min(all_costs_random), x_min) # ensure same x-lims for plots
             self.x_max = max(max(all_costs_random), x_max)
             
-            timestamp = time.time()
+            #timestamp = time.time()
             n_vars = len(list(random_distribution.keys())[0])
-            with open(f'data/results/increasing_qubits/distributions/random_{n_vars}vars_time-{int(timestamp)}.txt', 'x') as f:     
+            with open(f'data/results/increasing_qubits/distributions/random_{n_physicians}phys_{n_vars}vars_time-{int(timestamp)}.txt', 'x') as f:     
                 f.write(str(random_distribution))  
                 f.close()
         
@@ -357,19 +357,17 @@ class Qaoa:
             self.x_min, self.x_max = x_min, x_max
 
 
-            timestamp = time.time()
+            #timestamp = time.time()
             n_vars = len(list(self.sampling_distribution.keys())[0])
-            with open(f'data/results/increasing_qubits/distributions/{self.backend_name}_{n_vars}vars_time-{int(timestamp)}.txt', 'x') as f:     
+            
+            with open(f'data/results/increasing_qubits/distributions/{self.backend_name}_{n_physicians}phys_{n_vars}vars_time-{int(timestamp)}.txt', 'x') as f:     
                 f.write(str(self.sampling_distribution)+'\n')
                 f.write('Best params and their cost:'+str(self.params_best)+'\n')  
-                f.write('Sampler job ID:'+str(self.sampler_id))
+                #f.write('Sampler job ID:'+str(self.sampler_id))
                 f.close()
 
-        print('\nSamples:',len(plot_costs))
-
-
+        # TODO SAVE FIGURE?
         n, bins, bars = plt.hist(plot_costs, bins=bins, label=label, color=color, range=(self.x_min, self.x_max), alpha=0.8)
-        print('summa', sum(n))
         plt.legend()
         plt.xlabel('Cost (Hc)')
         plt.ylabel('Probability [%]')

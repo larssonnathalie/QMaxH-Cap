@@ -1,2 +1,0 @@
-full time,Hc full,bitstring,demands,layers,search iterations (if aer),pref seed,n candidates,lambdas
-332.302099943161,102.0,01101010111100011100011000111001110001111001000101001110001100101111100111100011000101110101101100001010100100101101100011111101111010110100,,2,20,10,50,"{'demand': 2, 'fair': 10, 'pref': 5, 'unavail': 10, 'extent': 5, 'rest': 0, 'titles': 5, 'memory': 3}"

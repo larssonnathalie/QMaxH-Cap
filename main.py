@@ -1,7 +1,7 @@
 from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
 from qaoa.testQandH import *
-
+import json
 # General TODO:s
     # Decide lambdas
     # Evaluate each constraint from bitstring
@@ -14,12 +14,12 @@ from qaoa.testQandH import *
 use_qaoa = True
 use_classical = False
 
-increasing_qubits = True
+increasing_qubits = False
 
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-14'
-n_physicians = 10
+end_date = '2025-06-03'
+n_physicians = 4
 backend = 'aer'
 cl = 3               # complexity level: 
 cl_contents = ['',
@@ -42,8 +42,8 @@ n_layers = 2
 search_iterations = 20
 estimation_iterations = 1000
 sampling_iterations = 4000
-n_candidates = 60 # compare top X most common solutions
-init_seed = False
+n_candidates = 50 # compare top X most common solutions
+init_seed = True
 estimation_plots = False
 
 if increasing_qubits:
@@ -52,10 +52,10 @@ if increasing_qubits:
     start_date = '2025-06-22'
     end_date = '2025-06-28'
     sampling_iterations = 100000
-    n_physicians = 2             # 3, 4, 5, 6, 7, 10, 14, 17, 21
+    n_physicians = 3            # 3, 4, 5, 6, 7, 10, 14, 17, 21
 
 # LAMBDAS = penalties (how hard a constraint is)
-lambdas = {'demand':2, 'fair':10, 'pref':5, 'unavail':10, 'extent':5, 'rest':0, 'titles':5, 'memory':3}  # NOTE Must be integers
+lambdas = {'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 'titles':8, 'memory':3}  # NOTE Must be integers
 
 # Construct empty CALENDAR with holidays etc.
 T, total_holidays, n_days = emptyCalendar(end_date, start_date, cl, time_period=time_period)
@@ -252,12 +252,12 @@ if use_qaoa:
         best_bitstring_t = qaoa.samplerSearch(sampling_iterations, n_candidates, return_worst_solution=False)
         if increasing_qubits:
             plt.figure()
-            counts, bins = qaoa.costCountsDistribution()
+            counts, bins = qaoa.costCountsDistribution(start_time, n_physicians)
             plt.show()
         print('chosen bs',best_bitstring_t[::-1])
         
         # SAVE RUNS
-        all_sampler_ids.append(qaoa.sampler_id)
+        #all_sampler_ids.append(qaoa.sampler_id)
         all_times.append(qaoa.end_time - qaoa.start_time)
         
         #print('Hc(best)', costOfBitstring(best_bitstring_t, Hc))
@@ -295,11 +295,11 @@ if use_qaoa:
     qaoa_evaluator.makeResultMatrix()
     constraint_scores = qaoa_evaluator.evaluateConstraints(T)
     print(constraint_scores)
-    fig = qaoa_evaluator.controlPlot(width=10)
+    fig = qaoa_evaluator.controlPlot(width=10, show_plot=False)
 
     # PLOT SCHEDULE
     #fig = controlPlot(ok_full_schedule_df, range(T), cl, time_period, lambdas, width=plot_width) 
-    fig.savefig(f'data/results/plots/{incr_str}{backend}_{n_physicians}phys_time{int(end_time)}.png')
+    fig.savefig(f'data/results/plots/{incr_str}{backend}_{n_physicians}phys_time{int(start_time)}.png')
 
     # Hc full
     qaoa_bitstring = scheduleToBitstring(full_schedule_df,n_physicians)
@@ -307,18 +307,32 @@ if use_qaoa:
     qaoa_Hc_cost = computeHcCost(qaoa_bitstring, Hc_full, costOfBitstring)
     
     # SAVE RUNS
-    run_data_per_t = pd.DataFrame({'sampler id:s':all_sampler_ids, 'time':all_times })
-    run_data_per_t.to_csv(f'data/results/runs/{incr_str}{backend}_{n_physicians}phys_cl{cl}_time{int(end_time)}.csv', index=None)
-    run_data_full = pd.DataFrame({'full time':end_time-start_time, 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring, 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':str(lambdas)}, index=[0])
-    run_data_full.to_csv(f'data/results/runs/{incr_str}{backend}_full_{n_physicians}phys_cl{cl}_time{int(end_time)}.csv', index=None)
+    #run_data_per_t = pd.DataFrame({'sampler id:s':all_sampler_ids, 'time':all_times })
+    #run_data_per_t.to_csv(f'data/results/runs/{incr_str}{backend}_{n_physicians}phys_cl{cl}_time{int(start_time)}.csv', index=None)
+    if not increasing_qubits:
+        #run_data_full = pd.DataFrame({'full time':end_time-start_time, 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring, 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':str(lambdas), 'constraints':str(constraint_scores)}, index=[0])
+        #run_data_full.to_csv(f'data/results/runs/{incr_str}{backend}_full_{n_physicians}phys_time{int(start_time)}.csv', index=None)
+        #TESTING
+        for key in list(constraint_scores.keys()):
+            print(key, type(constraint_scores[key]), constraint_scores[key] )
+        run_data_full_dict = {'full time':end_time-start_time, 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring, 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas, 'constraints':constraint_scores}
+        with open(f'data/results/runs/{incr_str}{backend}_full_{n_physicians}phys_time{int(start_time)}.json', "w") as f:
+            json.dump(run_data_full_dict, f)
+            f.close()
+        with open(f'data/results/runs/{incr_str}{backend}_full_{n_physicians}phys_time{int(start_time)}.json', "r") as f:
+            my_dict = json.load(f)
+
+        print()
+        print(type(my_dict), my_dict)  
+        print(my_dict['constraints']['unavail'])          
 
     # SAVE EXTENT & PREF
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
-    physician_df.to_csv(f'data/results/physician/{incr_str}{backend}_time{int(end_time)}.csv', index=None)
+    physician_df.to_csv(f'data/results/physician/{incr_str}{backend}_time{int(start_time)}.csv', index=None)
 
     # SAVE RESULTS
     schedule_data = pd.DataFrame({'date':full_schedule_df['date'], 'staff':full_schedule_df['staff']})
-    schedule_data.to_csv(f'data/results/schedules/{incr_str}{backend}_{n_physicians}phys_cl{cl}_time{int(end_time)}.csv', index=None)
+    schedule_data.to_csv(f'data/results/schedules/{incr_str}{backend}_{n_physicians}phys_time{int(start_time)}.csv', index=None)
 
     # PLOT SATISFACTION
     '''if lambdas['pref'] != 0 and T>1:

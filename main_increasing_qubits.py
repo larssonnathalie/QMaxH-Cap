@@ -5,8 +5,21 @@ from postprocessing.postprocessing import *
 from qaoa.testQandH import *
 from collections import Counter
 import time
+import json
 
 from qiskit_ibm_runtime import QiskitRuntimeService
+
+# Show all rows and columns
+pd.set_option("display.max_rows", None)
+pd.set_option("display.max_columns", None)
+
+# Show full column contents (important for long strings)
+pd.set_option("display.max_colwidth", None)  # or use 0 in older pandas versions
+
+# Prevent dataframe from being summarized
+pd.set_option("display.expand_frame_repr", False)
+
+
 
 # Analyze previous jobs by their id
 '''token = open('../token.txt').readline().strip()
@@ -24,7 +37,7 @@ job_result = job.result()
 circuit = job.inputs['pubs'][0][0]
 print(circuit.count_ops())
 '''
-
+'''
 all_counted_costs = []
 all_n_vars = []
 all_times = []

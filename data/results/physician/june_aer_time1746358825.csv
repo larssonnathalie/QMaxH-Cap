@@ -1,0 +1,5 @@
+name,title,extent,shifts worked,work rate,prefer,prefer not,unavailable,satisfaction,worked last,prefer t0,prefer not t0,unavailable t0,prefer t1,prefer not t1,unavailable t1,prefer t2,prefer not t2,unavailable t2,prefer t3,prefer not t3,unavailable t3,prefer t4,prefer not t4,unavailable t4,prefer t5,prefer not t5,unavailable t5,prefer t6,prefer not t6,unavailable t6,prefer t7,prefer not t7,unavailable t7,prefer t8,prefer not t8,unavailable t8,prefer t9,prefer not t9,unavailable t9
+physician0,ÖL,100,4,0.56,['2025-06-05'],['2025-06-03'],[],2.0,1,[],[],[],[],[],[],[],[0],[],[],[],[],[0],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]
+physician1,ST,50,3,0.84,[],[],[],0.0,0,[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]
+physician2,UL,75,4,0.7466666666666667,"['2025-06-02', '2025-06-04']",[],[],0.476190476190476,1,[],[],[],[0],[],[],[],[],[],[0],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]
+physician3,AT,100,6,0.84,"['2025-06-09', '2025-06-08']",['2025-06-04'],[],1.4329004329004331,0,[],[],[],[],[],[],[],[],[],[],[0],[],[],[],[],[],[],[],[],[],[],[0],[],[],[0],[],[],[],[],[]

@@ -175,9 +175,9 @@ class Evaluator:
             if demand_s == workers_s:
                 demand_met += 1
             elif workers_s > demand_s:
-                too_many += workers_s-demand_s
+                too_many += int(workers_s-demand_s)
             elif workers_s < demand_s:
-                too_few += demand_s-workers_s
+                too_few += int(demand_s-workers_s)
         correct_rate = demand_met/self.n_shifts
         demand_scores['correct rate'],demand_scores['too many'], demand_scores['too few'] = correct_rate, too_many, too_few
         constraint_scores['demand'] = demand_scores
@@ -197,9 +197,9 @@ class Evaluator:
             
             target = demand_s/4  # NOTE assuming goal is: 1/4 ST, 1/4 ÖL, 1/4 UL of demand, each day
 
-            ST_error += round(abs(n_ST-target))
-            UL_error += round(abs(n_UL-target))
-            ÖL_error += round(abs(n_ÖL-target))
+            ST_error += int(round(abs(n_ST-target)))
+            UL_error += int(round(abs(n_UL-target)))
+            ÖL_error += int(round(abs(n_ÖL-target)))
 
         title_scores = {'ST error':ST_error, 'UL error':UL_error, 'ÖL error':ÖL_error}
         constraint_scores['titles'] = title_scores        
@@ -262,14 +262,24 @@ class Evaluator:
                 self.extent_error[p,0] = (self.physician_df['work rate'].iloc[p]-1)*100
                 self.satisfaction_score[p,0] = self.physician_df['satisfaction'].iloc[p]
             
-            preference_scores = {'satisfaction':self.satisfaction_score.transpose(), 'prefer satisfied':self.prefer_satisfy_rate.transpose(), 'prefer not satisfied':self.prefer_not_satisfy_rate.transpose()}
+            #preference_scores = {'satisfaction':self.satisfaction_score.transpose(), 'prefer satisfied':self.prefer_satisfy_rate.transpose(), 'prefer not satisfied':self.prefer_not_satisfy_rate.transpose()}
+            preference_scores = {'satisfaction':self.satisfaction_score.flatten().tolist(), 'prefer satisfied':self.prefer_satisfy_rate.flatten().tolist(), 'prefer not satisfied':self.prefer_not_satisfy_rate.flatten().tolist()}
             constraint_scores['preference'] = preference_scores
-            extent_scores = {'error':self.extent_error.transpose()}
+            extent_scores = {'error':self.extent_error.transpose().tolist()}
+            constraint_scores['extent'] = extent_scores
+            constraint_scores['preference'] = preference_scores
+            extent_scores = {'error':self.extent_error.transpose().tolist()}
             constraint_scores['extent'] = extent_scores
 
+            # UNAVAILABLE constraint
+            unavailable = self.prefer_matrix == -2
+            assigned_unavail = unavailable*self.result_matrix
+            n_ass_unavail = np.sum(np.sum(assigned_unavail))
+
+            constraint_scores['unavail'] = {'unavail':n_ass_unavail}
         return constraint_scores
             
-    def controlPlot(self, width=10):
+    def controlPlot(self, width=10, show_plot=True):
         x_size = width
         y_size= 8 # TESTING
         #y_size = n_physicians/n_shifts * x_size + 1
@@ -325,27 +335,21 @@ class Evaluator:
         ax.spines["top"].set_linewidth(0) 
         plt.subplots_adjust(left=0.05, right=0.95,bottom=0.3) # Adjust padding
 
-        plt.show()
+        if show_plot:
+            plt.show()
 
         return fig
+    
+
+def stingToDictionary(string_dict):
+    pass
+
+def plotConstraintScores():
+    pass
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10): 
+# controlPlot is REPLACED WITH Evaluator CLASS METHOD 
+'''def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10): 
     physician_df =pd.read_csv('data/intermediate/physician_data.csv', index_col=False) #TODO (change to /input/, compare specific dates?)
     n_physicians = len(physician_df)
     n_shifts = len(result_df)
@@ -493,7 +497,11 @@ def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
 
     plt.show()
 
-    return fig
+    return fig'''
+
+
+
+
 
 import pandas as pd
 import numpy as np
