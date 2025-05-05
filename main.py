@@ -18,8 +18,8 @@ increasing_qubits = False
 
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-10'
-n_physicians = 4
+end_date = '2025-06-28'
+n_physicians = 15
 backend = 'aer'
 cl = 3               # complexity level: 
 cl_contents = ['',
@@ -55,7 +55,7 @@ if increasing_qubits:
     n_physicians = 3            # 3, 4, 5, 6, 7, 10, 14, 17, 21
 
 # LAMBDAS = penalties (how hard a constraint is)
-lambdas = {'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 'titles':8, 'memory':3}  # NOTE Must be integers
+lambdas = {'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 'titles':5, 'memory':3}  # NOTE Must be integers
 
 # Construct empty CALENDAR with holidays etc.
 T, total_holidays, n_days = emptyCalendar(end_date, start_date, cl, time_period=time_period)
@@ -344,9 +344,22 @@ if use_qaoa:
     ok_full_schedule_df.to_csv(f'data/results{incr_str}/schedules/{backend}_{n_physicians}phys_time{int(start_time)}.csv', index=None)
 
     # PLOT SATISFACTION
-    '''if lambdas['pref'] != 0 and T>1:
+    if lambdas['pref'] != 0 and T>1:
         satisfaction_plot = np.array(satisfaction_plot)
-        plt.figure()
+       
+        fig, ax = plt.subplots(figsize=(10, 6))  # You can adjust the size as needed
+        ax.set_title('Preference satisfaction per time period')
+        physician_df = pd.read_csv('data/intermediate/physician_data.csv', index_col=None)
+        n_physicians = len(physician_df)
+
+        for p in range(n_physicians):
+            ax.plot(satisfaction_plot[:, p], label=str(p))
+
+        ax.legend()
+        plt.show()
+        fig.savefig(f'data/results{incr_str}/plots/{backend}_{n_physicians}phys_time{int(start_time)}_satisfaction.png', dpi=300, bbox_inches='tight')
+        
+        '''plt.figure()
         plt.title('Preference satisfaction per time period')
         physician_df = pd.read_csv('data/intermediate/physician_data.csv', index_col=None)
         n_physicians = len(physician_df)
@@ -357,3 +370,4 @@ if use_qaoa:
         plt.show()'''
 
 
+#'''
