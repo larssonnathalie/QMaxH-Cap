@@ -18,7 +18,7 @@ increasing_qubits = False
 
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-03'
+end_date = '2025-06-10'
 n_physicians = 4
 backend = 'aer'
 cl = 3               # complexity level: 
@@ -117,7 +117,7 @@ if use_classical: # TODO Store the results from classical
             print(f"{p}: {s}")
         z3_schedule_df = schedule_dict_to_df(z3_schedule, shifts_df) 
         z3_checked_df = controlSchedule(z3_schedule_df, shifts_df, cl=cl)
-    
+
     print("\nSolving with Gurobi (Classical)...")
     gurobi_schedule, gurobi_solver_time, gurobi_overall_time = solve_and_save_results(solver_type="gurobi", cl=cl, lambdas=lambdas)
     if gurobi_schedule:
@@ -162,23 +162,29 @@ if use_classical: # TODO Store the results from classical
     '''
 
     # SAVE RESULT DATA
-    timestamp = time.time()
+    timestamp = int(time.time())
+    print('\nTIMESTAMP:', timestamp)
     incr_str = '/increasing_qubits' if increasing_qubits else ''
+
     gurobi_data = {'Hc full':gurobi_Hc_cost, 'bitstring':gurobi_bitstring, 'demands':demands,'lambdas':str(lambdas)}
-    with open(f'data/results{incr_str}/schedules/gurobi_{n_physicians}phys_cl{cl}_time{timestamp}.json', "w") as f:
+    with open(f'data/results{incr_str}/runs/gurobi_{n_physicians}phys_cl{cl}_time{timestamp}.json', "w") as f:
             json.dump(gurobi_data, f)
             f.close()
+    gurobi_checked_df.to_csv(f'data/results{incr_str}/schedules/gurobi_{n_physicians}phys_cl{cl}_time{timestamp}.csv')
+
 
     z3_data = {'Hc full':z3_Hc_cost, 'bitstring':z3_bitstring, 'demands':demands, 'lambdas':str(lambdas)}
-    with open(f'data/results{incr_str}/schedules/z3_{n_physicians}phys_cl{cl}_time{timestamp}.json', "w") as f:
+    with open(f'data/results{incr_str}/runs/z3_{n_physicians}phys_cl{cl}_time{timestamp}.json', "w") as f:
             json.dump(z3_data, f)
             f.close()
 
-    #Save prefs and extents etc
+    z3_checked_df.to_csv(f'data/results{incr_str}/schedules/z3_{n_physicians}phys_cl{cl}_time{timestamp}.csv')
+
+
+    # Save prefs and extents etc
     physician_df.to_csv(f'data/results{incr_str}/physician/classical_time{int(timestamp)}.csv', index=None)
 
-all_sampler_ids, all_times = [], []
-
+all_sampler_ids, all_times, all_doubles, all_depths = [], [],[],[]
 
 
 # QUANTUM OPTIMIZATION: QAOA
@@ -202,6 +208,8 @@ if use_qaoa:
     print('Layers\t\t', n_layers)
 
     start_time = time.time()
+    print('\nTIMESTAMP:', int(start_time))
+
     if shiftsPerWeek(cl)==7:    
         # DEMAND  # TODO make same demands for classical & Q
         # set from amount of workers and their extent
@@ -263,7 +271,9 @@ if use_qaoa:
         # SAVE RUNS
         #all_sampler_ids.append(qaoa.sampler_id)
         all_times.append(qaoa.end_time - qaoa.start_time)
-        
+        all_doubles.append(int(qaoa.n_doubles))
+        all_depths.append(int(qaoa.transpiled_circuit.depth()))
+
         #print('Hc(best)', costOfBitstring(best_bitstring_t, Hc))
         #print('xT Q x(best)', get_xT_Q_x(best_bitstring_t, Q))
 
@@ -298,7 +308,6 @@ if use_qaoa:
     qaoa_evaluator = Evaluator(ok_full_schedule_df, cl, time_period, lambdas)
     qaoa_evaluator.makeResultMatrix()
     constraint_scores = qaoa_evaluator.evaluateConstraints(T)
-    print(constraint_scores)
     fig = qaoa_evaluator.controlPlot(width=10, show_plot=False)
 
     # PLOT SCHEDULE
@@ -316,9 +325,12 @@ if use_qaoa:
     if not increasing_qubits:
         run_data_full_dict = {'full time':end_time-start_time, 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring, 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas, 'constraints':constraint_scores}
     if increasing_qubits:
-        run_data_full_dict = {'best params':qaoa.params_best[0], 'best params cost':qaoa.params_best[1], 'demands':demands,'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas}
+        run_data_full_dict = {'full time':end_time-start_time, 'best params':qaoa.params_best[0].tolist(), 'best params cost':qaoa.params_best[1].tolist(), 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas}
+    run_data_full_dict['depth'] = float(np.mean(all_depths))
+    run_data_full_dict['double gates'] = float(np.mean(qaoa.n_doubles))
 
-    with open(f'data/results{incr_str}/runs/{backend}_full_{n_physicians}phys_time{int(start_time)}.json', "w") as f:
+
+    with open(f'data/results{incr_str}/runs/{backend}_{n_physicians}phys_time{int(start_time)}.json', "w") as f:
         json.dump(run_data_full_dict, f)
         f.close()
 
@@ -328,8 +340,8 @@ if use_qaoa:
     physician_df.to_csv(f'data/results{incr_str}/physician/{backend}_time{int(start_time)}.csv', index=None)
 
     # SAVE RESULTS
-    schedule_data = pd.DataFrame({'date':full_schedule_df['date'], 'staff':full_schedule_df['staff']})
-    schedule_data.to_csv(f'data/results{incr_str}/schedules/{backend}_{n_physicians}phys_time{int(start_time)}.csv', index=None)
+    #schedule_data = pd.DataFrame({'date':full_schedule_df['date'], 'staff':full_schedule_df['staff']})
+    ok_full_schedule_df.to_csv(f'data/results{incr_str}/schedules/{backend}_{n_physicians}phys_time{int(start_time)}.csv', index=None)
 
     # PLOT SATISFACTION
     '''if lambdas['pref'] != 0 and T>1:

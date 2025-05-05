@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from qaoa.converters import *
+from collections import Counter
+
 #from ..preprocessing.preprocessing import makeObjectiveFunctions, objectivesToQubo
 #from ..qaoa.qaoa import QToHc, costOfBitstring
 
@@ -47,7 +49,7 @@ def controlSchedule(result_schedule_df, shift_data_df, cl):
         else:
            ok_col.append('NOT ok!')
     combined_df['shift covered']=ok_col
-    combined_df.to_csv(f'data/results/result_and_demand_cl{cl}.csv', index=False)
+    #combined_df.to_csv(f'data/results/schedules/result_and_demand_cl{cl}.csv', index=False)
     return combined_df
 
 # Remember previous PREFERENCE SATISFACTION and EXTENT to ensure fairness and correct # hours
@@ -342,35 +344,8 @@ class Evaluator:
 
 import json
 
-def plotStats(backend, n_physicians, timestamp):
-    
-    
-    
-    json_file_path = f'data/results/runs/june_{backend}_full_{n_physicians}phys_time{int(timestamp)}.json'
-    with open(json_file_path, "r") as f:
-        run_data = json.load(f)
-    comp_time = run_data['full time']
-    Hc = run_data['Hc full']
 
-    # CONSTRAINTS
-    constraints = run_data['constraints'] # 'constraints': {'demand': {'correct rate': 1.0, 'too many': 0, 'too few': 0}, 'titles': {'ST error': 0, 'UL error': 0, 'ÖL error': 0}, 'preference': {'satisfaction': [0.0, 0.0, 0.0, 0.0], 'prefer satisfied': [nan, nan, nan, nan], 'prefer not satisfied': [nan, nan, nan, nan]}, 'extent': {'error': [[-53.33333333333334, -6.666666666666677, -6.666666666666677, -6.666666666666677]]}, 'unavail': {'unavail': 0.0}}}
 
-    demand = constraints['demand']
-    correct_rate = demand['correct rate']
-    too_many = demand['too many']
-    too_few = demand['too few']
-
-    titles = constraints['titles']
-    #{'ST error': 0, 'UL error': 0, 'ÖL error': 0},
-
-    preference = constraints['preference'] #  'preference': {'satisfaction': [0.0, 0.0, 0.0, 0.0], 'prefer satisfied': [nan, nan, nan, nan], 'prefer not satisfied': [nan, nan, nan, nan]},
-    satisfaction_scores = preference['satisfaction']
-    prefer_rates = preference['prefer satisfied']
-    prefer_not_rates = preference['prefer not satisfied']
-    print('pref not (nan?)', type(prefer_not_rates[0]), prefer_not_rates)
-
-    extents = constraints['extent'] # 'extent': {'error': [[-53.33333333333334, -6.666666666666677, -6.666666666666677, -6.666666666666677]]}
-    unavail = constraints['unavail'] #  'unavail': {'unavail': 0.0}}}
 
 # controlPlot is REPLACED with method in Evaluator class 
 def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
@@ -526,7 +501,6 @@ def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
     return fig'''
 
 
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -638,3 +612,19 @@ def computeHcCost(bitstring, Hc, costOfBitstring):
     Hc_cost = np.real(costOfBitstring(bitstring, Hc))
     print('Hc cost:', Hc_cost)
     return Hc_cost
+
+
+
+def generateRandomSolutions(n_vars, sampling_iterations):
+    all_solutions = []
+    for s in range(sampling_iterations):
+        solution = ''
+        for var in range(n_vars):
+            if np.random.random()>0.5:
+                solution += '1'
+            else:
+                solution += '0'
+        all_solutions.append(solution)
+    solution_distribution = dict(Counter(all_solutions))
+    
+    return solution_distribution

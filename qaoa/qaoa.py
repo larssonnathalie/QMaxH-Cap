@@ -146,6 +146,8 @@ class Qaoa:
         if self.backend_name == 'aer':
             pass_manager = generate_preset_pass_manager(optimization_level=3, backend=self.backend) # pass manager transpiles circuit
             self.transpiled_circuit = pass_manager.run(self.circuit)
+            self.n_doubles = sum(1 for instr, qargs, _ in self.transpiled_circuit.data if len(qargs) == 2)
+
 
         # Find best betas and gammas using estimator on initial circuit
         best_parameters = self.findParameters(estimation_iterations, search_iterations)
@@ -225,7 +227,8 @@ class Qaoa:
                 circuit_n_doubles.append(two_qubit_gate_count)
 
             best_idx = np.argmin(circuit_n_doubles)
-            print('n doubles', circuit_n_doubles)
+            self.n_doubles = circuit_n_doubles[best_idx]
+            print('n doubles', self.n_doubles)
             self.transpiled_circuit = circuit_candicates[best_idx]
             print('\ntranspiled')
 
