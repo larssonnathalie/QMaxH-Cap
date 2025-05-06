@@ -224,11 +224,12 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
         shifts_df =  pd.read_csv(f'data/intermediate/shift_data_all_t.csv')
     else:
         shifts_df = pd.read_csv(f'data/intermediate/shift many t/shift_data_t{t}.csv')
-
+    print('shifts',shifts_df)
     n_shifts = len(shifts_df)
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
     n_physicians = len(physician_df)
-    
+    print('phys',physician_df)
+
     # DECISION VARIABLES (a list of lists)
     x_symbols = []
     for p in range(n_physicians):
