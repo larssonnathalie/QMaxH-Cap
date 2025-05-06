@@ -3,94 +3,63 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 import time
+from collections import defaultdict
 
-def create_gurobi_model(physicians, shifts, demand, preference, cl=1, lambdas=None):
+def create_gurobi_model(physicians, shifts, demand, preference, lambdas=None):
     overall_start = time.time()
-    model = Model("Linear_Scheduling")
-    model.setParam("OutputFlag", 0)  # Suppress output for cleaner runs
+    model = Model("Feasible_Scheduling")
+    model.setParam("OutputFlag", 0)  # Suppress console output
 
-    # Default lambda values if none provided
-    if lambdas is None:
-        lambdas = {'demand': 5, 'fair': 2, 'pref': 100, 'unavail': 5, 'memory': 3, 'extent': 2}
-
-    # Load physician data to get work rates
+    # Load physician data
     physician_df = pd.read_csv('data/intermediate/physician_data.csv')
 
-    # Precompute how many days have passed for each shift (needed for extent priority)
-    start_date = datetime.strptime(shifts[0].split(' ')[0], "%Y-%m-%d")
-    shift_days_passed = {}
-    for s in shifts:
-        day_str = s.split(' ')[0]
-        shift_date = datetime.strptime(day_str, "%Y-%m-%d")
-        days_passed = (shift_date - start_date).days
-        shift_days_passed[s] = days_passed
-
-    # Create decision variables: x[p,s] ∈ {0,1}
+    # Decision variables: x[p,s] ∈ {0,1}
     x = model.addVars(physicians, shifts, vtype=GRB.BINARY, name="x")
 
-    # Initialize objective function terms
-    preference_expr = LinExpr()
-    fairness_expr = LinExpr()
-    memory_expr = LinExpr()
-    extent_expr = LinExpr()
+    # === Constraint 1: Demand satisfaction ===
+    for s in shifts:
+        model.addConstr(quicksum(x[p, s] for p in physicians) == demand[s], name=f"demand_{s}")
 
-    # === Constraints and penalties depending on complexity level ===
-    if cl >= 1:
-        # Demand satisfaction: each shift must meet required demand
+    # === Constraint 2: Unavailability ===
+    for p in physicians:
         for s in shifts:
-            model.addConstr(quicksum(x[p, s] for p in physicians) == demand[s], name=f"demand_{s}")
+            if preference[p][s] == -2:
+                model.addConstr(x[p, s] == 0, name=f"unavail_{p}_{s}")
 
-        # Fairness penalty: deviation from average number of assigned shifts
-        total_demand = sum(demand.values())
-        avg_assignments = int(np.ceil(total_demand / len(physicians)))
+    # === Constraint 3: Extent & Memory ===
+    total_shifts = len(shifts)
+    extent_map = {row["name"]: row["extent"] for _, row in physician_df.iterrows()}
 
-        u = model.addVars(physicians, vtype=GRB.INTEGER, name="u")  # Auxiliary variables for fairness deviation
-        for p in physicians:
-            assigned = quicksum(x[p, s] for s in shifts)
-            model.addConstr(assigned - avg_assignments <= u[p], name=f"fair_upper_{p}")
-            model.addConstr(avg_assignments - assigned <= u[p], name=f"fair_lower_{p}")
-        fairness_expr = quicksum(u[p] for p in physicians)  # Will later multiply by lambda['fair']
+    # Group physicians by extent value
+    extent_groups = defaultdict(list)
+    for p in physicians:
+        extent_groups[extent_map[p]].append(p)
 
-    if cl >= 2:
-        # Preference penalty: reward preferred shifts and penalize non-preferred shifts
-        for p in physicians:
-            for s in shifts:
-                val = preference[p][s]
-                if val == 1:
-                    preference_expr += -x[p, s]
-                elif val == -1:
-                    preference_expr += x[p, s]
+    for extent, group in extent_groups.items():
+        target = total_shifts * (extent / 100) / len(group)
+        min_shifts = int(np.floor(target * 0.8))
+        max_shifts = int(np.ceil(target * 1.2))
 
-        # Memory penalty: penalize physicians with more cumulative assignments
-        for p in physicians:
-            assigned_vars_p = [x[p, s] for s in shifts]
-            if assigned_vars_p:
-                total_assigned_p = quicksum(assigned_vars_p)
-                memory_expr += total_assigned_p
+        assigned = {}
+        for p in group:
+            assigned[p] = model.addVar(vtype=GRB.INTEGER, name=f"assigned_{p}")
+            model.addConstr(assigned[p] == quicksum(x[p, s] for s in shifts))
+            model.addConstr(assigned[p] >= min_shifts, name=f"min_extent_{p}")
+            model.addConstr(assigned[p] <= max_shifts, name=f"max_extent_{p}")
 
-        # Extent penalty: favor physicians based on their target work rates
-        for idx_p, p in enumerate(physicians):
-            work_rate_p = physician_df['work rate'].iloc[idx_p]
-            for s in shifts:
-                days_passed = shift_days_passed[s]
-                extent_priority = min(days_passed / 7, 1)  # Extent importance grows with time
-                priority_p = abs(extent_priority * (1 - float(work_rate_p)))
+        # Fairness within group (memory): max ±1 shift diff
+        for i in range(len(group)):
+            for j in range(i + 1, len(group)):
+                p1, p2 = group[i], group[j]
+                diff = model.addVar(vtype=GRB.INTEGER, name=f"diff_{p1}_{p2}")
+                model.addConstr(diff >= assigned[p1] - assigned[p2])
+                model.addConstr(diff >= assigned[p2] - assigned[p1])
+                model.addConstr(diff <= 1, name=f"fair_diff_{p1}_{p2}")
 
-                if work_rate_p < 1:
-                    extent_expr += -priority_p * x[p, s]
-                else:
-                    extent_expr += priority_p * x[p, s]
+    # Dummy objective (Gurobi requires one even for feasibility)
+    model.setObjective(0, GRB.MINIMIZE)
 
-    # === Define the full objective function ===
-    model.setObjective(
-        lambdas['pref'] * preference_expr +
-        lambdas['fair'] * fairness_expr +
-        lambdas['memory'] * memory_expr +
-        lambdas['extent'] * extent_expr,
-        GRB.MINIMIZE
-    )
-
-    # === Solve the model ===
+    # === Solve ===
     solve_start = time.time()
     model.optimize()
     solve_end = time.time()

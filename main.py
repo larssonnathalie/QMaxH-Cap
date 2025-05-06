@@ -11,12 +11,12 @@ from qaoa.testQandH import *
         # quantum sim vs quantum ibm vs "random guess" for many qubits
 
 
-use_qaoa = True
-use_classical = False
+use_qaoa = False
+use_classical = True
 
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-05'
+end_date = '2025-06-15'
 n_physicians = 3
 backend = 'aer'
 cl = 3               # complexity level: 
@@ -55,7 +55,7 @@ if shiftsPerWeek(cl)==7:
     demand_hd = max(target_n_shifts_total_per_week//12, 1)
     demand_wd = max((target_n_shifts_total_per_week - 2*demand_hd)//5, 1)
     demands = {'weekday': demand_wd, 'holiday': demand_hd}  
-    print('demands:', demands)
+    #print('demands:', demands)
 
 # SHIFTS
 generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
@@ -67,12 +67,12 @@ all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=
 #b_full_T = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
 #Hc_full_T = QToHc(Q_full_T, b_full_T)
 
-print()
-print(cl_contents[cl])
-print('Lambdas:', lambdas)
-print('\nPhysicians:\t', n_physicians)
-print('Days:\t\t', n_days)
-print('Seed preference:', preference_seed)    
+#print()
+#print(cl_contents[cl])
+#print('Lambdas:', lambdas)
+#print('\nPhysicians:\t', n_physicians)
+#print('Days:\t\t', n_days)
+#print('Seed preference:', preference_seed)
 
 
 # CLASSICAL
@@ -94,7 +94,7 @@ if use_classical: # TODO Store the results from classical
     shifts_df = all_shifts_df
     plots = True
     print("\nSolving with Z3 (Classical)...")
-    z3_schedule, z3_solver_time, z3_overall_time = solve_and_save_results(solver_type="z3", cl=cl, lambdas=lambdas)
+    z3_schedule, z3_solver_time, z3_overall_time = solve_and_save_results(solver_type="z3", lambdas=lambdas)
     if z3_schedule:
         print("Z3 schedule:")
         for p, s in z3_schedule.items():
@@ -103,7 +103,7 @@ if use_classical: # TODO Store the results from classical
         z3_checked_df = controlSchedule(z3_schedule_df, shifts_df, cl=cl)
     
     print("\nSolving with Gurobi (Classical)...")
-    gurobi_schedule, gurobi_solver_time, gurobi_overall_time = solve_and_save_results(solver_type="gurobi", cl=cl, lambdas=lambdas)
+    gurobi_schedule, gurobi_solver_time, gurobi_overall_time = solve_and_save_results(solver_type="gurobi", lambdas=lambdas)
     if gurobi_schedule:
         print("Gurobi schedule:")
         for p, s in gurobi_schedule.items():
@@ -114,16 +114,15 @@ if use_classical: # TODO Store the results from classical
     print("\n--- Timing Comparison ---")
     print(f"Z3 solver time:     {z3_solver_time:.4f} s")
     print(f"Z3 overall time:    {z3_overall_time:.4f} s")
-    #print(f"Gurobi solver time: {gurobi_solver_time:.4f} s")
-    #print(f"Gurobi overall time:{gurobi_overall_time:.4f} s")
+    print(f"Gurobi solver time: {gurobi_solver_time:.4f} s")
+    print(f"Gurobi overall time:{gurobi_overall_time:.4f} s")
 
     print("\n--- Relative Difference ---")
-    #print(f"Solver time difference:  {z3_solver_time - gurobi_solver_time:.4f} s")
-    #print(f"Overall time difference: {z3_overall_time - gurobi_overall_time:.4f} s")
+    print(f"Solver time difference:  {z3_solver_time - gurobi_solver_time:.4f} s")
+    print(f"Overall time difference: {z3_overall_time - gurobi_overall_time:.4f} s")
 
 
-    #if plots:
-        #controlPlotDual(z3_checked_df, gurobi_checked_df)
+    controlPlotDual(z3_checked_df, gurobi_checked_df)
 
 
 all_sampler_ids, all_times = [], []
