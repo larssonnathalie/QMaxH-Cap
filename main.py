@@ -16,10 +16,16 @@ use_classical = False
 
 increasing_qubits = False
 
+# Show all rows and columns
+pd.set_option("display.max_rows", None)
+pd.set_option("display.max_columns", None)
+pd.set_option("display.expand_frame_repr", False)
+
+
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-28'
-n_physicians = 15
+end_date = '2025-06-05'
+n_physicians = 3
 backend = 'aer'
 cl = 3               # complexity level: 
 cl_contents = ['',
@@ -151,20 +157,22 @@ if use_classical: # TODO Store the results from classical
     z3_Hc_cost = computeHcCost(z3_bitstring, Hc_full, costOfBitstring)
     gurobi_Hc_cost = computeHcCost(gurobi_bitstring, Hc_full, costOfBitstring)
 
+    # Generate satisfaction scores etc
+    recordHistory(z3_checked_df, t, cl, time_period)
+
     #  USE EVALUATOR class 
     # (something like this:)
-    
     z3_evaluator = Evaluator(z3_checked_df, cl, time_period, lambdas)
     z3_evaluator.makeResultMatrix()
     z3_constraint_scores = z3_evaluator.evaluateConstraints(T)
-    print(z3_constraint_scores) # Save these in some file
+    print(z3_constraint_scores) 
     fig = z3_evaluator.controlPlot(width=10)
 
     # and same for gurobi...
     gurobi_evaluator = Evaluator(gurobi_checked_df, cl, time_period, lambdas)
     gurobi_evaluator.makeResultMatrix()
     gurobi_constraint_scores = gurobi_evaluator.evaluateConstraints(T)
-    print(gurobi_constraint_scores) # Save these in some file
+    print(gurobi_constraint_scores) 
     fig = gurobi_evaluator.controlPlot(width=10)
 
     # SAVE RESULT DATA
@@ -260,7 +268,7 @@ if use_qaoa:
         b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
         Hc = QToHc(Q, b) 
         #for i in range(len(Hc.coeffs)):
-        # print(Hc.paulis[i], Hc.coeffs[i])
+            #print(Hc.paulis[i], Hc.coeffs[i])
 
         # RUN QAOA
         qaoa = Qaoa(t, Hc, n_layers, plots=estimation_plots, seed=init_seed, backend=backend, instance='premium')
@@ -322,6 +330,7 @@ if use_qaoa:
     qaoa_bitstring = scheduleToBitstring(full_schedule_df,n_physicians)
     Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
     qaoa_Hc_cost = computeHcCost(qaoa_bitstring, Hc_full, costOfBitstring)
+    print('\nHc cost full:', qaoa_Hc_cost)
     
     # SAVE RUNS
     #run_data_per_t = pd.DataFrame({'sampler id:s':all_sampler_ids, 'time':all_times })
