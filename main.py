@@ -17,14 +17,14 @@ pd.set_option('display.max_rows',None)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.expand_frame_repr', False)
 
-use_qaoa = False
-use_classical = True
+use_qaoa = True
+use_classical = False
 
 increasing_qubits = False
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-07'
-n_physicians = 3
+end_date = '2025-06-28'
+n_physicians = 15
 backend = 'aer'
 cl = 3               # complexity level: 
 cl_contents = ['',
@@ -61,6 +61,7 @@ if increasing_qubits:
 
 # LAMBDAS = penalties (how hard a constraint is)
 lambdas = {'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 'titles':5, 'memory':3}  # NOTE Must be integers
+
 
 # Construct empty CALENDAR with holidays etc.
 T, total_holidays, n_days = emptyCalendar(end_date, start_date, cl, time_period=time_period)
@@ -321,6 +322,7 @@ if use_qaoa:
     fig.savefig(f'data/results{incr_str}/plots/{backend}_{n_physicians}phys_time{int(start_time)}.png')
 
     # Hc full
+    convertPreferences(all_shifts_df, 0) 
     qaoa_bitstring = scheduleToBitstring(full_schedule_df,n_physicians)
     Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
     qaoa_Hc_cost = computeHcCost(qaoa_bitstring, Hc_full, costOfBitstring)
