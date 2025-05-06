@@ -2,6 +2,10 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from qaoa.converters import *
+from collections import Counter
+
+#from ..preprocessing.preprocessing import makeObjectiveFunctions, objectivesToQubo
+#from ..qaoa.qaoa import QToHc, costOfBitstring
 
 def bitstringIndexToPS(idx, n_vars, n_shifts):
     idx=int((n_vars-1)-idx) # NOTE assuming strings are reversed 
@@ -45,7 +49,7 @@ def controlSchedule(result_schedule_df, shift_data_df, cl):
         else:
            ok_col.append('NOT ok!')
     combined_df['shift covered']=ok_col
-    combined_df.to_csv(f'data/results/result_and_demand_cl{cl}.csv', index=False)
+    #combined_df.to_csv(f'data/results/schedules/result_and_demand_cl{cl}.csv', index=False)
     return combined_df
 
 # Remember previous PREFERENCE SATISFACTION and EXTENT to ensure fairness and correct # hours
@@ -129,8 +133,225 @@ def recordHistory(result_schedule_df_t, t, cl, time_period):
     physician_df.to_csv('data/intermediate/physician_data.csv', index=None)
 
 
-def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10): 
-    physician_df =pd.read_csv('data/intermediate/physician_data.csv', index_col=False) #TODO (change to /input/, compare specific dates?)
+class Evaluator:
+    def __init__(self, result_df, cl, time_period, lambdas):
+        self.result_df = result_df
+
+        self.n_shifts = len(result_df)
+        self.cl = cl
+        self.time_period = time_period
+        self.lambdas = lambdas
+
+        self.physician_df = pd.read_csv('data/intermediate/physician_data.csv', index_col=False) 
+        try:
+            test_col = self.physician_df['satisfaction']
+        except:
+            print('\nYou must run recordHistory before using Evaluator!')
+        
+        self.n_physicians = len(self.physician_df)
+
+    def makeResultMatrix(self):
+        result_matrix = np.zeros((self.n_physicians,self.n_shifts))
+        for s in range(self.n_shifts):
+            workers_s = self.result_df['staff'].iloc[s]
+            if type(workers_s) == str: # string if using results saved in files
+                workers_s = workers_s.strip("[] ").split(',')
+            for p in workers_s:
+                p = p.strip(" '")
+                result_matrix[int(p)][s] = 1 
+        
+        self.result_matrix = result_matrix
+
+    def evaluateConstraints(self, T): 
+        shifts_per_t = getShiftsPerT(self.time_period, self.cl, self.n_shifts)
+        constraint_scores = {}
+
+        # DEMAND constraint
+        demand_scores = {}
+        self.demand_col = np.zeros((1,self.n_shifts))         # binary: ok or not
+        self.demand_col[0,:] = self.result_df['shift covered']=='ok'
+
+        too_many, too_few, demand_met = 0,0,0                 # How much is wrong
+        for s in range(self.n_shifts):
+            demand_s, workers_s = self.result_df['demand'].iloc[s], len(self.result_df['staff'].iloc[s])
+            if demand_s == workers_s:
+                demand_met += 1
+            elif workers_s > demand_s:
+                too_many += int(workers_s-demand_s)
+            elif workers_s < demand_s:
+                too_few += int(demand_s-workers_s)
+        correct_rate = demand_met/self.n_shifts
+        demand_scores['correct rate'],demand_scores['too many'], demand_scores['too few'] = correct_rate, too_many, too_few
+        constraint_scores['demand'] = demand_scores
+        
+        # TITLES constraint 
+        all_with_title = {'ST':[],'AT':[],'ÖL':[],'Chef':[],'UL':[]}
+        for p in range(self.n_physicians):
+            title_p = self.physician_df['title'].iloc[p]
+            all_with_title[title_p].append(p) 
+
+        ST_error, UL_error, ÖL_error = 0,0,0
+        for s in range(self.n_shifts):
+            demand_s, workers_s = self.result_df['demand'].iloc[s], self.result_df['staff'].iloc[s]
+            n_ST = sum(int(str(p) in workers_s) for p in all_with_title['ST'])
+            n_UL = sum(int(str(p) in workers_s) for p in all_with_title['UL'])
+            n_ÖL = sum(int(str(p) in workers_s) for p in all_with_title['ÖL'])
+            
+            target = demand_s/4  # NOTE assuming goal is: 1/4 ST, 1/4 ÖL, 1/4 UL of demand, each day
+
+            ST_error += int(round(abs(n_ST-target)))
+            UL_error += int(round(abs(n_UL-target)))
+            ÖL_error += int(round(abs(n_ÖL-target)))
+
+        title_scores = {'ST error':ST_error, 'UL error':UL_error, 'ÖL error':ÖL_error}
+        constraint_scores['titles'] = title_scores        
+
+        if self.cl>=2:
+            # PREFERENCE matrix
+            prefer_matrix = np.zeros((self.n_physicians,self.n_shifts))
+            Ts = range(T)
+            
+            for t in Ts:
+                for p in range(self.n_physicians): 
+                    prefer_p = self.physician_df[f'prefer t{t}'].iloc[p] # PREFER = 1
+                    if prefer_p != '[]':
+                        prefer_shifts_p = prefer_p.strip('[').strip(']').split(',') 
+                        for s in prefer_shifts_p:
+                            s_tot = int(s) + t*shifts_per_t
+                            prefer_matrix[p][s_tot] = 1
+
+                    prefer_not_p = self.physician_df[f'prefer not t{t}'].iloc[p] # PREFER NOT = -1
+                    if prefer_not_p != '[]':
+                        prefer_not_shifts_p = prefer_not_p.strip('[').strip(']').split(',')  
+                        for s in prefer_not_shifts_p:
+                            s_tot = int(s)+t*shifts_per_t
+                            prefer_matrix[p][s_tot] = -1
+
+                    unavail_p = self.physician_df[f'unavailable t{t}'].iloc[p] # UNAVAILABLE = -2
+                    if unavail_p != '[]':
+                        unavail_shifts_p = unavail_p.strip('[').strip(']').split(',')  
+                        for s in unavail_shifts_p:
+                            s_tot = int(s)+t*shifts_per_t
+                            prefer_matrix[p][s_tot] = -2
+            self.prefer_matrix = prefer_matrix
+
+            # PREFERENCE satisfaction
+            only_preference = np.where(self.prefer_matrix==-2, 0,self.prefer_matrix) # remove unavailable
+            only_prefer = np.where(only_preference==-1, 0,only_preference) # remove prefer not
+            only_prefer_not = -np.where(only_preference==1, 0,only_preference) # remove prefer
+
+            self.prefer_satisfy_rate = np.zeros((self.n_physicians,1))
+            self.prefer_not_satisfy_rate = np.zeros((self.n_physicians,1))
+
+            for p in range(self.n_physicians):
+                prefer_met = np.sum(only_prefer[p,:] * self.result_matrix[p,:]==1)
+                if np.sum(only_prefer[p]) != 0:
+                    self.prefer_satisfy_rate[p] = prefer_met / np.sum(only_prefer[p]) # % of "prefer" that was satisfied
+                else:
+                    self.prefer_satisfy_rate[p][0] = np.nan 
+
+                prefer_not_but_worked = np.sum(only_prefer_not[p,:]*(self.result_matrix[p,:])==1)
+                prefer_not_was_free = np.sum(only_prefer_not[p]) - prefer_not_but_worked
+                if np.sum(only_prefer_not[p]) !=0:
+                    self.prefer_not_satisfy_rate[p] = prefer_not_was_free/np.sum(only_prefer_not[p]) # % of "prefer not" that was satisfied
+                else:
+                    self.prefer_not_satisfy_rate[p][0] = np.nan
+
+            # EXTENT and SATISFACTION constraints
+            self.extent_error = np.zeros((self.n_physicians,1))
+            self.satisfaction_score = np.zeros((self.n_physicians,1))
+            for p in range(self.n_physicians):
+                self.extent_error[p,0] = (self.physician_df['work rate'].iloc[p]-1)*100
+                self.satisfaction_score[p,0] = self.physician_df['satisfaction'].iloc[p]
+            
+            #preference_scores = {'satisfaction':self.satisfaction_score.transpose(), 'prefer satisfied':self.prefer_satisfy_rate.transpose(), 'prefer not satisfied':self.prefer_not_satisfy_rate.transpose()}
+            preference_scores = {'satisfaction':self.satisfaction_score.flatten().tolist(), 'prefer satisfied':self.prefer_satisfy_rate.flatten().tolist(), 'prefer not satisfied':self.prefer_not_satisfy_rate.flatten().tolist()}
+            constraint_scores['preference'] = preference_scores
+            extent_scores = {'error':self.extent_error.transpose().tolist()}
+            constraint_scores['extent'] = extent_scores
+            constraint_scores['preference'] = preference_scores
+            extent_scores = {'error':self.extent_error.transpose().tolist()}
+            constraint_scores['extent'] = extent_scores
+
+            # UNAVAILABLE constraint
+            unavailable = self.prefer_matrix == -2
+            assigned_unavail = unavailable*self.result_matrix
+            n_ass_unavail = np.sum(np.sum(assigned_unavail))
+
+            constraint_scores['unavail'] = {'unavail':n_ass_unavail}
+        return constraint_scores
+            
+    def controlPlot(self, width=10, show_plot=True):
+        x_size = width
+        y_size= 8 # TESTING
+        #y_size = n_physicians/n_shifts * x_size + 1
+        fig, ax = plt.subplots(figsize=(x_size,y_size))
+        result = ax.pcolor(np.arange(self.n_shifts+1)-0.5, np.arange(self.n_physicians+1)-0.5,self.result_matrix, cmap="Greens", vmax=1,vmin=0)
+
+        if self.cl>=2:  # PREFERENCE squares
+            if self.lambdas['pref'] != 0:
+                prefer_colors = np.where(self.prefer_matrix.flatten()==1,'lightgreen',self.prefer_matrix.flatten()) # prefer
+                prefer_colors = np.where(self.prefer_matrix.flatten()==-1,'pink',prefer_colors) # prefer not
+                prefer_colors = np.where(self.prefer_matrix.flatten()==0,'none',prefer_colors) # neutral
+                prefer_colors = np.where(self.prefer_matrix.flatten()==-2,'red',prefer_colors) # unavailable
+
+                x, y = np.meshgrid(np.arange(self.n_shifts), np.arange(self.n_physicians)) 
+                scale_squares = 1/3 # Should be = 1 for full-size squares
+                pref_squares = ax.scatter(x.ravel(), y.ravel(), s=(50*scale_squares*(x_size/self.n_shifts))**2, c='none',marker='s', linewidths=9*scale_squares, edgecolors=prefer_colors) 
+                pref_met = ax.pcolor([self.n_shifts-0.5,self.n_shifts], np.arange(self.n_physicians+1)-0.5, self.prefer_satisfy_rate, cmap='RdYlGn', shading='auto', vmin=0, vmax=1) 
+                pref_not_met = ax.pcolor([self.n_shifts,self.n_shifts+0.5], np.arange(self.n_physicians+1)-0.5, self.prefer_not_satisfy_rate, cmap='RdYlGn', shading='auto', vmin=0,vmax=1) 
+                sat = ax.pcolor([self.n_shifts+0.5,self.n_shifts+1], np.arange(self.n_physicians+1)-0.5, self.satisfaction_score, cmap='Greens', vmin=-20,vmax=50) 
+            if self.lambdas['extent'] !=0:
+                ext = ax.pcolor([self.n_shifts+1,self.n_shifts+1.5], np.arange(self.n_physicians+1)-0.5, self.extent_error, cmap='coolwarm', shading='auto', vmin=-100, vmax=100) 
+
+            #prefer_satisfy_rate = np.where(np.isnan(prefer_satisfy_rate), 0, prefer_satisfy_rate) # tried rate = NaN if no preferences, instead of 0%, got error
+            #prefer_not_satisfy_rate = np.where(np.isnan(prefer_not_satisfy_rate), 0, prefer_not_satisfy_rate)
+
+            for p in range(self.n_physicians):
+                if self.lambdas['pref'] != 0:
+                    prefer_rate_p, prefer_not_rate_p = self.prefer_satisfy_rate[p][0], self.prefer_not_satisfy_rate[p][0]
+                    if not np.isnan(prefer_rate_p): 
+                        pref_text = ax.text(self.n_shifts-0.25,p, str(int(prefer_rate_p*100)), ha="center", va="center", color="black", fontsize=5,zorder=10)
+                    if not np.isnan(prefer_not_rate_p): 
+                        pref_not_text = ax.text( self.n_shifts+0.25,p, str(int(self.prefer_not_satisfy_rate[p][0]*100)), ha="center", va="center", color="black", fontsize=5, zorder=10)
+                    sat_text = ax.text( self.n_shifts+0.85,p, str(int(self.satisfaction_score[p,0])), ha="center", va="center", color="black", fontsize=5, zorder=10)
+                if self.lambdas['extent'] !=0:
+                    ext_text = ax.text(self.n_shifts+1.25,p,str(int(self.extent_error[p][0])), ha="center", va="center", color="black", fontsize=5, zorder=10)
+
+        # Shift covered row
+        shift = ax.pcolor(np.arange(self.n_shifts+1)-0.5,[self.n_physicians-0.5,self.n_physicians-0.4], self.demand_col, cmap='RdYlGn', vmin=0,vmax=1) 
+        
+        xticks = [i for i in np.arange(self.n_shifts)]
+        xlabels = [date[5:] for date in self.result_df['date']]
+        if self.lambdas['pref'] != 0:
+            xticks += [self.n_shifts-0.25, self.n_shifts+0.25, self.n_shifts+0.75]
+            xlabels += ['pref.\n%', 'pref.\nnot %', 'sat.']
+        if self.cl>=2:
+            xticks += [self.n_shifts+1.25]
+            xlabels += ['ext.']
+
+        ax.set_xticks(ticks=xticks, labels=xlabels,fontsize=8) # NOTE removed year from ticks
+        yticks = [i for i in np.arange(self.n_physicians)]+[self.n_physicians-0.4]
+        ax.set_yticks(ticks=yticks, labels=[f'P{name[-1]} ({title})({ext}%)' for name, title, ext in zip(self.physician_df['name'],self.physician_df['title'],self.physician_df['extent'])]+['OK n.o.\nworkers'])
+        ax.spines["right"].set_linewidth(0) # remove right side of frame
+        ax.spines["top"].set_linewidth(0) 
+        plt.subplots_adjust(left=0.05, right=0.95,bottom=0.3) # Adjust padding
+
+        if show_plot:
+            plt.show()
+
+        return fig
+
+import json
+
+
+
+
+# controlPlot is REPLACED with method in Evaluator class 
+def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
+    pass 
+    '''
+    physician_df =pd.read_csv('data/intermediate/physician_data.csv', index_col=False) 
     n_physicians = len(physician_df)
     n_shifts = len(result_df)
 
@@ -277,7 +498,7 @@ def controlPlot(result_df, Ts, cl, time_period, lambdas, width=10):
 
     plt.show()
 
-    return fig
+    return fig'''
 
 
 import pandas as pd
@@ -392,3 +613,33 @@ def scheduleToBitstring(schedule_df, n_physicians): #NOTE needs testing
     print('Bitstring:', bitstring)
     return bitstring
 
+
+def generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc):
+    # MAKE NEW Hc FOR FULL PROBLEM
+    print('\nGenerating cost hamiltonian for full problem')
+    all_hamiltonians_full_T, x_symbols_full_T = makeObjectiveFunctions(demands, 0, 1, cl, lambdas, time_period='all')
+    Q_full_T = objectivesToQubo(all_hamiltonians_full_T, len(all_shifts_df),x_symbols_full_T, cl, mirror=False )
+    b_full_T = - sum(Q_full_T[i,:] + Q_full_T[:,i] for i in range(Q_full_T.shape[0]))
+    Hc_full_T = QToHc(Q_full_T, b_full_T)
+    return Hc_full_T
+
+def computeHcCost(bitstring, Hc, costOfBitstring):
+    Hc_cost = np.real(costOfBitstring(bitstring, Hc))
+    print('Hc cost:', Hc_cost)
+    return Hc_cost
+
+
+
+def generateRandomSolutions(n_vars, sampling_iterations):
+    all_solutions = []
+    for s in range(sampling_iterations):
+        solution = ''
+        for var in range(n_vars):
+            if np.random.random()>0.5:
+                solution += '1'
+            else:
+                solution += '0'
+        all_solutions.append(solution)
+    solution_distribution = dict(Counter(all_solutions))
+    
+    return solution_distribution

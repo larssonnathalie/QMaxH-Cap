@@ -22,8 +22,8 @@ def emptyCalendar(end_date, start_date, cl, time_period):
     get_T = {'shift':n_days+(n_days*2*int(shiftsPerWeek(cl)==21)), 'day':n_days, 'week':(n_days+6)//7, 'all':1}
     T = get_T[time_period]
     #print('\nNew optimization for each '+time_period)
-    #print(str(T)+' '+time_period+':s')
-    #print('\ntotal holidays:',total_holidays)
+    print(str(T)+' '+time_period+':s')
+    print('\ntotal holidays:',total_holidays)
 
     calendar_df= pd.DataFrame({'date': all_dates, 'is_holiday': holidays_and_weekends, 'weekday':weekdays}) 
     
@@ -50,7 +50,7 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=None, only_full
 
     all_dates = [str(empty_calendar['date'].iloc[s]) for s in range(len(empty_calendar))] # TODO preferences on separate shifts instead of dates
     n_dates = len(all_dates) #list(set(list(all_dates))))
-    #print(n_dates)
+    print(n_dates)
     possible_extents = [50,50,75,75,100,100,100,100,100,100]  # more copies -> more likely
     if only_fulltime:
         possible_extents = [100]
@@ -157,12 +157,7 @@ def generateShiftData(empty_calendar, T, cl, demands, time_period):
 
 # PREFERENCES from dates to shift-numbers
 def convertPreferences(shifts_df, t, only_prefer=False):
-    '''if t == -1:
-        shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv')
-    else:
-        shifts_df = pd.read_csv(f'data/intermediate/shift_many_t/shift_data_t{t}.csv')'''
-#    print('\nShifts df in convert')
-#    print(shifts_df)
+
     n_shifts=len(shifts_df)
     date_to_s={}
     for s in range(n_shifts):
@@ -223,8 +218,8 @@ def convertPreferences(shifts_df, t, only_prefer=False):
     physician_df.to_csv(f'data/intermediate/physician_data.csv', index=None)
 
 def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False):
-    # Both objectives & constraints formulated as Hamiltonians to be combined to QUBO form
-    # Using sympy to simplify the H expressions
+    # Both objectives & constraints formulated as Hamiltonians
+    # Using sympy so we can simplify the H expressions
     if T == 1:
         shifts_df =  pd.read_csv(f'data/intermediate/shift_data_all_t.csv')
     else:
@@ -234,7 +229,7 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
     n_physicians = len(physician_df)
     
-    # define decision variables (a list of lists)
+    # DECISION VARIABLES (a list of lists)
     x_symbols = []
     for p in range(n_physicians):
         x_symbols_p = [sp.symbols(f'x{p}_{s}') for s in range(n_shifts)]
@@ -262,13 +257,13 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
             H_fair_p = (H_fair_s_sum_p - max_shifts_per_p)**2   
             H_fair += H_fair_p
 
-    else: # (cl > 1)
-        if T ==1:
+    elif cl != 1: 
+        if T == 1:
             # Minimize PREFERENCE dissatisfaction
             for p in range(n_physicians): 
                 prefer_p = physician_df[f'prefer t{t}'].iloc[p]
                 if prefer_p != '[]':
-                    prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')  #TODO fix csv list handling
+                    prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')  
                     H_pref_p = sum(x_symbols[p][int(s)] for s in prefer_shifts_p) # Reward prefered shifts (negative penalties)
                     H_pref -= H_pref_p 
 
@@ -284,9 +279,16 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
                     unavail_shifts_p = unavail_shifts_p.strip('[').strip(']').split(',')  
                     H_unavail_p = sum(x_symbols[p][int(s)] for s in unavail_shifts_p)
                     H_unavail += H_unavail_p
-                    max_shifts_per_p = int((n_demand/n_physicians)+0.999 ) # fair distribution of shifts
+                
+                # EXTENT
+                percentage = physician_df['extent'].iloc[p]
+                target_shifts_per_week_p = targetShiftsPerWeek(percentage, cl) #int((n_demand/n_physicians)+0.999 ) # fair distribution of shifts
+                target_shifts_p = target_shifts_per_week_p * (n_shifts/7)
+                n_shifts_p = sum(x_symbols[p][s] for s in range(n_shifts))
+                H_extent += (n_shifts_p-target_shifts_p)**2
 
-        else: 
+
+        elif T != 1: 
             # long term SATISFACTION fairness
             equality_priority = t/T        # Last t:s: prioritize fairness
             optimize_priority = 1-equality_priority # First weeks: optimize overall satisfaction
@@ -300,13 +302,9 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
                 satisfaction = np.ones(n_physicians)*10
             else:
                 satisfaction = np.array([float(sat) for sat in physician_df['satisfaction']])
-
-                #print('Sat:')
                 sat= ''
                 for p in range(n_physicians):
                     sat += str(satisfaction[p])[:4]+'  '
-                #print(sat)
-
                 min_sat = np.min(satisfaction)
                 satisfaction = satisfaction - min_sat + 1   # shift whole column to set least satisfied = 1
             
@@ -390,11 +388,14 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
                     for s in range(1,n_shifts):
                         H_rest += x_symbols[p][s]*x_symbols[p][s-1] # penalize working two following shift
 
-        if cl >=3:
-        
+    if cl >=3:
+        #if getShiftsPerT(time_period, cl) != 1:
+            #print('\nTitles constraint only applies for 1 shift per t. (Titles will not be considered in computation of full Hc)')
+        #else:
+        for s in range(n_shifts):
             # TITLES constraint
-            s = 0                      # NOTE assumin only 1 shift per t!!!!
-            demand = shifts_df['demand'].iloc[s] # - ll -
+            #s = 0    
+            demand = shifts_df['demand'].iloc[s] 
             all_with_title = {'ST':[],'AT':[],'ÖL':[],'Chef':[],'UL':[]}
             for p in range(n_physicians):
                 title_p = physician_df['title'].iloc[p]
@@ -404,14 +405,13 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
             n_UL = sum(x_symbols[p][s] for p in all_with_title['UL'])
             n_ÖL = sum(x_symbols[p][s] for p in all_with_title['ÖL'])
             
-            H_titles += (n_ST-(demand/4))**2 + (n_UL-(demand/4))**2 + (n_ÖL-(demand/4))**2 # Goal: 1/4 ST, 1/4 ÖL, 1/4 UL of demand, each day
+            H_titles_s = (n_ST-(demand/4))**2 + (n_UL-(demand/4))**2 + (n_ÖL-(demand/4))**2 # Goal: 1/4 ST, 1/4 ÖL, 1/4 UL of demand, each day
+            H_titles += H_titles_s/n_shifts 
 
     # DEMAND
     # ∑s=1 (demanded – (∑p=1  x_ps))^2
     for s in range(n_shifts): 
         demand_s = shifts_df['demand'].iloc[s]
-        if time_period in ['day', 'shift']:
-            pass#print('demand',demand_s)
         workers_s = sum(x_symbols[p][s] for p in range(n_physicians))   
         H_meet_demand_s = (workers_s-sp.Integer(demand_s))**2 
         H_meet_demand += H_meet_demand_s
@@ -441,8 +441,6 @@ def objectivesToQubo(all_hamiltonians, n_shifts, x_symbols, cl, mirror=True, pri
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
     n_physicians = len(physician_df)
     
-    #x_list = {(f'{p}_{s}'):x_symbols[p][s] for p in range(n_physicians) for s in range(n_shifts)} #TEST
-
     n_vars = n_physicians*n_shifts
     Q = np.zeros((n_vars,n_vars))
 
@@ -466,13 +464,17 @@ def objectivesToQubo(all_hamiltonians, n_shifts, x_symbols, cl, mirror=True, pri
 
         elif len(variables) == 2: # Quadratic terms
             ps_strings1 = str(variables[0]).split('_')
-            #print('2 vars', type(coeff))
             p1 = ps_strings1[0].strip('x')
-            s1 = ps_strings1[1].strip('**2') 
+            s1 = ps_strings1[1]
+            if len(ps_strings1[1])>3 and ps_strings1[1][-2]=='*':
+                s1 = s1.strip('**2')                 
 
             ps_strings2 = str(variables[1]).split('_')
             p2 = ps_strings2[0].strip('x')
-            s2 = ps_strings2[1].strip('**2') 
+            s2 = ps_strings2[1]
+            if len(ps_strings2[1])>3 and ps_strings2[1][-2]=='*':
+                s2 = s2.strip('**2') 
+            
             if p1 != '' and s1 != '' and p2 != '' and s2!='':
                 p1, s1, p2, s2 = int(p1), int(s1), int(p2), int(s2)
                 idx1,idx2 = xToQIndex((p1,s1),(p2,s2),n_shifts)
@@ -486,13 +488,14 @@ def objectivesToQubo(all_hamiltonians, n_shifts, x_symbols, cl, mirror=True, pri
                     if mirror:
                         Q[idx2, idx1] += coeff  # Symmetric QUBO matrix
                 else:
-                    print('\nTHIS SHOULD NOT OCCUR')
+                    print('\nINDICES', idx1,idx2)
+                    print('variables',variables)
+                    print('THIS SHOULD NOT OCCUR')
 
-                
             
-
     # Save Q to csv
     Q_df = pd.DataFrame(Q, index=None)
     Q_df.to_csv(f'data/intermediate/Qubo_matrix_cl{cl}.csv', index=False, header=False)
 
     return Q
+
