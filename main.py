@@ -76,7 +76,7 @@ if shiftsPerWeek(cl)==7:
     demand_hd = max(target_n_shifts_total_per_week//12, 1)
     demand_wd = max((target_n_shifts_total_per_week - 2*demand_hd)//5, 1)
     demands = {'weekday': demand_wd, 'holiday': demand_hd}  
-    print('demands:', demands)
+    #print('demands:', demands)
 
 # SHIFTS
 generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
@@ -109,17 +109,17 @@ if use_classical: # TODO Store the results from classical
 
     shifts_df = all_shifts_df
     plots = True
-    print("\nSolving with Z3 (Classical)...")
-    z3_schedule, z3_solver_time, z3_overall_time = solve_and_save_results(solver_type="z3", cl=cl, lambdas=lambdas)
+    print("\nSolving with Z3...")
+    z3_schedule, z3_solver_time, z3_overall_time = solve_and_save_results(solver_type="z3", lambdas=lambdas)
     if z3_schedule:
         print("Z3 schedule:")
         for p, s in z3_schedule.items():
             print(f"{p}: {s}")
         z3_schedule_df = schedule_dict_to_df(z3_schedule, shifts_df) 
         z3_checked_df = controlSchedule(z3_schedule_df, shifts_df, cl=cl)
-
-    print("\nSolving with Gurobi (Classical)...")
-    gurobi_schedule, gurobi_solver_time, gurobi_overall_time = solve_and_save_results(solver_type="gurobi", cl=cl, lambdas=lambdas)
+    
+    print("\nSolving with Gurobi...")
+    gurobi_schedule, gurobi_solver_time, gurobi_overall_time = solve_and_save_results(solver_type="gurobi", lambdas=lambdas)
     if gurobi_schedule:
         print("Gurobi schedule:")
         for p, s in gurobi_schedule.items():
@@ -132,13 +132,15 @@ if use_classical: # TODO Store the results from classical
     print(f"Z3 overall time:    {z3_overall_time:.4f} s")
     print(f"Gurobi solver time: {gurobi_solver_time:.4f} s")
     print(f"Gurobi overall time:{gurobi_overall_time:.4f} s")
+    print(f"Gurobi solver time: {gurobi_solver_time:.4f} s")
+    print(f"Gurobi overall time:{gurobi_overall_time:.4f} s")
 
     print("\n--- Relative Difference ---")
     print(f"Solver time difference:  {z3_solver_time - gurobi_solver_time:.4f} s")
     print(f"Overall time difference: {z3_overall_time - gurobi_overall_time:.4f} s")
 
-    if plots:
-        controlPlotDual(z3_checked_df, gurobi_checked_df)
+
+    controlPlotDual(z3_checked_df, gurobi_checked_df)
 
     # Hc COST OF SOLUTIONS
     z3_bitstring = scheduleToBitstring(z3_checked_df, n_physicians)

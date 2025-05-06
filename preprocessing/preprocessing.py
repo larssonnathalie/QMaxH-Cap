@@ -22,8 +22,8 @@ def emptyCalendar(end_date, start_date, cl, time_period):
     get_T = {'shift':n_days+(n_days*2*int(shiftsPerWeek(cl)==21)), 'day':n_days, 'week':(n_days+6)//7, 'all':1}
     T = get_T[time_period]
     #print('\nNew optimization for each '+time_period)
-    print(str(T)+' '+time_period+':s')
-    print('\ntotal holidays:',total_holidays)
+    #print(str(T)+' '+time_period+':s')
+    #print('\ntotal holidays:',total_holidays)
 
     calendar_df= pd.DataFrame({'date': all_dates, 'is_holiday': holidays_and_weekends, 'weekday':weekdays}) 
     
@@ -50,7 +50,7 @@ def generatePhysicianData(empty_calendar, n_physicians, cl, seed=None, only_full
 
     all_dates = [str(empty_calendar['date'].iloc[s]) for s in range(len(empty_calendar))] # TODO preferences on separate shifts instead of dates
     n_dates = len(all_dates) #list(set(list(all_dates))))
-    print(n_dates)
+    #print(n_dates)
     possible_extents = [50,50,75,75,100,100,100,100,100,100]  # more copies -> more likely
     if only_fulltime:
         possible_extents = [100]
