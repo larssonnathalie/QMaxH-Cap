@@ -1,5 +1,8 @@
+import pandas as pd
+
 from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
+from qaoa.qaoa import *
 from qaoa.testQandH import *
 import json
 # General TODO:s
@@ -10,16 +13,18 @@ import json
         # Classical(constr.) vs quantum(qubo)
         # quantum simulator vs quantum ibm
         # quantum sim vs quantum ibm vs "random guess" for many qubits
+pd.set_option('display.max_rows',None)
+pd.set_option('display.max_columns', None)
+pd.set_option('display.expand_frame_repr', False)
 
-use_qaoa = True
-use_classical = False
+use_qaoa = False
+use_classical = True
 
 increasing_qubits = False
-
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-28'
-n_physicians = 15
+end_date = '2025-06-07'
+n_physicians = 3
 backend = 'aer'
 cl = 3               # complexity level: 
 cl_contents = ['',
@@ -91,6 +96,8 @@ if use_classical: # TODO Store the results from classical
     from classical.data_handler import *
     from classical.z3_model import *
 
+    z3_schedule = False
+
     print()
     print(cl_contents[cl])
     print('Lambdas:', lambdas)
@@ -108,9 +115,8 @@ if use_classical: # TODO Store the results from classical
     convertPreferences(all_shifts_df, t, only_prefer=skip_unavailable_and_prefer_not)   # Dates to shift-numbers
 
     shifts_df = all_shifts_df
-    plots = True
-    print("\nSolving with Z3 (Classical)...")
-    z3_schedule, z3_solver_time, z3_overall_time = solve_and_save_results(solver_type="z3", cl=cl, lambdas=lambdas)
+    print("\nSolving with Z3...")
+    #z3_schedule, z3_solver_time, z3_overall_time = solve_and_save_results(solver_type="z3", lambdas=lambdas)
     if z3_schedule:
         print("Z3 schedule:")
         for p, s in z3_schedule.items():
@@ -119,7 +125,7 @@ if use_classical: # TODO Store the results from classical
         z3_checked_df = controlSchedule(z3_schedule_df, shifts_df, cl=cl)
 
     print("\nSolving with Gurobi (Classical)...")
-    gurobi_schedule, gurobi_solver_time, gurobi_overall_time = solve_and_save_results(solver_type="gurobi", cl=cl, lambdas=lambdas)
+    gurobi_schedule, gurobi_solver_time, gurobi_overall_time = solve_and_save_results(solver_type="gurobi", lambdas=lambdas)
     if gurobi_schedule:
         print("Gurobi schedule:")
         for p, s in gurobi_schedule.items():
@@ -128,25 +134,25 @@ if use_classical: # TODO Store the results from classical
         gurobi_checked_df = controlSchedule(gurobi_schedule_df, shifts_df, cl=cl)
     
     print("\n--- Timing Comparison ---")
-    print(f"Z3 solver time:     {z3_solver_time:.4f} s")
-    print(f"Z3 overall time:    {z3_overall_time:.4f} s")
+    #print(f"Z3 solver time:     {z3_solver_time:.4f} s")
+    #print(f"Z3 overall time:    {z3_overall_time:.4f} s")
     print(f"Gurobi solver time: {gurobi_solver_time:.4f} s")
     print(f"Gurobi overall time:{gurobi_overall_time:.4f} s")
 
     print("\n--- Relative Difference ---")
-    print(f"Solver time difference:  {z3_solver_time - gurobi_solver_time:.4f} s")
-    print(f"Overall time difference: {z3_overall_time - gurobi_overall_time:.4f} s")
+    #print(f"Solver time difference:  {z3_solver_time - gurobi_solver_time:.4f} s")
+    #print(f"Overall time difference: {z3_overall_time - gurobi_overall_time:.4f} s")
 
-    if plots:
-        controlPlotDual(z3_checked_df, gurobi_checked_df)
+    #controlPlotDual(z3_checked_df, gurobi_checked_df)
+    #controlPlot(gurobi_checked_df)
 
     # Hc COST OF SOLUTIONS
-    z3_bitstring = scheduleToBitstring(z3_checked_df, n_physicians)
+    #z3_bitstring = scheduleToBitstring(z3_checked_df, n_physicians)
     gurobi_bitstring = scheduleToBitstring(gurobi_checked_df, n_physicians)
 
     Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
 
-    z3_Hc_cost = computeHcCost(z3_bitstring, Hc_full, costOfBitstring)
+    #z3_Hc_cost = computeHcCost(z3_bitstring, Hc_full, costOfBitstring)
     gurobi_Hc_cost = computeHcCost(gurobi_bitstring, Hc_full, costOfBitstring)
 
     # TODO USE EVALUATOR class 
@@ -173,12 +179,12 @@ if use_classical: # TODO Store the results from classical
     gurobi_checked_df.to_csv(f'data/results{incr_str}/schedules/gurobi_{n_physicians}phys_cl{cl}_time{timestamp}.csv')
 
 
-    z3_data = {'Hc full':z3_Hc_cost, 'bitstring':z3_bitstring, 'demands':demands, 'lambdas':str(lambdas)}
-    with open(f'data/results{incr_str}/runs/z3_{n_physicians}phys_cl{cl}_time{timestamp}.json', "w") as f:
-            json.dump(z3_data, f)
-            f.close()
+    #z3_data = {'Hc full':z3_Hc_cost, 'bitstring':z3_bitstring, 'demands':demands, 'lambdas':str(lambdas)}
+    #with open(f'data/results{incr_str}/runs/z3_{n_physicians}phys_cl{cl}_time{timestamp}.json', "w") as f:
+    #        json.dump(z3_data, f)
+    #        f.close()
 
-    z3_checked_df.to_csv(f'data/results{incr_str}/schedules/z3_{n_physicians}phys_cl{cl}_time{timestamp}.csv')
+    #z3_checked_df.to_csv(f'data/results{incr_str}/schedules/z3_{n_physicians}phys_cl{cl}_time{timestamp}.csv')
 
 
     # Save prefs and extents etc
