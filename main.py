@@ -151,9 +151,9 @@ if use_classical: # TODO Store the results from classical
     z3_Hc_cost = computeHcCost(z3_bitstring, Hc_full, costOfBitstring)
     gurobi_Hc_cost = computeHcCost(gurobi_bitstring, Hc_full, costOfBitstring)
 
-    # TODO USE EVALUATOR class 
+    #  USE EVALUATOR class 
     # (something like this:)
-    '''
+    
     z3_evaluator = Evaluator(z3_checked_df, cl, time_period, lambdas)
     z3_evaluator.makeResultMatrix()
     z3_constraint_scores = z3_evaluator.evaluateConstraints(T)
@@ -161,27 +161,29 @@ if use_classical: # TODO Store the results from classical
     fig = z3_evaluator.controlPlot(width=10)
 
     # and same for gurobi...
-    '''
+    gurobi_evaluator = Evaluator(gurobi_checked_df, cl, time_period, lambdas)
+    gurobi_evaluator.makeResultMatrix()
+    gurobi_constraint_scores = gurobi_evaluator.evaluateConstraints(T)
+    print(gurobi_constraint_scores) # Save these in some file
+    fig = gurobi_evaluator.controlPlot(width=10)
 
     # SAVE RESULT DATA
     timestamp = int(time.time())
     print('\nTIMESTAMP:', timestamp)
     incr_str = '/increasing_qubits' if increasing_qubits else ''
 
-    gurobi_data = {'Hc full':gurobi_Hc_cost, 'bitstring':gurobi_bitstring, 'demands':demands,'lambdas':str(lambdas)}
+    gurobi_data = {'Hc full':gurobi_Hc_cost, 'bitstring':gurobi_bitstring, 'demands':demands,'lambdas':str(lambdas), 'constraint_scores':gurobi_constraint_scores}
     with open(f'data/results{incr_str}/runs/gurobi_{n_physicians}phys_cl{cl}_time{timestamp}.json', "w") as f:
             json.dump(gurobi_data, f)
             f.close()
-    gurobi_checked_df.to_csv(f'data/results{incr_str}/schedules/gurobi_{n_physicians}phys_cl{cl}_time{timestamp}.csv')
 
-
-    z3_data = {'Hc full':z3_Hc_cost, 'bitstring':z3_bitstring, 'demands':demands, 'lambdas':str(lambdas)}
+    z3_data = {'Hc full':z3_Hc_cost, 'bitstring':z3_bitstring, 'demands':demands, 'lambdas':str(lambdas),  'constraint_scores':z3_constraint_scores}
     with open(f'data/results{incr_str}/runs/z3_{n_physicians}phys_cl{cl}_time{timestamp}.json', "w") as f:
             json.dump(z3_data, f)
             f.close()
-
+    
+    gurobi_checked_df.to_csv(f'data/results{incr_str}/schedules/gurobi_{n_physicians}phys_cl{cl}_time{timestamp}.csv')
     z3_checked_df.to_csv(f'data/results{incr_str}/schedules/z3_{n_physicians}phys_cl{cl}_time{timestamp}.csv')
-
 
     # Save prefs and extents etc
     physician_df.to_csv(f'data/results{incr_str}/physician/classical_time{int(timestamp)}.csv', index=None)
