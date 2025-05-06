@@ -235,6 +235,7 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
     for p in range(n_physicians):
         x_symbols_p = [sp.symbols(f'x{p}_{s}') for s in range(n_shifts)]
         x_symbols.append(x_symbols_p)
+    print('x', x_symbols)
 
     H_fair = 0
     H_extent = 0
