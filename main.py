@@ -16,7 +16,7 @@ use_classical = True
 
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-15'
+end_date = '2025-06-04'
 n_physicians = 3
 backend = 'aer'
 cl = 3               # complexity level: 
@@ -93,7 +93,7 @@ if use_classical: # TODO Store the results from classical
 
     shifts_df = all_shifts_df
     plots = True
-    print("\nSolving with Z3 (Classical)...")
+    print("\nSolving with Z3...")
     z3_schedule, z3_solver_time, z3_overall_time = solve_and_save_results(solver_type="z3", lambdas=lambdas)
     if z3_schedule:
         print("Z3 schedule:")
@@ -102,7 +102,7 @@ if use_classical: # TODO Store the results from classical
         z3_schedule_df = schedule_dict_to_df(z3_schedule, shifts_df) 
         z3_checked_df = controlSchedule(z3_schedule_df, shifts_df, cl=cl)
     
-    print("\nSolving with Gurobi (Classical)...")
+    print("\nSolving with Gurobi...")
     gurobi_schedule, gurobi_solver_time, gurobi_overall_time = solve_and_save_results(solver_type="gurobi", lambdas=lambdas)
     if gurobi_schedule:
         print("Gurobi schedule:")
