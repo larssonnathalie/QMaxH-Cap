@@ -298,6 +298,7 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
             unavailable = {p:physician_df.loc[p,f'unavailable t{t}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
 
             if t == 0 or time_period=='all':
+            if t == 0 or time_period=='all':
                 satisfaction = np.ones(n_physicians)*10
             else:
                 satisfaction = np.array([float(sat) for sat in physician_df['satisfaction']])

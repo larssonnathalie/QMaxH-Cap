@@ -617,6 +617,7 @@ def scheduleToBitstring(schedule_df, n_physicians): #NOTE needs testing
 def generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc):
     # MAKE NEW Hc FOR FULL PROBLEM
     print('\nGenerating cost hamiltonian for full problem')
+
     all_hamiltonians_full_T, x_symbols_full_T = makeObjectiveFunctions(demands, 0, 1, cl, lambdas, time_period='all')
     Q_full_T = objectivesToQubo(all_hamiltonians_full_T, len(all_shifts_df),x_symbols_full_T, cl, mirror=False )
     b_full_T = - sum(Q_full_T[i,:] + Q_full_T[:,i] for i in range(Q_full_T.shape[0]))
