@@ -1,0 +1,4 @@
+name,title,extent,shifts worked,work rate,prefer,prefer not,unavailable,satisfaction,worked last,prefer t0,prefer not t0,unavailable t0,prefer t1,prefer not t1,unavailable t1,prefer t2,prefer not t2,unavailable t2,prefer t3,prefer not t3,unavailable t3,prefer t4,prefer not t4,unavailable t4,prefer t5,prefer not t5,unavailable t5,prefer t6,prefer not t6,unavailable t6
+physician0,ÖL,100,4,0.7999999999999999,['2025-06-05'],['2025-06-03'],[],0.476190476190476,1,[],[],[],[],[],[],[],[0],[],[],[],[],[0],[],[],[],[],[],[],[],[]
+physician1,ST,100,3,0.6,"['2025-06-04', '2025-06-07']",['2025-06-06'],[],0.3852813852813845,0,[],[],[],[],[],[],[],[],[],[0],[],[],[],[],[],[],[0],[],[0],[],[]
+physician2,UL,100,3,0.6,['2025-06-03'],['2025-06-06'],[],0.1818181818181821,0,[],[],[],[],[],[],[0],[],[],[],[],[],[],[],[],[],[0],[],[],[],[]

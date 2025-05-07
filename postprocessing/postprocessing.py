@@ -72,6 +72,7 @@ def recordHistory(result_schedule_df_t, t, cl, time_period):
         for p in staff_s:
             assigned_shifts[int(p)].append(s)
 
+
     # SATISFACTION scores
     self_weight = 1  # how much p's own preference is weighted against everyone's preferences
     satisfaction_col_t = []
@@ -158,6 +159,8 @@ class Evaluator:
                 workers_s = workers_s.strip("[] ").split(',')
             for p in workers_s:
                 p = p.strip(" '")
+                if p=='':
+                    continue
                 result_matrix[int(p)][s] = 1 
         
         self.result_matrix = result_matrix
@@ -505,19 +508,20 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
 def controlPlotDual(result_df_z3, result_df_gurobi):
     """
     Plots Z3 and Gurobi results side-by-side with preference annotations and coverage info.
-    Handles both 'prefer t0' and 'prefer' field versions automatically.
+    Works with either shift-index-based ('prefer t0') or date-based ('prefer') formats.
     """
     physician_df = pd.read_csv('data/intermediate/physician_data.csv', index_col=False)
     n_physicians = len(physician_df)
     n_shifts = len(result_df_z3)
 
-    # Determine which preference columns exist
-    prefer_column = 'prefer t0' if 'prefer t0' in physician_df.columns else 'prefer'
-    prefer_not_column = 'prefer not t0' if 'prefer not t0' in physician_df.columns else 'prefer not'
-    unavail_column = 'unavailable t0' if 'unavailable t0' in physician_df.columns else 'unavailable'
+    use_index_based = 'prefer t0' in physician_df.columns
 
     fig, axes = plt.subplots(1, 2, figsize=(2 * 5, n_physicians / n_shifts * 6), sharey=True)
     titles = ["Z3 Result", "Gurobi Result"]
@@ -531,30 +535,43 @@ def controlPlotDual(result_df_z3, result_df_gurobi):
                 result_matrix[int(p)][s] = 1
 
         prefer_matrix = np.zeros((n_physicians, n_shifts))
+
         for p in range(n_physicians):
-            prefer_p = physician_df[prefer_column].iloc[p]
-            if prefer_p != '[]':
-                prefer_shifts_p = prefer_p.strip('[]').split(',')
-                for s in prefer_shifts_p:
-                    s = s.strip()
-                    if s.isdigit():
-                        prefer_matrix[p][int(s)] = 1
+            if use_index_based:
+                # Use shift-index based preferences
+                def parse_indices(col):
+                    raw = physician_df[col].iloc[p]
+                    if pd.isna(raw) or raw == '[]':
+                        return set()
+                    return set(int(s.strip()) for s in raw.strip('[]').split(',') if s.strip().isdigit())
 
-            prefer_not_p = physician_df[prefer_not_column].iloc[p]
-            if prefer_not_p != '[]':
-                prefer_not_shifts_p = prefer_not_p.strip('[]').split(',')
-                for s in prefer_not_shifts_p:
-                    s = s.strip()
-                    if s.isdigit():
-                        prefer_matrix[p][int(s)] = -1
+                for s in parse_indices('prefer t0'):
+                    prefer_matrix[p][s] = 1
+                for s in parse_indices('prefer not t0'):
+                    prefer_matrix[p][s] = -1
+                for s in parse_indices('unavailable t0'):
+                    prefer_matrix[p][s] = -2
+            else:
+                # Use date-based preferences
+                shift_dates = result_df['date'].tolist()
 
-            unavail_p = physician_df[unavail_column].iloc[p]
-            if unavail_p != '[]':
-                unavail_shifts_p = unavail_p.strip('[]').split(',')
-                for s in unavail_shifts_p:
-                    s = s.strip()
-                    if s.isdigit():
-                        prefer_matrix[p][int(s)] = -2
+                def parse_date_list(raw):
+                    if pd.isna(raw) or raw == '[]':
+                        return set()
+                    return set(d.strip(" '") for d in raw.strip('[]').split(',') if d.strip())
+
+                prefer_dates = parse_date_list(physician_df['prefer'].iloc[p])
+                prefer_not_dates = parse_date_list(physician_df['prefer not'].iloc[p])
+                unavail_dates = parse_date_list(physician_df['unavailable'].iloc[p])
+
+                for s, date in enumerate(shift_dates):
+                    if date in unavail_dates:
+                        prefer_matrix[p][s] = -2
+                        print(f"UNAVAILABLE FOUND: Physician {p}, Shift {s} ({date})")
+                    elif date in prefer_not_dates:
+                        prefer_matrix[p][s] = -1
+                    elif date in prefer_dates:
+                        prefer_matrix[p][s] = 1
 
         ok_row = np.zeros((1, n_shifts))
         ok_row[0, :] = result_df['shift covered'] == 'ok'
@@ -585,6 +602,7 @@ def controlPlotDual(result_df_z3, result_df_gurobi):
 
 
 
+
 def scheduleToBitstring(schedule_df, n_physicians): #NOTE needs testing
     n_shifts = len(schedule_df)
     bitstring = ''
@@ -602,14 +620,9 @@ def scheduleToBitstring(schedule_df, n_physicians): #NOTE needs testing
 def generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc):
     # MAKE NEW Hc FOR FULL PROBLEM
     print('\nGenerating cost hamiltonian for full problem')
-    print(demands)
-    print(lambdas)
-    
+
     all_hamiltonians_full_T, x_symbols_full_T = makeObjectiveFunctions(demands, 0, 1, cl, lambdas, time_period='all')
-    print(all_hamiltonians_full_T)
     Q_full_T = objectivesToQubo(all_hamiltonians_full_T, len(all_shifts_df),x_symbols_full_T, cl, mirror=False )
-    print('\nQUBO COMPARE:\n', pd.DataFrame(Q_full_T))
-    print('\nSum qubo:', np.sum(Q_full_T))
     b_full_T = - sum(Q_full_T[i,:] + Q_full_T[:,i] for i in range(Q_full_T.shape[0]))
     Hc_full_T = QToHc(Q_full_T, b_full_T)
     return Hc_full_T

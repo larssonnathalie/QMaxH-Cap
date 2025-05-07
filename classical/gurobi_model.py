@@ -11,89 +11,68 @@ def create_gurobi_model(physicians, shifts, demand, preference, lambdas=None):
     process = psutil.Process(os.getpid())
 
     if lambdas is None:
-        lambdas = {'pref': 100, 'fair': 2, 'memory': 3, 'extent': 2}
+        lambdas = {'demand': 3, 'fair': 10, 'pref': 5, 'unavail': 10, 'extent': 8, 'rest': 0, 'titles': 5, 'memory': 3}
 
-    model = Model("Optimized_Scheduling")
-    model.setParam("OutputFlag", 0)
-
+    # Load physician data
     physician_df = pd.read_csv('data/intermediate/physician_data.csv')
-    extent_map = {row["name"]: row["extent"] for _, row in physician_df.iterrows()}
+    work_rate = dict(zip(physician_df['name'], physician_df['work rate']))
 
-    x = model.addVars(physicians, shifts, vtype=GRB.BINARY, name="x")
+    # Precompute days passed per shift
+    start_date = datetime.strptime(shifts[0].split(' ')[0], "%Y-%m-%d")
+    shift_days_passed = {
+        s: (datetime.strptime(s.split(' ')[0], "%Y-%m-%d") - start_date).days
+        for s in shifts
+    }
 
-    total_shifts = len(shifts)
-    shift_dates = {s: s.split(" ")[0] for s in shifts}
-
-    # === Constraint 1: Demand ===
-    for s in shifts:
-        model.addConstr(quicksum(x[p, s] for p in physicians) == demand[s], name=f"demand_{s}")
-
-    # === Constraint 2: Unavailability ===
+    # Create decision variables only for available (not -2) assignments
+    x = {}
     for p in physicians:
         for s in shifts:
-            if preference[p][s] == -2:
-                model.addConstr(x[p, s] == 0, name=f"unavail_{p}_{s}")
+            if preference[p][s] != -2:
+                x[p, s] = model.addVar(vtype=GRB.BINARY, name=f"x_{p}_{s}")
 
-    # === Constraint 3: One shift per day ===
-    shifts_by_date = defaultdict(list)
+    # Demand constraints
     for s in shifts:
-        shifts_by_date[shift_dates[s]].append(s)
+        model.addConstr(
+            quicksum(x[p, s] for p in physicians if (p, s) in x) == demand[s],
+            name=f"demand_{s}"
+        )
 
+    # Fairness constraints and penalties
+    total_demand = sum(demand.values())
+    avg_assignments = int(np.ceil(total_demand / len(physicians)))
+
+    u = model.addVars(physicians, vtype=GRB.INTEGER, name="u")
     for p in physicians:
-        for date, shift_list in shifts_by_date.items():
-            model.addConstr(quicksum(x[p, s] for s in shift_list) <= 1, name=f"one_shift_{p}_{date}")
+        assigned_vars = [x[p, s] for s in shifts if (p, s) in x]
+        total_assigned = quicksum(assigned_vars)
+        model.addConstr(total_assigned - avg_assignments <= u[p])
+        model.addConstr(avg_assignments - total_assigned <= u[p])
+    fairness_expr = quicksum(u[p] for p in physicians)
 
-    # === Penalty terms ===
-    preference_expr = LinExpr()
-    fairness_expr = LinExpr()
-    memory_expr = LinExpr()
-    extent_expr = LinExpr()
+    # Preference penalties
+    preference_expr = quicksum(
+        -x[p, s] if preference[p][s] == 1 else x[p, s]
+        for (p, s) in x if preference[p][s] in [1, -1]
+    )
 
-    # === Preference penalty ===
-    for p in physicians:
-        for s in shifts:
-            val = preference[p][s]
-            if val == 1:
-                preference_expr += -x[p, s]  # reward preferred
-            elif val == -1:
-                preference_expr += x[p, s]   # penalize unpreferred
+    # Memory penalty
+    memory_expr = quicksum(x[p, s] for (p, s) in x)
 
-    # === Extent & Fairness ===
-    extent_groups = defaultdict(list)
-    assigned = {}
-    for p in physicians:
-        extent_groups[extent_map[p]].append(p)
-        assigned[p] = model.addVar(vtype=GRB.INTEGER, name=f"assigned_{p}")
-        model.addConstr(assigned[p] == quicksum(x[p, s] for s in shifts), name=f"assigned_sum_{p}")
+    # Extent penalty (based on work rate over time)
+    extent_expr = 0
+    for (p, s) in x:
+        days_passed = shift_days_passed[s]
+        extent_priority = min(days_passed / 7, 1)
+        rate_diff = 1 - float(work_rate[p])
+        weight = abs(extent_priority * rate_diff)
+        if work_rate[p] < 1:
+            extent_expr += -weight * x[p, s]
+        else:
+            extent_expr += weight * x[p, s]
 
-    for extent, group in extent_groups.items():
-        group_target = total_shifts * (extent / 100) / len(group)
-        target = int(np.round(group_target))
-
-        for p in group:
-            dev = model.addVar(vtype=GRB.INTEGER, name=f"deviation_{p}")
-            model.addConstr(dev >= assigned[p] - target, name=f"extent_high_{p}")
-            model.addConstr(dev >= target - assigned[p], name=f"extent_low_{p}")
-            extent_expr += dev
-
-        for i in range(len(group)):
-            for j in range(i + 1, len(group)):
-                p1, p2 = group[i], group[j]
-                diff = model.addVar(vtype=GRB.INTEGER, name=f"diff_{p1}_{p2}")
-                model.addConstr(diff >= assigned[p1] - assigned[p2])
-                model.addConstr(diff >= assigned[p2] - assigned[p1])
-                fairness_expr += diff
-
-    # === Memory penalty across days ===
-    for p in physicians:
-        for i in range(1, len(shifts)):
-            s_prev, s_curr = shifts[i - 1], shifts[i]
-            d_prev, d_curr = shift_dates[s_prev], shift_dates[s_curr]
-            if d_prev != d_curr:
-                memory_expr += x[p, s_prev] * x[p, s_curr]
-
-    # === Objective ===
-    total_cost = (
+    # Objective
+    model.setObjective(
         lambdas['pref'] * preference_expr +
         lambdas['fair'] * fairness_expr +
         lambdas['memory'] * memory_expr +
@@ -113,16 +92,15 @@ def create_gurobi_model(physicians, shifts, demand, preference, lambdas=None):
     solver_time = solve_end - solve_start
     overall_time = overall_end - overall_start
 
-    print(f"Gurobi solver time: {solver_time:.4f} seconds")
-    print(f"Gurobi overall time: {overall_time:.4f} seconds")
-    print(f"Gurobi memory used: {memory_used:.2f} MB")
-
+    # Extract result
     if model.status == GRB.OPTIMAL:
         schedule = {p: [] for p in physicians}
-        for p in physicians:
-            for s in shifts:
-                if x[p, s].X > 0.5:
-                    schedule[p].append(s)
+        for (p, s), var in x.items():
+            if var.X > 0.5:
+                schedule[p].append(s)
+        print(f"Gurobi solver time: {solver_time:.4f} seconds")
+        print(f"Gurobi overall time: {overall_time:.4f} seconds")
         return schedule, solver_time, overall_time
     else:
+        print("Model status is not optimal.")
         return None, solver_time, overall_time
