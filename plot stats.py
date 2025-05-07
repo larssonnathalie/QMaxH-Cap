@@ -33,13 +33,13 @@ def combineDataIncr(backend, n_physicians, timestamp):
 
 
 
-#Compare june: (show: time, schedules, constraints, Hc:s, )
+#Compare june: (show: time, schedules, constraints, Hc:s        + Quantum: depth, 2-gates)
     # june aer 15phys
     # june ibm 15phys
     # june gurobi 15phys
     # (june z3 15phys)
 
-# Compare incr:  (show: time, Hc)
+# Compare incr:  (show: time, avg Hc,                               + Quantum: depth, 2-gates)
     # aer 3 phys
     # ibm 3 phys
     # random 3 phys 

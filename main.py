@@ -14,13 +14,13 @@ import json
 use_qaoa = True
 use_classical = False
 
-increasing_qubits = False
+increasing_qubits = True
 
 # Parameters
 start_date = '2025-06-01' 
 end_date = '2025-06-28'
 n_physicians = 15
-backend = 'aer'
+backend = 'ibm'
 cl = 3               # complexity level: 
 cl_contents = ['',
 'cl1: demand, fairness',
@@ -52,9 +52,10 @@ if increasing_qubits:
     start_date = '2025-06-22'
     end_date = '2025-06-28'
     sampling_iterations = 100000
-    n_physicians = 3            # 3, 4, 5, 6, 7, 10, 14, 17, 21
+    n_physicians = 17            # 3, 4, 5, 6, 7, 10, 14, 17, 21
 
 # LAMBDAS = penalties (how hard a constraint is)
+# decided:{'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 'titles':5, 'memory':3} 
 lambdas = {'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 'titles':5, 'memory':3}  # NOTE Must be integers
 
 # Construct empty CALENDAR with holidays etc.
@@ -184,7 +185,7 @@ if use_classical: # TODO Store the results from classical
     # Save prefs and extents etc
     physician_df.to_csv(f'data/results{incr_str}/physician/classical_time{int(timestamp)}.csv', index=None)
 
-all_sampler_ids, all_times, all_doubles, all_depths = [], [],[],[]
+all_sampler_ids, all_Hc, all_doubles, all_depths = [], [],[],[]
 
 
 # QUANTUM OPTIMIZATION: QAOA
@@ -264,13 +265,16 @@ if use_qaoa:
         best_bitstring_t = qaoa.samplerSearch(sampling_iterations, n_candidates, return_worst_solution=False)
         if increasing_qubits:
             plt.figure()
-            counts, bins = qaoa.costCountsDistribution(start_time, n_physicians)
-            plt.show()
-        print('chosen bs',best_bitstring_t[::-1])
+            avg_Hc = qaoa.costCountsDistribution(start_time, n_physicians)
+            # RANDOM
+            random_distribution = generateRandomSolutions(n_vars, sampling_iterations)
+            avg_Hc_random = qaoa.costCountsDistribution(start_time, n_physicians, random_distribution=random_distribution)
+        if not increasing_qubits:
+            print('chosen bs',best_bitstring_t[::-1])
         
         # SAVE RUNS
         #all_sampler_ids.append(qaoa.sampler_id)
-        all_times.append(qaoa.end_time - qaoa.start_time)
+        #all_Hc.append(np.real(costOfBitstring(best_bitstring_t, Hc)))
         all_doubles.append(int(qaoa.n_doubles))
         all_depths.append(int(qaoa.transpiled_circuit.depth()))
 
@@ -294,38 +298,37 @@ if use_qaoa:
     all_shifts_df = pd.read_csv('data/intermediate/shift_data_all_t.csv', index_col=None)
     n_shifts = len(all_shifts_df)
 
-    # GET FULL SCHEDULE    
-    full_schedule_df = full_solution[0]
-    for t in range(1,T):
-        full_schedule_df = pd.concat([full_schedule_df, full_solution[t]],axis=0)
-    ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
-    print(ok_full_schedule_df)
+    # GET FULL SCHEDULE 
+    if not increasing_qubits:   
+        full_schedule_df = full_solution[0]
+        for t in range(1,T):
+            full_schedule_df = pd.concat([full_schedule_df, full_solution[t]],axis=0)
+        ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
+        print(ok_full_schedule_df)
 
     end_time = time.time()
     incr_str = '/increasing_qubits' if increasing_qubits else ''
 
     # EVALUATE
-    qaoa_evaluator = Evaluator(ok_full_schedule_df, cl, time_period, lambdas)
-    qaoa_evaluator.makeResultMatrix()
-    constraint_scores = qaoa_evaluator.evaluateConstraints(T)
-    fig = qaoa_evaluator.controlPlot(width=10, show_plot=False)
+    if not increasing_qubits:
+        qaoa_evaluator = Evaluator(ok_full_schedule_df, cl, time_period, lambdas)
+        qaoa_evaluator.makeResultMatrix()
+        constraint_scores = qaoa_evaluator.evaluateConstraints(T)
+        # SCHEDULE PLOT
+        fig = qaoa_evaluator.controlPlot(width=10, show_plot=True)
+        fig.savefig(f'data/results{incr_str}/plots/{backend}_{n_physicians}phys_time{int(start_time)}.png')
 
-    # PLOT SCHEDULE
-    #fig = controlPlot(ok_full_schedule_df, range(T), cl, time_period, lambdas, width=plot_width) 
-    fig.savefig(f'data/results{incr_str}/plots/{backend}_{n_physicians}phys_time{int(start_time)}.png')
 
-    # Hc full
-    qaoa_bitstring = scheduleToBitstring(full_schedule_df,n_physicians)
-    Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
-    qaoa_Hc_cost = computeHcCost(qaoa_bitstring, Hc_full, costOfBitstring)
+        # Hc full
+        qaoa_bitstring = scheduleToBitstring(full_schedule_df,n_physicians)
+        Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
+        qaoa_Hc_cost = computeHcCost(qaoa_bitstring, Hc_full, costOfBitstring)
     
     # SAVE RUNS
-    #run_data_per_t = pd.DataFrame({'sampler id:s':all_sampler_ids, 'time':all_times })
-    #run_data_per_t.to_csv(f'data/results{incr_str}/runs/{backend}_{n_physicians}phys_cl{cl}_time{int(start_time)}.csv', index=None)
     if not increasing_qubits:
         run_data_full_dict = {'full time':end_time-start_time, 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring, 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas, 'constraints':constraint_scores}
     if increasing_qubits:
-        run_data_full_dict = {'full time':end_time-start_time, 'best params':qaoa.params_best[0].tolist(), 'best params cost':qaoa.params_best[1].tolist(), 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas}
+        run_data_full_dict = {'full time':end_time-start_time, 'best params':qaoa.params_best[0].tolist(), 'best params cost':qaoa.params_best[1].tolist(), 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas, 'avg Hc':avg_Hc, 'avg Hc random':avg_Hc_random}
     run_data_full_dict['depth'] = float(np.mean(all_depths))
     run_data_full_dict['double gates'] = float(np.mean(qaoa.n_doubles))
 
@@ -340,8 +343,8 @@ if use_qaoa:
     physician_df.to_csv(f'data/results{incr_str}/physician/{backend}_time{int(start_time)}.csv', index=None)
 
     # SAVE RESULTS
-    #schedule_data = pd.DataFrame({'date':full_schedule_df['date'], 'staff':full_schedule_df['staff']})
-    ok_full_schedule_df.to_csv(f'data/results{incr_str}/schedules/{backend}_{n_physicians}phys_time{int(start_time)}.csv', index=None)
+    if not increasing_qubits:
+        ok_full_schedule_df.to_csv(f'data/results{incr_str}/schedules/{backend}_{n_physicians}phys_time{int(start_time)}.csv', index=None)
 
     # PLOT SATISFACTION
     if lambdas['pref'] != 0 and T>1:
