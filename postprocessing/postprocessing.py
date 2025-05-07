@@ -72,6 +72,7 @@ def recordHistory(result_schedule_df_t, t, cl, time_period):
         for p in staff_s:
             assigned_shifts[int(p)].append(s)
 
+
     # SATISFACTION scores
     self_weight = 1  # how much p's own preference is weighted against everyone's preferences
     satisfaction_col_t = []
@@ -158,6 +159,8 @@ class Evaluator:
                 workers_s = workers_s.strip("[] ").split(',')
             for p in workers_s:
                 p = p.strip(" '")
+                if p=='':
+                    continue
                 result_matrix[int(p)][s] = 1 
         
         self.result_matrix = result_matrix
