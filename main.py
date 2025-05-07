@@ -188,7 +188,7 @@ if use_classical:
 
     # SAVE RESULT DATA
     if z3_schedule:
-        z3_data = {'Hc full':z3_Hc_cost, 'bitstring':z3_bitstring, 'demands':demands, 'lambdas':lambdas, 'constraint scores':z3_constraint_scores, 'pref seed':preference_seed }
+        z3_data = {'Hc full':z3_Hc_cost, 'bitstring':z3_bitstring, 'demands':demands, 'lambdas':lambdas, 'constraint scores':z3_constraint_scores, 'pref seed':preference_seed, 'solver time':z3_solver_time, 'total time':z3_overall_time }
         with open(f'data/results{incr_str}/runs/z3_{n_physicians}phys_time{timestamp}.json', "w") as f:
             json.dump(z3_data, f)
             f.close()
@@ -197,7 +197,7 @@ if use_classical:
         physician_df.to_csv(f'data/results{incr_str}/physician/z3_{n_physicians}phys_time{timestamp}.csv', index=None)
 
     if gurobi_schedule:
-        gurobi_data = {'Hc full':gurobi_Hc_cost, 'bitstring':gurobi_bitstring, 'demands':demands,'lambdas':lambdas, 'constraint scores':gurobi_constraint_scores, 'pref seed':preference_seed,}
+        gurobi_data = {'Hc full':gurobi_Hc_cost, 'bitstring':gurobi_bitstring, 'demands':demands,'lambdas':lambdas, 'constraint scores':gurobi_constraint_scores, 'pref seed':preference_seed,'solver time':gurobi_solver_time, 'total time':gurobi_overall_time}
         with open(f'data/results{incr_str}/runs/gurobi_{n_physicians}phys_time{timestamp}.json', "w") as f:
             json.dump(gurobi_data, f)
             f.close()
