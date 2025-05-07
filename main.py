@@ -20,11 +20,12 @@ pd.set_option('display.expand_frame_repr', False)
 use_qaoa = False
 use_classical = True
 
-increasing_qubits = False
+increasing_qubits = True
+
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-07'
-n_physicians = 3
+end_date = '2025-06-28'
+n_physicians = 15
 backend = 'aer'
 cl = 3               # complexity level: 
 cl_contents = ['',
@@ -146,6 +147,10 @@ if use_classical: # TODO Store the results from classical
     #controlPlotDual(z3_checked_df, gurobi_checked_df)
     #controlPlot(gurobi_checked_df)
 
+    # NOTE this changes physician_data.csv so needs solution if we run both solvers
+    recordHistory(gurobi_checked_df, t, cl, time_period)
+
+
     # Hc COST OF SOLUTIONS
     #z3_bitstring = scheduleToBitstring(z3_checked_df, n_physicians)
     gurobi_bitstring = scheduleToBitstring(gurobi_checked_df, n_physicians)
@@ -157,22 +162,26 @@ if use_classical: # TODO Store the results from classical
 
     # TODO USE EVALUATOR class 
     # (something like this:)
-    '''
-    z3_evaluator = Evaluator(z3_checked_df, cl, time_period, lambdas)
+
+    '''z3_evaluator = Evaluator(z3_checked_df, cl, time_period, lambdas)
     z3_evaluator.makeResultMatrix()
     z3_constraint_scores = z3_evaluator.evaluateConstraints(T)
     print(z3_constraint_scores) # Save these in some file
-    fig = z3_evaluator.controlPlot(width=10)
+    fig = z3_evaluator.controlPlot(width=10)'''
 
     # and same for gurobi...
-    '''
+    gurobi_evaluator = Evaluator(gurobi_checked_df, cl, time_period, lambdas)
+    gurobi_evaluator.makeResultMatrix()
+    gurobi_constraint_scores = gurobi_evaluator.evaluateConstraints(T)
+    print(gurobi_constraint_scores)  # Save these in some file
+    fig = gurobi_evaluator.controlPlot(width=10)
 
     # SAVE RESULT DATA
     timestamp = int(time.time())
     print('\nTIMESTAMP:', timestamp)
     incr_str = '/increasing_qubits' if increasing_qubits else ''
 
-    gurobi_data = {'Hc full':gurobi_Hc_cost, 'bitstring':gurobi_bitstring, 'demands':demands,'lambdas':str(lambdas)}
+    gurobi_data = {'Hc full':gurobi_Hc_cost, 'bitstring':gurobi_bitstring, 'demands':demands,'lambdas':str(lambdas), 'constraint scores':gurobi_constraint_scores}
     with open(f'data/results{incr_str}/runs/gurobi_{n_physicians}phys_cl{cl}_time{timestamp}.json', "w") as f:
             json.dump(gurobi_data, f)
             f.close()

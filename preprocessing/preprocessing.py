@@ -224,18 +224,15 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
         shifts_df =  pd.read_csv(f'data/intermediate/shift_data_all_t.csv')
     else:
         shifts_df = pd.read_csv(f'data/intermediate/shift many t/shift_data_t{t}.csv')
-    print('shifts',shifts_df)
     n_shifts = len(shifts_df)
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
     n_physicians = len(physician_df)
-    print('phys',physician_df)
 
     # DECISION VARIABLES (a list of lists)
     x_symbols = []
     for p in range(n_physicians):
         x_symbols_p = [sp.symbols(f'x{p}_{s}') for s in range(n_shifts)]
         x_symbols.append(x_symbols_p)
-    print('x', x_symbols)
 
     H_fair = 0
     H_extent = 0
@@ -300,7 +297,7 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
             prefer_not = {p:physician_df.loc[p,f'prefer not t{t}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
             unavailable = {p:physician_df.loc[p,f'unavailable t{t}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
 
-            if t == 0:
+            if t == 0 or time_period=='all':
                 satisfaction = np.ones(n_physicians)*10
             else:
                 satisfaction = np.array([float(sat) for sat in physician_df['satisfaction']])
@@ -379,6 +376,7 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
                 n_shifts_target = n_shifts_target * (n_shifts/7)
                 assigned_shifts = sum(x_symbols[p][s] for s in range(n_shifts))
                 H_extent += (assigned_shifts-sp.Integer(n_shifts_target))**2
+            #print('\nextent\n',H_extent)
         if shiftsPerWeek(cl)==21:
             # REST between shifts
             for p in range(n_physicians):
@@ -426,13 +424,13 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
     H_rest = sp.expand(H_rest)
     H_titles = sp.expand(H_titles)
 
-    #print('H unavail:', sp.simplify(H_unavail*lambdas['unavail']))
-    #print('H titles:', sp.simplify(sp.expand(H_titles*lambdas['titles'])))
+    '''print('\nH unavail:', sp.simplify(H_unavail*lambdas['unavail']))
+    print('\nH titles:', sp.simplify(sp.expand(H_titles*lambdas['titles'])))
 
-    if prints:
-        print('H demand:', sp.simplify(H_meet_demand*lambdas['demand']))
-        print('\nH fair:', sp.simplify(H_fair*lambdas['fair']))
-        print('\nH extent:', sp.simplify(H_extent*lambdas['extent']))
+    #if prints:
+    print('\nH demand:', sp.simplify(H_meet_demand*lambdas['demand']))
+    print('\nH fair:', sp.simplify(H_fair*lambdas['fair']))
+    print('\nH extent:', sp.simplify(H_extent*lambdas['extent']))'''
 
     # Combine all to one single H
     # H = λ₁H_fair + λ₂H_pref + λ₃H_meetDemand + ...
