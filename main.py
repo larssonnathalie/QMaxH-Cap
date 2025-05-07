@@ -61,9 +61,10 @@ if increasing_qubits:
     start_date = '2025-06-22'
     end_date = '2025-06-28'
     sampling_iterations = 100000
-    n_physicians = 3            # 3, 4, 5, 6, 7, 10, 14, 17, 21
+    n_physicians = 17            # 3, 4, 5, 6, 7, 10, 14, 17, 21
 
 # LAMBDAS = penalties (how hard a constraint is)
+# decided:{'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 'titles':5, 'memory':3} 
 lambdas = {'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 'titles':5, 'memory':3}  # NOTE Must be integers
 
 # Construct empty CALENDAR with holidays etc.
@@ -279,9 +280,12 @@ if use_qaoa:
         best_bitstring_t = qaoa.samplerSearch(sampling_iterations, n_candidates, return_worst_solution=False)
         if increasing_qubits:
             plt.figure()
-            counts, bins = qaoa.costCountsDistribution(start_time, n_physicians)
-            plt.show()
-        print('chosen bs',best_bitstring_t[::-1])
+            avg_Hc = qaoa.costCountsDistribution(start_time, n_physicians)
+            # RANDOM
+            random_distribution = generateRandomSolutions(n_vars, sampling_iterations)
+            avg_Hc_random = qaoa.costCountsDistribution(start_time, n_physicians, random_distribution=random_distribution)
+        if not increasing_qubits:
+            print('chosen bs',best_bitstring_t[::-1])
         
         # SAVE RUNS
         all_times.append(qaoa.end_time - qaoa.start_time)
@@ -302,12 +306,13 @@ if use_qaoa:
     all_shifts_df = pd.read_csv('data/intermediate/shift_data_all_t.csv', index_col=None)
     n_shifts = len(all_shifts_df)
 
-    # GET FULL SCHEDULE    
-    full_schedule_df = full_solution[0]
-    for t in range(1,T):
-        full_schedule_df = pd.concat([full_schedule_df, full_solution[t]],axis=0)
-    ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
-    print(ok_full_schedule_df)
+    # GET FULL SCHEDULE 
+    if not increasing_qubits:   
+        full_schedule_df = full_solution[0]
+        for t in range(1,T):
+            full_schedule_df = pd.concat([full_schedule_df, full_solution[t]],axis=0)
+        ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
+        print(ok_full_schedule_df)
 
     end_time = time.time()
     incr_str = '/increasing_qubits' if increasing_qubits else ''
@@ -331,7 +336,7 @@ if use_qaoa:
     if not increasing_qubits:
         run_data_full_dict = {'full time':end_time-start_time, 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring, 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas, 'constraints':constraint_scores}
     if increasing_qubits:
-        run_data_full_dict = {'full time':end_time-start_time, 'best params':qaoa.params_best[0].tolist(), 'best params cost':qaoa.params_best[1].tolist(), 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas}
+        run_data_full_dict = {'full time':end_time-start_time, 'best params':qaoa.params_best[0].tolist(), 'best params cost':qaoa.params_best[1].tolist(), 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas, 'avg Hc':avg_Hc, 'avg Hc random':avg_Hc_random}
     run_data_full_dict['depth'] = float(np.mean(all_depths))
     run_data_full_dict['double gates'] = float(np.mean(qaoa.n_doubles))
 

@@ -335,18 +335,17 @@ class Qaoa:
             plot_costs = all_costs_random
             print('RANDOM')
 
+
             label = 'Random solutions'  
             color = 'orange'
             self.x_min = min(min(all_costs_random), x_min) # ensure same x-lims for plots
             self.x_max = max(max(all_costs_random), x_max)
             
-            #timestamp = time.time()
             n_vars = len(list(random_distribution.keys())[0])
-            with open(f'data/results/increasing_qubits/distributions/random_{n_physicians}phys_{n_vars}vars_time-{int(timestamp)}.txt', 'x') as f:     
-                f.write(str(random_distribution))  
+            with open(f'data/results/increasing_qubits/distributions/random_{n_physicians}phys_{n_vars}vars_time-{int(timestamp)}.json', 'w') as f:     
+                json.dump(random_distribution, f)
                 f.close()
-        
-
+           
         else:
             # QUANTUM
             print('QUANTUM')
@@ -360,7 +359,6 @@ class Qaoa:
             color = 'skyblue'
             self.x_min, self.x_max = x_min, x_max
 
-
             #timestamp = time.time()
             n_vars = len(list(self.sampling_distribution.keys())[0])
             
@@ -369,12 +367,14 @@ class Qaoa:
                 #f.write('Sampler job ID:'+str(self.sampler_id))
                 f.close()
 
-        # TODO SAVE FIGURE?
-        n, bins, bars = plt.hist(plot_costs, bins=bins, label=label, color=color, range=(self.x_min, self.x_max), alpha=0.8)
+        plt.hist(plot_costs, bins=bins, label=label, color=color, range=(self.x_min, self.x_max), alpha=0.8)
         plt.legend()
         plt.xlabel('Cost (Hc)')
         plt.ylabel('Probability [%]')
         plt.yticks(ticks=np.linspace(0,self.sampling_iterations,11), labels=['','10', '20', '30', '40', '50', '60', '70', '80', '90', '100'])
         plt.xlim((self.x_min, self.x_max))
         plt.ylim((0,self.sampling_iterations))
-        return n, bins
+        how_str = self.backend_name if random_distribution is None else 'random'
+        plt.savefig(f'data/results/increasing_qubits/plots/{how_str}_{n_physicians}phys_time{int(timestamp)}.png', dpi=300, bbox_inches='tight')
+        plt.show()
+        return float(np.mean(plot_costs))
