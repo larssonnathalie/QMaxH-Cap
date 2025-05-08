@@ -19,10 +19,10 @@ pd.set_option('display.max_rows',None)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.expand_frame_repr', False)
 
-use_qaoa = False
+use_qaoa = True
 backend = 'ibm'
 
-use_classical = True
+use_classical = False
 solver = 'gurobi'
 
 increasing_qubits = False
