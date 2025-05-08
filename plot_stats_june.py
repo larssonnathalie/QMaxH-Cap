@@ -95,14 +95,14 @@ def plotStats(plot_data, methods, title=''):
     plt.show()
 
 n_physicians = 15 # SHOULD BE 15 
-methods = ['aer', 'z3']   #, 'ibm', 'gurobi', 'z3'] #maybe not z3
+methods = ['aer', 'ibm', 'z3']   #, 'ibm', 'gurobi', 'z3'] #maybe not z3
 all_data = {}
 time_period = 'all'
 cl = 3
 lambdas = {'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 'titles':5, 'memory':3} 
 physician_universal_june = pd.read_csv('data/intermediate/physician_universal_june.csv', index_col=None)
 
-timestamps = {'aer':1746722550,'ibm':00000,'gurobi':0000,'z3':1746721526}
+timestamps = {'aer':1746722550,'ibm':1746706255,'gurobi':0000,'z3':1746721526}
 times_plot, Hcs_plot, manys_plot, fews_plot, titles_plot, sat_avgs_plot, sat_vars_plot, extents_plot, unavails_plot, physicians_compare  = [], [],[], [],[], [],[], [],[], []
 for method in methods:
     if method =='z3':
@@ -111,7 +111,7 @@ for method in methods:
 
 for method in methods:
     printDataJune(method)
-    plotDataJune(method, schedule=False) # Plot schedule and append stats to lists
+    plotDataJune(method, schedule=True) # Plot schedule and append stats to lists
 
 
 plotStats(times_plot, methods, title='Full computation time')
@@ -123,9 +123,16 @@ plotStats(sat_avgs_plot, methods, title='Average satisfaction')
 plotStats(sat_vars_plot, methods, title='Variance among satisfactions')
 plotStats(extents_plot, methods, title='Wrong number of shifts per physician')
 plotStats(unavails_plot, methods, title='Shifts assigned to unavailable physicians')
+
+
 if 'aer' in methods and 'ibm' in methods:
+    # Plot 2-gates and circuit depth
     quantum_methods = ['aer', 'ibm']
-    plotStats([])
+    aer_n_doubles, aer_depth = all_data['aer']['run']['double gates'], all_data['aer']['run']['depth']
+    ibm_n_doubles, ibm_depth = all_data['ibm']['run']['double gates'], all_data['ibm']['run']['depth']
+    plotStats([aer_n_doubles, ibm_n_doubles],quantum_methods, title='Number of 2-qubit gates')
+    plotStats([aer_depth, ibm_depth], quantum_methods, title='Depth of transpiled circuits')
+
 
 
 
