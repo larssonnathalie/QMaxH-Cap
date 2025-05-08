@@ -108,7 +108,7 @@ def generateShiftData(empty_calendar, T, cl, demands, time_period):
 
     physician_df= pd.read_csv(f'data/intermediate/physician_data.csv')
     n_physicians = len(physician_df)
-    n_shifts = len(empty_calendar) 
+    n_shifts = len(empty_calendar)
     
     if shiftsPerWeek(cl) == 21: 
         # 3 SHIFTS PER DAY
@@ -390,9 +390,7 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
                         H_rest += x_symbols[p][s]*x_symbols[p][s-1] # penalize working two following shift
 
     if cl >=3:
-        #if getShiftsPerT(time_period, cl) != 1:
-            #print('\nTitles constraint only applies for 1 shift per t. (Titles will not be considered in computation of full Hc)')
-        #else:
+
         for s in range(n_shifts):
             # TITLES constraint
             #s = 0    

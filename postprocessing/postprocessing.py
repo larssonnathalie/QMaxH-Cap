@@ -135,7 +135,7 @@ def recordHistory(result_schedule_df_t, t, cl, time_period):
 
 
 class Evaluator:
-    def __init__(self, result_df, cl, time_period, lambdas):
+    def __init__(self, result_df, cl, time_period, lambdas, physician_path=None):
         self.result_df = result_df
 
         self.n_shifts = len(result_df)
@@ -143,7 +143,10 @@ class Evaluator:
         self.time_period = time_period
         self.lambdas = lambdas
 
-        self.physician_df = pd.read_csv('data/intermediate/physician_data.csv', index_col=False) 
+        if physician_path is None:
+            physician_path =  'data/intermediate/physician_data.csv'
+        self.physician_df = pd.read_csv(physician_path, index_col=False)
+
         try:
             test_col = self.physician_df['satisfaction']
         except:
@@ -338,13 +341,45 @@ class Evaluator:
         ax.set_yticks(ticks=yticks, labels=[f'P{name[-1]} ({title})({ext}%)' for name, title, ext in zip(self.physician_df['name'],self.physician_df['title'],self.physician_df['extent'])]+['OK n.o.\nworkers'])
         ax.spines["right"].set_linewidth(0) # remove right side of frame
         ax.spines["top"].set_linewidth(0) 
-        plt.subplots_adjust(left=0.05, right=0.95,bottom=0.3) # Adjust padding
+        plt.subplots_adjust(left=0.15, right=0.95,bottom=0.3) # Adjust padding
 
         if show_plot:
             plt.show()
 
         return fig
+    
+    def cleanPlot(self, width=10, show_plot=True, title=''):
+        x_size = width
+        # y_size = 8 
+        y_size = self.n_physicians/self.n_shifts * x_size + 1
+        fig, ax = plt.subplots(figsize=(x_size,y_size))
+        result = ax.pcolor(np.arange(self.n_shifts+1)-0.5, np.arange(self.n_physicians+1)-0.5,self.result_matrix, cmap="Greens", vmax=1,vmin=0)
 
+        if self.cl>=2:  # PREFERENCE squares
+            if self.lambdas['pref'] != 0:
+                prefer_colors = np.where(self.prefer_matrix.flatten()==1,'lightgreen',self.prefer_matrix.flatten()) # prefer
+                prefer_colors = np.where(self.prefer_matrix.flatten()==-1,'pink',prefer_colors) # prefer not
+                prefer_colors = np.where(self.prefer_matrix.flatten()==0,'none',prefer_colors) # neutral
+                prefer_colors = np.where(self.prefer_matrix.flatten()==-2,'red',prefer_colors) # unavailable
+
+                x, y = np.meshgrid(np.arange(self.n_shifts), np.arange(self.n_physicians)) 
+                scale_squares = 1#/3 # Should be = 1 for full-size squares
+                pref_squares = ax.scatter(x.ravel(), y.ravel(), s=(50*scale_squares*(x_size/self.n_shifts))**2, c='none',marker='s', linewidths=4*scale_squares, edgecolors=prefer_colors) 
+        
+        xticks = [i for i in np.arange(self.n_shifts)]
+        xlabels = [date[5:] for date in self.result_df['date']] # NOTE removed year from ticks
+        ax.set_xticks(ticks=xticks, labels=xlabels,fontsize=8) 
+        yticks = [i for i in np.arange(self.n_physicians)]
+        ax.set_yticks(ticks=yticks, labels=[f'{name} ({title})({ext}%)' for name, title, ext in zip(self.physician_df['name'],self.physician_df['title'],self.physician_df['extent'])])
+        #ax.spines["right"].set_linewidth(0) # remove right side of frame
+        #ax.spines["top"].set_linewidth(0) 
+        plt.title(title)
+        plt.subplots_adjust(left=0.15, right=0.95, bottom=0.1) # Adjust padding
+
+        if show_plot:
+            plt.show()
+
+        return fig
 import json
 
 

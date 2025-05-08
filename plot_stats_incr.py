@@ -1,5 +1,13 @@
 from postprocessing.postprocessing import *
 import matplotlib.pyplot as plt
+    
+# TODO
+    # Plotta distributions
+    # Plotta avg Hc
+    # Plotta tid
+    #  (Samma physician_df, gör convertPrefs, mata in i cleanPlot)
+    #
+
 
 def combineDataIncr(backend, n_physicians, timestamp):
     print(f'\Sorting data for INCREASING run on {backend}, {n_physicians} physicians at time {timestamp}')

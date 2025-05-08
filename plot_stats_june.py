@@ -1,21 +1,21 @@
 from postprocessing.postprocessing import *
+from preprocessing.preprocessing import convertPreferences
 import matplotlib.pyplot as plt
 
-def combineDataJune(backend, n_physicians, timestamp):
-    print(f'\Sorting data for JUNE run on {backend}, {n_physicians} physicians at time {timestamp}')
-
-    
-    phys_str = f'{n_physicians}phys_'if timestamp >= 1746621883 else ''
-    physician_df = pd.read_csv(f'data/results/physician/{backend}_{phys_str}time{int(timestamp)}.csv')
-    schedule_df = pd.read_csv(f'data/results/schedules/{backend}_{n_physicians}phys_time{int(timestamp)}.csv')
-
-    json_file_path = f'data/results/runs/{backend}_{n_physicians}phys_time{int(timestamp)}.json'
-    with open(json_file_path, "r") as f:
-        run_data = json.load(f)
-    
-    all_data = {'run':run_data, 'physician':physician_df, 'schedule':schedule_df}
-    return all_data
-
+# TODO:
+    # schedules
+        # aer
+        # ibm
+        # gurobi
+        # z3
+    # stats:
+        # times
+        # Hc
+        # constraints..
+    # quantum
+        # depths
+        # 2-gates
+    # samma phys
 
 
 #Compare june: (show: time, schedules, constraints, Hc:s        + Quantum: depth, 2-gates)
@@ -25,27 +25,37 @@ def combineDataJune(backend, n_physicians, timestamp):
     # (june z3 15phys)
 
 
-backend = 'ibm'
-n_physicians = 15 # SHOULD BE 15 
+def combineDataJune(backend, n_physicians, timestamp):
+    print(f'\nSorting data for JUNE run on {backend}, {n_physicians} physicians at time {timestamp}')
+
+    phys_str = f'{n_physicians}phys_'if timestamp >= 1746621883 else ''
+    #physician_df = pd.read_csv(f'data/results/physician/{backend}_{phys_str}time{int(timestamp)}.csv')
+    physician_path = f'data/results/physician/{backend}_{phys_str}time{int(timestamp)}.csv'
+
+    schedule_df = pd.read_csv(f'data/results/schedules/{backend}_{n_physicians}phys_time{int(timestamp)}.csv')
+
+    json_file_path = f'data/results/runs/{backend}_{n_physicians}phys_time{int(timestamp)}.json'
+    with open(json_file_path, "r") as f:
+        run_data = json.load(f)
+    if 'full time' not in run_data:
+        run_data['full time'] = run_data['total time']
+    if 'constraints' not in run_data:
+        run_data['constraints'] = run_data['constraint scores']
+
+    all_data = {'run':run_data, 'physician path':physician_path, 'schedule':schedule_df}
+    return all_data
 
 
-methods = ['aer', 'z3']   #, 'ibm', 'gurobi', 'z3'] #maybe not z3
-all_data = {}
 
-timestamps = {'aer':1746443312,'ibm':00000,'gurobi':0000,'z3':1746621883}
-times_plot, Hcs_plot, manys_plot, fews_plot, titles_plot, sat_avgs_plot, sat_vars_plot, extents_plot, unavails_plot, physicians_compare, schedules_plot  = [], [],[], [],[], [],[], [],[], [],[]
-for method in methods:
-    if method =='z3':
-        n_physicians = 5
-    all_data[method] = combineDataJune(backend, n_physicians, timestamps[method])
+
 
 def printDataJune(method:str):
     print(method,'demands:',all_data[method]['run']['demands']) # print parameters so its same
     print(method,'lambdas:',all_data[method]['run']['lambdas']) 
     print(method,'pref seed:',all_data[method]['run']['pref seed']) 
-    physicians_compare.append(all_data[method]['physician'])
+    physicians_compare.append(all_data[method]['physician path'])
 
-def plotDataJune(method:str):
+def plotDataJune(method:str, schedule=True):
     
     # TODO PLOT RUNS DATA         # 'run': {'full time':end_time-start_time, 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring, 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas, 'constraints':constraint_scores}
     times_plot.append(all_data[method]['run']['full time'])
@@ -56,17 +66,69 @@ def plotDataJune(method:str):
     constraints = all_data[method]['run']['constraints']
     manys_plot.append(constraints['demand']['too many'])
     fews_plot.append(constraints['demand']['too few'])
-    titles_plot.append(np.mean(constraints['titles']['ST error'],constraints['titles']['UL error'], constraints['titles']['ÖL error'] ))
+    titles_plot.append(np.mean([constraints['titles']['ST error'],constraints['titles']['UL error'], constraints['titles']['ÖL error']]))
     sat_avgs_plot.append(np.mean(constraints['preference']['satisfaction']))
     sat_vars_plot.append(np.std(constraints['preference']['satisfaction'])**2)
-    extents_plot.append(np.mean(abs(constraints['extent']['error'])))
+    extents_plot.append(np.mean(np.abs(np.array(constraints['extent']['error']))))
     unavails_plot.append(constraints['unavail']['unavail'])
 
-    # PLOT SCHEDULE
-        
+    if schedule:
+        # PLOT SCHEDULE
+        evaluator_m = Evaluator(all_data[method]['schedule'], cl, time_period, lambdas, physician_path='data\intermediate\physician_universal_june.csv')
+        evaluator_m.makeResultMatrix()
+        evaluator_m.evaluateConstraints(1)
+        fig = evaluator_m.cleanPlot(width=20,title=f'June schedule using {method}')
+        fig.savefig(f'data/results/final_plots/june/schedules/{method}_final_schedule.png')
+
+
+def plotStats(plot_data, methods, title=''):
+    colors = ['skyblue', 'tab:orange', 'green']
+    plt.figure()
+    bars = plt.bar(methods, plot_data, width=0.3, color=colors[:len(methods)], alpha = 0.9) # TODO fixa placering, första har mitten på 0, har width bredd
+    #plt.xlim((-0.1,0.2)) # probably change
+    for bar in bars:
+        height = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2, min(max(height-0.5,0.1*height), 0.9*height), str(round(height,1)),  ha='center', va='bottom')
+    plt.xticks(np.arange(len(methods)))
+    plt.title(title)
+    plt.savefig(f'data/results/final_plots/june/{title}.png')
+    plt.show()
+
+n_physicians = 15 # SHOULD BE 15 
+methods = ['aer', 'z3']   #, 'ibm', 'gurobi', 'z3'] #maybe not z3
+all_data = {}
+time_period = 'all'
+cl = 3
+lambdas = {'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 'titles':5, 'memory':3} 
+physician_universal_june = pd.read_csv('data/intermediate/physician_universal_june.csv', index_col=None)
+
+timestamps = {'aer':1746722550,'ibm':00000,'gurobi':0000,'z3':1746721526}
+times_plot, Hcs_plot, manys_plot, fews_plot, titles_plot, sat_avgs_plot, sat_vars_plot, extents_plot, unavails_plot, physicians_compare  = [], [],[], [],[], [],[], [],[], []
+for method in methods:
+    if method =='z3':
+        n_physicians = 5
+    all_data[method] = combineDataJune(method, n_physicians, timestamps[method])
+
+for method in methods:
+    printDataJune(method)
+    plotDataJune(method, schedule=False) # Plot schedule and append stats to lists
+
+
+plotStats(times_plot, methods, title='Full computation time')
+plotStats(Hcs_plot, methods, title='Hc costs')
+plotStats(manys_plot, methods, title='Too many workers')
+plotStats(fews_plot, methods, title='Too few workers')
+plotStats(titles_plot, methods, title='Wrong number of assigned titles')
+plotStats(sat_avgs_plot, methods, title='Average satisfaction')
+plotStats(sat_vars_plot, methods, title='Variance among satisfactions')
+plotStats(extents_plot, methods, title='Wrong number of shifts per physician')
+plotStats(unavails_plot, methods, title='Shifts assigned to unavailable physicians')
+if 'aer' in methods and 'ibm' in methods:
+    quantum_methods = ['aer', 'ibm']
+    plotStats([])
 
 
 
 
 
-        
+

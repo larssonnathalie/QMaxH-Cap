@@ -22,7 +22,7 @@ pd.set_option('display.expand_frame_repr', False)
 use_qaoa = True
 backend = 'aer'
 
-use_classical = False
+use_classical = not use_qaoa
 solver = 'z3'
 
 increasing_qubits = False
@@ -94,7 +94,6 @@ if shiftsPerWeek(cl)==7:
         demand_wd = max(round(part*2), 1)
         demands = {'weekday': demand_wd, 'holiday': demand_hd}  
         print(target_n_shifts_total-(demand_hd*total_holidays + demand_wd*(n_days-total_holidays)))
-    
     print('demands:', demands)
 
 # SHIFTS
@@ -169,7 +168,7 @@ if use_classical:
         recordHistory(gurobi_checked_df, t, cl, time_period)
 
     # Hc COST OF SOLUTIONS
-    if increasing_qubits or n_days!=28:
+    if increasing_qubits or n_days != 28 or n_physicians != 15:
         Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
     else:
         Hc_full = generateFullHcJune(QToHc)
@@ -343,7 +342,7 @@ if use_qaoa:
     # Hc full
     convertPreferences(all_shifts_df, 0) 
     qaoa_bitstring = scheduleToBitstring(full_schedule_df,n_physicians)
-    if increasing_qubits or n_days != 28:
+    if increasing_qubits or n_days != 28 or n_physicians != 15:
         Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
     else:
         Hc_full = generateFullHcJune(QToHc)
