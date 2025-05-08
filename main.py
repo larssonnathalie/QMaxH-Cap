@@ -23,7 +23,7 @@ use_qaoa = True
 backend = 'aer'
 
 use_classical = False
-solver = 'gurobi'
+solver = 'z3'
 
 increasing_qubits = False
 
@@ -82,10 +82,19 @@ if shiftsPerWeek(cl)==7:
     # Set from amount of workers and their extent
     target_n_shifts_total_per_week = sum(targetShiftsPerWeek(physician_df['extent'].iloc[p], cl) for p in range(n_physicians)) 
     target_n_shifts_total = target_n_shifts_total_per_week * (len(all_dates_df) / shiftsPerWeek(cl))
-
+    
     demand_hd = max(target_n_shifts_total_per_week//12, 1)
     demand_wd = max((target_n_shifts_total_per_week - 2*demand_hd)//5, 1)
-    demands = {'weekday': demand_wd, 'holiday': demand_hd}  
+
+    # ADAPT DEMAND TO n_HOLIDAYS
+    if not increasing_qubits: # Keep old version for increasing bc. already got results
+        n_parts = 2*n_days - total_holidays  # Half the demand on holidays
+        part = target_n_shifts_total / n_parts
+        demand_hd = max(round(part), 1)
+        demand_wd = max(round(part*2), 1)
+        demands = {'weekday': demand_wd, 'holiday': demand_hd}  
+        print(target_n_shifts_total-(demand_hd*total_holidays + demand_wd*(n_days-total_holidays)))
+    
     print('demands:', demands)
 
 # SHIFTS
@@ -95,7 +104,7 @@ all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=
 # CLASSICAL
 if use_classical: 
     from classical.scheduler import * 
-    from classical.gurobi_model import * 
+    #from classical.gurobi_model import * 
     from classical.data_handler import *
     from classical.z3_model import *
 
@@ -111,7 +120,7 @@ if use_classical:
     
     print('\nOptimizing schedule using Classical methods')
 
-    demands = {'weekday':2, 'holiday':1}
+    #demands = {'weekday':2, 'holiday':1}
     generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
     all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=None)
 
@@ -160,7 +169,7 @@ if use_classical:
         recordHistory(gurobi_checked_df, t, cl, time_period)
 
     # Hc COST OF SOLUTIONS
-    if increasing_qubits:
+    if increasing_qubits or n_days!=28:
         Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
     else:
         Hc_full = generateFullHcJune(QToHc)
@@ -334,7 +343,7 @@ if use_qaoa:
     # Hc full
     convertPreferences(all_shifts_df, 0) 
     qaoa_bitstring = scheduleToBitstring(full_schedule_df,n_physicians)
-    if increasing_qubits:
+    if increasing_qubits or n_days != 28:
         Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
     else:
         Hc_full = generateFullHcJune(QToHc)
