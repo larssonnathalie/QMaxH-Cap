@@ -1,10 +1,12 @@
 from postprocessing.postprocessing import *
-
+import matplotlib.pyplot as plt
 
 def combineDataJune(backend, n_physicians, timestamp):
     print(f'\Sorting data for JUNE run on {backend}, {n_physicians} physicians at time {timestamp}')
 
-    physician_df = pd.read_csv(f'data/results/physician/{backend}_time{int(timestamp)}.csv')
+    
+    phys_str = f'{n_physicians}phys_'if timestamp >= 1746621883 else ''
+    physician_df = pd.read_csv(f'data/results/physician/{backend}_{phys_str}time{int(timestamp)}.csv')
     schedule_df = pd.read_csv(f'data/results/schedules/{backend}_{n_physicians}phys_time{int(timestamp)}.csv')
 
     json_file_path = f'data/results/runs/{backend}_{n_physicians}phys_time{int(timestamp)}.json'
@@ -18,7 +20,8 @@ def combineDataJune(backend, n_physicians, timestamp):
 def combineDataIncr(backend, n_physicians, timestamp):
     print(f'\Sorting data for INCREASING run on {backend}, {n_physicians} physicians at time {timestamp}')
 
-    physician_df = pd.read_csv(f'data/results/increasing_qubits/physician/{backend}_time{int(timestamp)}.csv')
+    phys_str = f'{n_physicians}phys_'if timestamp >= 1746621883 else ''
+    physician_df = pd.read_csv(f'data/results/increasing_qubits/physician/{backend}_{phys_str}time{int(timestamp)}.csv')
     schedule_df = pd.read_csv(f'data/results/increasing_qubits/schedules/{backend}_{n_physicians}phys_time{int(timestamp)}.csv')
     
     distribution_file_path = f'data/results/increasing_qubits/distributions/{backend}_{n_physicians}phys_{n_physicians*7}vars_time-{int(timestamp)}.json'
@@ -75,27 +78,39 @@ def combineDataIncr(backend, n_physicians, timestamp):
 
 
 
+
+
 backend = 'ibm'
-n_physicians = 4 # SHOULD BE 15 
+n_physicians = 15 # SHOULD BE 15 
 start_time = ''
 runtype='june' # incr or june
 if runtype == 'june':
     pass#n_physicians = 15
 
-backends = ['aer']   #, 'ibm', 'gurobi', 'z3'] #maybe not z3
+methods = ['aer', 'z3']   #, 'ibm', 'gurobi', 'z3'] #maybe not z3
 all_data = {}
 
 if runtype == 'june':
-    timestamps = {'aer':'1746442127','ibm':'xxx','gurobi':'xxxx','z3':'xxxx'}
-    for backend in backends:
-        all_data[backend] = combineDataJune(backend, n_physicians, timestamps[backend])
+    timestamps = {'aer':1746443312,'ibm':00000,'gurobi':0000,'z3':1746621883}
+    for method in methods:
+        if method =='z3':
+            n_physicians = 5
+        all_data[method] = combineDataJune(backend, n_physicians, timestamps[method])
     
-    # TODO PLOT RUNS DATA
-    run_data_aer = all_data['aer']['run']  # {'full time':end_time-start_time, 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring, 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas, 'constraints':constraint_scores}
-    time_aer = run_data_aer['full time'] 
-    Hc_aer = run_data_aer['Hc full']
-    demands_aer = run_data_aer['demands']
-    print(demands_aer) #TODO print all demands and lambdas so its same
+    def printDataJune(method:str):
+        print(method,'demands:',all_data[method]['run']['demands']) # print parameters so its same
+        print(method,'lambdas:',all_data[method]['run']['lambdas']) 
+        print(method,'pref seed:',all_data[method]['run']['pref seed']) 
+
+    def plotDataJune(method:str):
+        print(method,'demands:',all_data[method]['run']['demands']) # print all demands and lambdas so its same
+                               
+                                # 'distribution'
+                                # 'schedule'
+    # TODO PLOT RUNS DATA       # 'physician'
+    aer_data = all_data['aer']  #'run': {'full time':end_time-start_time, 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring, 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas, 'constraints':constraint_scores}
+    
+
     print('doubles', run_data_aer['double gates'])
     print('depth', run_data_aer['depth'])
 

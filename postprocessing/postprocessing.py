@@ -627,6 +627,21 @@ def generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, 
     Hc_full_T = QToHc(Q_full_T, b_full_T)
     return Hc_full_T
 
+def generateFullHcJune(QToHc):
+    print('\nGenerating cost hamiltonian for june')
+    Q_full_T = pd.read_csv('data/intermediate/Qubo_full_june.csv',header=None).to_numpy()
+    b_full_T = - sum(Q_full_T[i,:] + Q_full_T[:,i] for i in range(Q_full_T.shape[0]))
+    Hc_full_T = QToHc(Q_full_T, b_full_T)
+    return Hc_full_T
+
+def generateFullQubo(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo):
+    # MAKE NEW Qubo FOR FULL PROBLEM
+    print('\nGenerating Qubo matrix for full problem')
+
+    all_hamiltonians_full_T, x_symbols_full_T = makeObjectiveFunctions(demands, 0, 1, cl, lambdas, time_period='all')
+    Q_full_T = objectivesToQubo(all_hamiltonians_full_T, len(all_shifts_df),x_symbols_full_T, cl, mirror=False )
+    return Q_full_T
+
 def computeHcCost(bitstring, Hc, costOfBitstring):
     Hc_cost = np.real(costOfBitstring(bitstring, Hc))
     print('Hc cost:', Hc_cost)

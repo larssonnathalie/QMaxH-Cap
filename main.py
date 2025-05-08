@@ -19,10 +19,10 @@ pd.set_option('display.max_rows',None)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.expand_frame_repr', False)
 
-use_qaoa = False
-backend = 'ibm'
+use_qaoa = True
+backend = 'aer'
 
-use_classical = True
+use_classical = False
 solver = 'gurobi'
 
 increasing_qubits = False
@@ -160,7 +160,11 @@ if use_classical:
         recordHistory(gurobi_checked_df, t, cl, time_period)
 
     # Hc COST OF SOLUTIONS
-    Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
+    if increasing_qubits:
+        Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
+    else:
+        Hc_full = generateFullHcJune(QToHc)
+    
     if z3_schedule:
         z3_bitstring = scheduleToBitstring(z3_checked_df, n_physicians)
         z3_Hc_cost = computeHcCost(z3_bitstring, Hc_full, costOfBitstring)
@@ -271,6 +275,7 @@ if use_qaoa:
         # Q-matrix --> pauli operators --> Hc
         b = - sum(Q[i,:] + Q[:,i] for i in range(Q.shape[0]))
         Hc = QToHc(Q, b) 
+
         #for i in range(len(Hc.coeffs)):
         # print(Hc.paulis[i], Hc.coeffs[i])
 
@@ -329,7 +334,10 @@ if use_qaoa:
     # Hc full
     convertPreferences(all_shifts_df, 0) 
     qaoa_bitstring = scheduleToBitstring(full_schedule_df,n_physicians)
-    Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
+    if increasing_qubits:
+        Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
+    else:
+        Hc_full = generateFullHcJune(QToHc)
     qaoa_Hc_cost = computeHcCost(qaoa_bitstring, Hc_full, costOfBitstring)
     
     # SAVE RUNS
