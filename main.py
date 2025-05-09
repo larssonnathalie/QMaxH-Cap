@@ -22,10 +22,10 @@ pd.set_option('display.expand_frame_repr', False)
 use_qaoa = True
 backend = 'ibm'
 
-use_classical = False
+use_classical = not use_qaoa
 solver = 'gurobi'
 
-increasing_qubits = False
+increasing_qubits = True
 
 # Parameters
 start_date = '2025-06-01' 
@@ -307,13 +307,12 @@ if use_qaoa:
     n_shifts = len(all_shifts_df)
 
     # GET FULL SCHEDULE 
-    if not increasing_qubits:   
-        full_schedule_df = full_solution[0]
-        for t in range(1,T):
-            full_schedule_df = pd.concat([full_schedule_df, full_solution[t]],axis=0)
-        ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
-        print(ok_full_schedule_df)
-
+    full_schedule_df = full_solution[0]
+    for t in range(1,T):
+        full_schedule_df = pd.concat([full_schedule_df, full_solution[t]],axis=0)
+    ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
+    print(ok_full_schedule_df)
+    
     end_time = time.time()
     incr_str = '/increasing_qubits' if increasing_qubits else ''
 
