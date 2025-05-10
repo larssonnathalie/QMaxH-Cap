@@ -1,28 +1,29 @@
+import matplotlib.pyplot as plt
 from z3 import *
 import numpy as np
 import pandas as pd
 from datetime import datetime
-import time
+from .memory_monitor import *
 
-def create_z3_model(physicians, shifts, demand, preference, lambdas=None):
+def create_z3_model(physicians, shifts, demand, preference, lambdas=None, plot_memory=False):
     overall_start = time.time()
+
+
     solver = Optimize()
     set_param("parallel.enable", True)
 
     if lambdas is None:
-        lambdas = {'demand': 3, 'fair': 10, 'pref': 5, 'unavail': 10, 'extent': 8, 'rest': 0, 'titles': 5, 'memory': 3}
+        lambdas = {'fair': 10, 'pref': 5, 'extent': 8, 'memory': 3}
 
     physician_df = pd.read_csv('data/intermediate/physician_data.csv')
     work_rate = dict(zip(physician_df['name'], physician_df['work rate']))
 
-    # Precompute days passed per shift
     start_date = datetime.strptime(shifts[0].split(' ')[0], "%Y-%m-%d")
     shift_days_passed = {
         s: (datetime.strptime(s.split(' ')[0], "%Y-%m-%d") - start_date).days
         for s in shifts
     }
 
-    # Create decision variables only for available assignments
     x = {}
     for p in physicians:
         for s in shifts:
@@ -30,12 +31,9 @@ def create_z3_model(physicians, shifts, demand, preference, lambdas=None):
                 x[p, s] = Int(f"x_{p}_{s}")
                 solver.add(Or(x[p, s] == 0, x[p, s] == 1))
 
-    # Hard constraint: demand satisfaction
     for s in shifts:
-        relevant_vars = [x[p, s] for p in physicians if (p, s) in x]
-        solver.add(Sum(relevant_vars) == demand[s])
+        solver.add(Sum([x[p, s] for p in physicians if (p, s) in x]) == demand[s])
 
-    # Fairness constraints
     total_demand = sum(demand.values())
     avg_assignments = int(np.ceil(total_demand / len(physicians)))
 
@@ -48,7 +46,6 @@ def create_z3_model(physicians, shifts, demand, preference, lambdas=None):
         solver.add(u_p >= avg_assignments - total_assigned)
         fairness_terms.append(u_p)
 
-    # Preference penalties
     preference_terms = []
     for (p, s), var in x.items():
         val = preference[p][s]
@@ -57,13 +54,11 @@ def create_z3_model(physicians, shifts, demand, preference, lambdas=None):
         elif val == -1:
             preference_terms.append(1 * var)
 
-    # Memory penalty: total number of assigned shifts per physician
     memory_terms = [
         Sum([x[p, s] for s in shifts if (p, s) in x])
         for p in physicians
     ]
 
-    # Extent penalty: based on work_rate over time
     extent_terms = []
     for p in physicians:
         wr = work_rate[p]
@@ -73,12 +68,8 @@ def create_z3_model(physicians, shifts, demand, preference, lambdas=None):
                 extent_priority = min(days_passed / 7, 1)
                 priority = abs(extent_priority * (1 - float(wr)))
                 term = RealVal(priority) * x[p, s]
-                if wr < 1:
-                    extent_terms.append(-term)
-                else:
-                    extent_terms.append(term)
+                extent_terms.append(-term if wr < 1 else term)
 
-    # Objective function
     total_cost = (
         lambdas['pref'] * Sum(preference_terms) +
         lambdas['fair'] * Sum(fairness_terms) +
@@ -87,17 +78,34 @@ def create_z3_model(physicians, shifts, demand, preference, lambdas=None):
     )
     solver.minimize(total_cost)
 
-    # Solve the model
+    # === Solve with monitored memory ===
+    monitor = MemoryMonitor()
+    monitor.start()
     solve_start = time.time()
     result = solver.check()
     solve_end = time.time()
-    overall_end = time.time()
+    monitor.stop()
 
     solver_time = solve_end - solve_start
-    overall_time = overall_end - overall_start
+    overall_time = time.time() - overall_start
+    peak_memory = monitor.peak_memory
 
     print(f"Z3 solver time: {solver_time:.4f} seconds")
     print(f"Z3 overall time: {overall_time:.4f} seconds")
+    print(f"Peak RSS memory used during solve: {peak_memory:.2f} MB")
+
+    if plot_memory:
+        trace = monitor.get_trace()
+        times, mems = zip(*trace)
+        plt.figure(figsize=(8, 4))
+        plt.plot(times, mems, label="Memory (MB)")
+        plt.xlabel("Time (s)")
+        plt.ylabel("RSS Memory (MB)")
+        plt.title("Z3 Memory Usage Over Time")
+        plt.grid(True)
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
     if result == sat:
         model = solver.model()

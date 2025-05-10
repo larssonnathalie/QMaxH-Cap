@@ -1,5 +1,5 @@
 import pandas as pd
-
+import random
 from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
 from qaoa.qaoa import *
@@ -15,6 +15,9 @@ import json
         # quantum simulator vs quantum ibm
         # quantum sim vs quantum ibm vs "random guess" for many qubits
 
+random.seed(313)
+#print('Random Seed: ', random.random())
+
 pd.set_option('display.max_rows',None)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.expand_frame_repr', False)
@@ -29,7 +32,7 @@ increasing_qubits = False
 
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-28'
+end_date = '2025-06-01'
 n_physicians = 15
 cl = 3               # complexity level: 
 cl_contents = ['',
@@ -73,18 +76,27 @@ full_solution = []
 
 # PHYSICIAN
 # preferences, titles etc.
-generatePhysicianData(all_dates_df, n_physicians, cl, seed=preference_seed, only_fulltime=only_fulltime)  
+generatePhysicianData(all_dates_df, n_physicians, cl, seed=preference_seed, only_fulltime=only_fulltime)
 physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
 
-# DEMAND  
-if shiftsPerWeek(cl)==7:    
+# DEMAND
+if shiftsPerWeek(cl) == 7:
     # Set from amount of workers and their extent
-    target_n_shifts_total_per_week = sum(targetShiftsPerWeek(physician_df['extent'].iloc[p], cl) for p in range(n_physicians)) 
+    target_n_shifts_total_per_week = sum(
+        targetShiftsPerWeek(physician_df['extent'].iloc[p], cl) for p in range(n_physicians))
     target_n_shifts_total = target_n_shifts_total_per_week * (len(all_dates_df) / shiftsPerWeek(cl))
 
-    demand_hd = max(target_n_shifts_total_per_week//12, 1)
-    demand_wd = max((target_n_shifts_total_per_week - 2*demand_hd)//5, 1)
-    demands = {'weekday': demand_wd, 'holiday': demand_hd}  
+    demand_hd = max(target_n_shifts_total_per_week // 12, 1)
+    demand_wd = max((target_n_shifts_total_per_week - 2 * demand_hd) // 5, 1)
+
+    # ADAPT DEMAND TO n_HOLIDAYS
+    if not increasing_qubits:  # Keep old version for increasing bc. already got results
+        n_parts = 2 * n_days - total_holidays  # Half the demand on holidays
+        part = target_n_shifts_total / n_parts
+        demand_hd = max(round(part), 1)
+        demand_wd = max(round(part * 2), 1)
+        demands = {'weekday': demand_wd, 'holiday': demand_hd}
+        print(target_n_shifts_total - (demand_hd * total_holidays + demand_wd * (n_days - total_holidays)))
     print('demands:', demands)
 
 # SHIFTS
@@ -99,18 +111,18 @@ if use_classical:
     from classical.z3_model import *
 
     z3_schedule = False
-    gurobi_schedule = False
+    gurobi_schedule = True
 
-    print()
-    print(cl_contents[cl])
-    print('Lambdas:', lambdas)
+    #print()
+    #print(cl_contents[cl])
+    #print('Lambdas:', lambdas)
     print('\nPhysicians:\t', n_physicians)
     print('Days:\t\t', n_days)
-    print('Seed preference:', preference_seed)    
+    #print('Seed preference:', preference_seed)
     
-    print('\nOptimizing schedule using Classical methods')
+    #print('\nOptimizing schedule using Classical methods')
 
-    demands = {'weekday':2, 'holiday':1}
+    #demands = {'weekday':11, 'holiday':5}
     generateShiftData(all_dates_df, T, cl, demands, time_period=time_period)
     all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=None)
 
@@ -122,22 +134,23 @@ if use_classical:
         print("\nSolving with Z3...")
         z3_schedule, z3_solver_time, z3_overall_time = solve_and_save_results(solver_type="z3", lambdas=lambdas)
 
-        print("Z3 schedule:")
-        for p, s in z3_schedule.items():
-            print(f"{p}: {s}")
+        #print("Z3 schedule:")
+        #for p, s in z3_schedule.items():
+        #    print(f"{p}: {s}")
         z3_schedule_df = schedule_dict_to_df(z3_schedule, shifts_df) 
         z3_checked_df = controlSchedule(z3_schedule_df, shifts_df, cl=cl)
     
     if solver=='gurobi':
         print("\nSolving with Gurobi (Classical)...")
         gurobi_schedule, gurobi_solver_time, gurobi_overall_time = solve_and_save_results(solver_type="gurobi", lambdas=lambdas)
-        print("Gurobi schedule:")
-        for p, s in gurobi_schedule.items():
-            print(f"{p}: {s}")
+
+        #print("Gurobi schedule:")
+        #for p, s in gurobi_schedule.items():
+        #    print(f"{p}: {s}")
         gurobi_schedule_df = schedule_dict_to_df(gurobi_schedule, shifts_df)
         gurobi_checked_df = controlSchedule(gurobi_schedule_df, shifts_df, cl=cl)
     
-    print("\n--- Timing Comparison ---")
+    """print("\n--- Timing Comparison ---")
     if z3_schedule:
         print(f"Z3 solver time:     {z3_solver_time:.4f} s")
         print(f"Z3 overall time:    {z3_overall_time:.4f} s")
@@ -203,7 +216,7 @@ if use_classical:
             f.close()
         gurobi_checked_df.to_csv(f'data/results{incr_str}/schedules/gurobi_{n_physicians}phys_time{timestamp}.csv', index=None)
         physician_df = pd.read_csv(f'data/intermediate/physician_data.csv', index_col=None)
-        physician_df.to_csv(f'data/results{incr_str}/physician/gurobi_{n_physicians}phys_time{timestamp}.csv', index=None)
+        physician_df.to_csv(f'data/results{incr_str}/physician/gurobi_{n_physicians}phys_time{timestamp}.csv', index=None)"""
 
 
 # QUANTUM OPTIMIZATION: QAOA
