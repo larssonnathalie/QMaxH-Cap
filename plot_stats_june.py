@@ -1,6 +1,7 @@
 from postprocessing.postprocessing import *
 from preprocessing.preprocessing import convertPreferences
 import matplotlib.pyplot as plt
+from qaoa.qaoa import QToHc, costOfBitstring
 
 # TODO:
     # schedules
@@ -8,22 +9,7 @@ import matplotlib.pyplot as plt
         # ibm
         # gurobi
         # z3
-    # stats:
-        # times
-        # Hc
-        # constraints..
-    # quantum
-        # depths
-        # 2-gates
     # samma phys
-
-
-#Compare june: (show: time, schedules, constraints, Hc:s        + Quantum: depth, 2-gates)
-    # june aer 15phys
-    # june ibm 15phys
-    # june gurobi 15phys
-    # (june z3 15phys)
-
 
 def combineDataJune(backend, n_physicians, timestamp):
     print(f'\nSorting data for JUNE run on {backend}, {n_physicians} physicians at time {timestamp}')
@@ -46,9 +32,6 @@ def combineDataJune(backend, n_physicians, timestamp):
     return all_data
 
 
-
-
-
 def printDataJune(method:str):
     print(method,'demands:',all_data[method]['run']['demands']) # print parameters so its same
     print(method,'lambdas:',all_data[method]['run']['lambdas']) 
@@ -60,7 +43,17 @@ def plotDataJune(method:str, schedule=True):
     # TODO PLOT RUNS DATA         # 'run': {'full time':end_time-start_time, 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring, 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas, 'constraints':constraint_scores}
     times_plot.append(all_data[method]['run']['full time'])
     Hcs_plot.append(all_data[method]['run']['Hc full'])
-    
+
+    # CONTROL universal Hc
+    if method != 'z3': # bc. using a dummy with n_phys = 5
+        qubo_uni = pd.read_csv(f'data/intermediate/Qubo_full_june.csv',header=None).to_numpy()
+        b = - sum(qubo_uni[i,:] + qubo_uni[:,i] for i in range(qubo_uni.shape[0]))
+        Hc_uni = QToHc(qubo_uni,b)
+        cost_uni = np.real(costOfBitstring(all_data[method]['run']['bitstring'], Hc_uni))
+        if cost_uni == all_data[method]['run']['Hc full']:
+            print(cost_uni, '=', all_data[method]['run']['Hc full'])
+        else:
+            print(f'\nERROR: in {method}', cost_uni, '≠', all_data[method]['run']['Hc full'])
 
     # PLOT CONSTRAINT SCORES   # 'constraints': {'demand': {'correct rate': 1.0, 'too many': 0, 'too few': 0}, 'titles': {'ST error': 0, 'UL error': 0, 'ÖL error': 0}, 'preference': {'satisfaction': [0.0, 0.0, 0.0, 0.0], 'prefer satisfied': [nan, nan, nan, nan], 'prefer not satisfied': [nan, nan, nan, nan]}, 'extent': {'error': [[-53.33333333333334, -6.666666666666677, -6.666666666666677, -6.666666666666677]]}, 'unavail': {'unavail': 0.0}}}
     constraints = all_data[method]['run']['constraints']
@@ -74,22 +67,27 @@ def plotDataJune(method:str, schedule=True):
 
     if schedule:
         # PLOT SCHEDULE
-        evaluator_m = Evaluator(all_data[method]['schedule'], cl, time_period, lambdas, physician_path='data\intermediate\physician_universal_june.csv')
+        evaluator_m = Evaluator(all_data[method]['schedule'], cl, time_period, lambdas, physician_path='data/intermediate/physician_universal_june.csv') # TODO: should be same prefs & exts as: f'data/results/physician/{method}_15phys_time{timestamps[method]}.csv'
         evaluator_m.makeResultMatrix()
         evaluator_m.evaluateConstraints(1)
         fig = evaluator_m.cleanPlot(width=20,title=f'June schedule using {method}')
         fig.savefig(f'data/results/final_plots/june/schedules/{method}_final_schedule.png')
 
 
-def plotStats(plot_data, methods, title=''):
+def plotStats(plot_data, methods, title='', ylabel=''):
     colors = ['skyblue', 'tab:orange', 'green']
     plt.figure()
     bars = plt.bar(methods, plot_data, width=0.3, color=colors[:len(methods)], alpha = 0.9) # TODO fixa placering, första har mitten på 0, har width bredd
     #plt.xlim((-0.1,0.2)) # probably change
     for bar in bars:
         height = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width()/2, min(max(height-0.5,0.1*height), 0.9*height), str(round(height,1)),  ha='center', va='bottom')
+        bar_width = bar.get_width()
+        plt.text(bar.get_x() + bar_width/2, min(max(height-0.5,0.1*height), 0.9*height), str(round(height,1)),  ha='center', va='bottom')
     plt.xticks(np.arange(len(methods)))
+    if title=='Hc costs': # Draw x = 0
+        plt.plot(np.linspace(-bar_width,len(methods)-1+bar_width,len(methods)),[0]*(len(methods)), color = 'black', linewidth=0.2)
+        plt.xlim((-bar_width, len(methods)-1+bar_width))
+    plt.ylabel(ylabel)
     plt.title(title)
     plt.savefig(f'data/results/final_plots/june/{title}.png')
     plt.show()
@@ -114,16 +112,15 @@ for method in methods:
     plotDataJune(method, schedule=True) # Plot schedule and append stats to lists
 
 
-plotStats(times_plot, methods, title='Full computation time')
+plotStats(times_plot, methods, title='Full computation time', ylabel='Time [s]')
 plotStats(Hcs_plot, methods, title='Hc costs')
 plotStats(manys_plot, methods, title='Too many workers')
 plotStats(fews_plot, methods, title='Too few workers')
 plotStats(titles_plot, methods, title='Wrong number of assigned titles')
-plotStats(sat_avgs_plot, methods, title='Average satisfaction')
-plotStats(sat_vars_plot, methods, title='Variance among satisfactions')
-plotStats(extents_plot, methods, title='Wrong number of shifts per physician')
+plotStats(sat_avgs_plot, methods, title='Satisfaction', ylabel='Avg. satisfaction score')
+plotStats(sat_vars_plot, methods, title='Satisfaction fairness', ylabel='Variance in satisfaction scores')
+plotStats(extents_plot, methods, title='Employment extent error', ylabel='Avg. distance from target n.o. shifts [%]')
 plotStats(unavails_plot, methods, title='Shifts assigned to unavailable physicians')
-
 
 if 'aer' in methods and 'ibm' in methods:
     # Plot 2-gates and circuit depth
@@ -131,7 +128,7 @@ if 'aer' in methods and 'ibm' in methods:
     aer_n_doubles, aer_depth = all_data['aer']['run']['double gates'], all_data['aer']['run']['depth']
     ibm_n_doubles, ibm_depth = all_data['ibm']['run']['double gates'], all_data['ibm']['run']['depth']
     plotStats([aer_n_doubles, ibm_n_doubles],quantum_methods, title='Number of 2-qubit gates')
-    plotStats([aer_depth, ibm_depth], quantum_methods, title='Depth of transpiled circuits')
+    plotStats([aer_depth, ibm_depth], quantum_methods, title='Depth of transpiled circuit')
 
 
 

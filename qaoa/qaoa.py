@@ -137,7 +137,7 @@ class Qaoa:
 
 
             
-    def findOptimalCircuit(self, estimation_iterations=2000, search_iterations=20):
+    def findOptimalCircuit(self, estimation_iterations=2000, search_iterations=20, Ns=2):
         # Make initial circuit
         self.circuit = QAOAAnsatz(cost_operator=self.Hc, reps=self.n_layers) # Using a standard mixer hamiltonian 
         self.circuit.measure_all() 
@@ -150,7 +150,7 @@ class Qaoa:
 
 
         # Find best betas and gammas using estimator on initial circuit
-        best_parameters = self.findParameters(estimation_iterations, search_iterations)
+        best_parameters = self.findParameters(estimation_iterations, search_iterations, Ns)
         best_circuit = self.transpiled_circuit.assign_parameters(parameters=best_parameters)
         self.optimized_circuit = best_circuit
     
@@ -160,7 +160,7 @@ class Qaoa:
         best_bitstring = self.findBestBitstring(n_candidates, worst_solution=return_worst_solution)
         return best_bitstring
 
-    def findParameters(self, estimation_iterations, search_iterations): 
+    def findParameters(self, estimation_iterations, search_iterations, Ns): 
         
         #NOTE current version of COBYLA does not support bounds
         bounds = [(0, np.pi/2) for _ in range(self.n_layers)] # gammas have period =  π/2, given integer penalties
@@ -241,7 +241,7 @@ class Qaoa:
                 estimator = Estimator(mode=session, options={"default_shots": estimation_iterations})
                 
                 # Brute grid search to find good start params
-                brute_result = brute(estimateHcWithPrints, grid_bounds, args=(self.transpiled_circuit, self.Hc, estimator), Ns=2, disp=False, workers=1, full_output=False, finish=None)
+                brute_result = brute(estimateHcWithPrints, grid_bounds, args=(self.transpiled_circuit, self.Hc, estimator), Ns=3, disp=False, workers=1, full_output=False, finish=None)
 
                 print('\nGRID SEARCH:')
                 best_idx = np.argmin(np.real(np.array(all_costs)))

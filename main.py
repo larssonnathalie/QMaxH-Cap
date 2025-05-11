@@ -20,7 +20,7 @@ pd.set_option('display.max_columns', None)
 pd.set_option('display.expand_frame_repr', False)
 
 use_qaoa = True
-backend = 'aer'
+backend = 'ibm'
 
 use_classical = not use_qaoa
 solver = 'z3'
@@ -47,6 +47,7 @@ if use_classical:
     time_period = 'all'
 
 # Quantum params
+Ns = 3
 n_layers = 2
 search_iterations = 20
 estimation_iterations = 1000
@@ -61,7 +62,7 @@ if increasing_qubits:
     start_date = '2025-06-22'
     end_date = '2025-06-28'
     sampling_iterations = 100000
-    n_physicians = 17            # 3, 4, 5, 6, 7, 10, 14, 17, 21
+    n_physicians = 5            # 3, 4, 5, 6, 7, 10, 14, 17, 21
 
 # LAMBDAS = penalties (how hard a constraint is)
 # decided:{'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 'titles':5, 'memory':3} 
@@ -92,8 +93,8 @@ if shiftsPerWeek(cl)==7:
         part = target_n_shifts_total / n_parts
         demand_hd = max(round(part), 1)
         demand_wd = max(round(part*2), 1)
-        demands = {'weekday': demand_wd, 'holiday': demand_hd}  
         print(target_n_shifts_total-(demand_hd*total_holidays + demand_wd*(n_days-total_holidays)))
+    demands = {'weekday': demand_wd, 'holiday': demand_hd}  
     print('demands:', demands)
 
 # SHIFTS
@@ -274,7 +275,7 @@ if use_qaoa:
         # OBJECTIVES
         all_objectives, x_symbols = makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False)
         n_vars = n_physicians*len(calendar_df_t)
-        subs0 = assignVariables('0'*n_vars, x_symbols)
+        #subs0 = assignVariables('0'*n_vars, x_symbols)
 
         # QUBO MATRIX          Y = x^T Qx
         Q = objectivesToQubo(all_objectives, n_shifts, x_symbols, cl, mirror=False, prints = False)
@@ -289,14 +290,14 @@ if use_qaoa:
 
         # RUN QAOA
         qaoa = Qaoa(t, Hc, n_layers, plots=estimation_plots, seed=init_seed, backend=backend, instance='premium')
-        qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations)
+        qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations, Ns=Ns)
         best_bitstring_t = qaoa.samplerSearch(sampling_iterations, n_candidates, return_worst_solution=False)
         if increasing_qubits:
             plt.figure()
             avg_Hc = qaoa.costCountsDistribution(start_time, n_physicians)
             # RANDOM
-            random_distribution = generateRandomSolutions(n_vars, sampling_iterations)
-            avg_Hc_random = qaoa.costCountsDistribution(start_time, n_physicians, random_distribution=random_distribution)
+            #random_distribution = generateRandomSolutions(n_vars, sampling_iterations)
+            #avg_Hc_random = qaoa.costCountsDistribution(start_time, n_physicians, random_distribution=random_distribution)
         if not increasing_qubits:
             print('chosen bs',best_bitstring_t[::-1])
         
@@ -307,51 +308,53 @@ if use_qaoa:
 
 
         # GET SCHEDULE
-        result_schedule_df_t = bitstringToSchedule(best_bitstring_t, calendar_df_t)
-        full_solution.append(result_schedule_df_t)
-        controled_result_df_t = controlSchedule(result_schedule_df_t, shifts_df, cl)
+        if not increasing_qubits:
+            result_schedule_df_t = bitstringToSchedule(best_bitstring_t, calendar_df_t)
+            full_solution.append(result_schedule_df_t)
+            controled_result_df_t = controlSchedule(result_schedule_df_t, shifts_df, cl)
 
 
-        if cl>=2:
-            recordHistory(controled_result_df_t, t,cl, time_period)
+            if cl>=2:
+                recordHistory(controled_result_df_t, t,cl, time_period)
         
 
     all_shifts_df = pd.read_csv('data/intermediate/shift_data_all_t.csv', index_col=None)
     n_shifts = len(all_shifts_df)
 
-    # GET FULL SCHEDULE 
-    full_schedule_df = full_solution[0]
-    for t in range(1,T):
-        full_schedule_df = pd.concat([full_schedule_df, full_solution[t]],axis=0)
-    ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
-    print(ok_full_schedule_df)
-    
     end_time = time.time()
     incr_str = '/increasing_qubits' if increasing_qubits else ''
 
-    # EVALUATE
-    qaoa_evaluator = Evaluator(ok_full_schedule_df, cl, time_period, lambdas)
-    qaoa_evaluator.makeResultMatrix()
-    constraint_scores = qaoa_evaluator.evaluateConstraints(T)
-    fig = qaoa_evaluator.controlPlot(width=10, show_plot=False)
+    if not increasing_qubits:
+        # GET FULL SCHEDULE 
+        full_schedule_df = full_solution[0]
+        for t in range(1,T):
+            full_schedule_df = pd.concat([full_schedule_df, full_solution[t]],axis=0)
+        ok_full_schedule_df = controlSchedule(full_schedule_df, all_shifts_df, cl)
+        print(ok_full_schedule_df)
+    
+        # EVALUATE
+        qaoa_evaluator = Evaluator(ok_full_schedule_df, cl, time_period, lambdas)
+        qaoa_evaluator.makeResultMatrix()
+        constraint_scores = qaoa_evaluator.evaluateConstraints(T)
+        fig = qaoa_evaluator.controlPlot(width=10, show_plot=False)
 
-    # PLOT SCHEDULE
-    fig.savefig(f'data/results{incr_str}/plots/{backend}_{n_physicians}phys_time{int(start_time)}.png')
+        # PLOT SCHEDULE
+        fig.savefig(f'data/results{incr_str}/plots/{backend}_{n_physicians}phys_time{int(start_time)}.png')
 
-    # Hc full
-    convertPreferences(all_shifts_df, 0) 
-    qaoa_bitstring = scheduleToBitstring(full_schedule_df,n_physicians)
-    if increasing_qubits or n_days != 28 or n_physicians != 15:
-        Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
-    else:
-        Hc_full = generateFullHcJune(QToHc)
-    qaoa_Hc_cost = computeHcCost(qaoa_bitstring, Hc_full, costOfBitstring)
+        # Hc full
+        convertPreferences(all_shifts_df, 0) 
+        qaoa_bitstring = scheduleToBitstring(full_schedule_df, n_physicians)
+        if increasing_qubits or n_days != 28 or n_physicians != 15:
+            Hc_full = generateFullHc(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo, QToHc)
+        else:
+            Hc_full = generateFullHcJune(QToHc)
+        qaoa_Hc_cost = computeHcCost(qaoa_bitstring, Hc_full, costOfBitstring)
     
     # SAVE RUNS
     if not increasing_qubits:
         run_data_full_dict = {'full time':end_time-start_time, 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring, 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas, 'constraints':constraint_scores}
     if increasing_qubits:
-        run_data_full_dict = {'full time':end_time-start_time, 'best params':qaoa.params_best[0].tolist(), 'best params cost':qaoa.params_best[1].tolist(), 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas, 'avg Hc':avg_Hc, 'avg Hc random':avg_Hc_random}
+        run_data_full_dict = {'full time':end_time-start_time, 'best params':qaoa.params_best[0].tolist(), 'best params cost':qaoa.params_best[1].tolist(), 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas, 'avg Hc':avg_Hc} #, 'avg Hc random':avg_Hc_random}
     run_data_full_dict['depth'] = float(np.mean(all_depths))
     run_data_full_dict['double gates'] = float(np.mean(qaoa.n_doubles))
 
@@ -363,14 +366,15 @@ if use_qaoa:
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
     physician_df.to_csv(f'data/results{incr_str}/physician/{backend}_{n_physicians}phys_time{int(start_time)}.csv', index=None)
 
-    # SAVE RESULTS
-    ok_full_schedule_df.to_csv(f'data/results{incr_str}/schedules/{backend}_{n_physicians}phys_time{int(start_time)}.csv', index=None)
+    if not increasing_qubits:
+        # SAVE RESULTS
+        ok_full_schedule_df.to_csv(f'data/results{incr_str}/schedules/{backend}_{n_physicians}phys_time{int(start_time)}.csv', index=None)
 
     # PLOT SATISFACTION
     if lambdas['pref'] != 0 and T>1:
         satisfaction_plot = np.array(satisfaction_plot)
        
-        fig, ax = plt.subplots(figsize=(10, 6))  # You can adjust the size as needed
+        fig, ax = plt.subplots(figsize=(10, 6))  
         ax.set_title('Preference satisfaction per time period')
         physician_df = pd.read_csv('data/intermediate/physician_data.csv', index_col=None)
         n_physicians = len(physician_df)

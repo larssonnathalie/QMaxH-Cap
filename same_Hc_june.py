@@ -8,7 +8,7 @@ from qaoa.qaoa import *
 # Parameters
 start_date = '2025-06-01' 
 end_date = '2025-06-28'
-n_shifts=28
+n_shifts = 28
 n_physicians = 15
 cl = 3               # complexity level: 
 
@@ -43,7 +43,7 @@ all_shifts_df = pd.read_csv(f'data/intermediate/shift_data_all_t.csv',index_col=
 convertPreferences(all_shifts_df, t)   # Dates to shift-numbers
 shifts_df = all_shifts_df
 physician_universal_june = pd.read_csv('data/intermediate/physician_data.csv', index_col = None)
-physician_universal_june.to_csv('data/intermediate/physician_universal_june.csv', index=None)
+#physician_universal_june.to_csv('data/intermediate/physician_universal_june.csv', index=None)
 
 Qubo_full = generateFullQubo(demands, cl, lambdas, all_shifts_df, makeObjectiveFunctions, objectivesToQubo)
 Qubo_full_df = pd.DataFrame(Qubo_full)
