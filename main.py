@@ -26,13 +26,13 @@ use_qaoa = False
 backend = 'ibm'
 
 use_classical = True
-solver = 'gurobi'
+solver = 'z3'
 
 increasing_qubits = False
 
 # Parameters
 start_date = '2025-06-01' 
-end_date = '2025-06-01'
+end_date = '2025-06-14'
 n_physicians = 15
 cl = 3               # complexity level: 
 cl_contents = ['',

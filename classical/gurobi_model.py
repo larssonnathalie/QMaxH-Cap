@@ -76,7 +76,7 @@ def create_gurobi_model(physicians, shifts, demand, preference, lambdas=None, pl
     model.setObjective(total_cost, GRB.MINIMIZE)
 
     # === Solve with monitored memory ===
-    monitor = MemoryMonitor()
+    monitor = MemoryTracker()
     monitor.start()
     solve_start = time.time()
     model.optimize()

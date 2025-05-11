@@ -79,7 +79,7 @@ def create_z3_model(physicians, shifts, demand, preference, lambdas=None, plot_m
     solver.minimize(total_cost)
 
     # === Solve with monitored memory ===
-    monitor = MemoryMonitor()
+    monitor = MemoryTracker()
     monitor.start()
     solve_start = time.time()
     result = solver.check()
