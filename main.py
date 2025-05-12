@@ -62,7 +62,7 @@ if increasing_qubits:
     start_date = '2025-06-22'
     end_date = '2025-06-28'
     sampling_iterations = 100000
-    n_physicians =  5           # 3, 4, 5, 6, 7, 10, 14, 17, 21
+    n_physicians =  6           # 3, 4, 5, 6, 7, 10, 14, 17, 21
 
 # LAMBDAS = penalties (how hard a constraint is)
 # decided:{'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 'titles':5, 'memory':3} 

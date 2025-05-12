@@ -123,7 +123,7 @@ def getPlotlistsIncr(runs, all_data, extra_gurobi):
     return plot_times, plot_distr, plot_Hcs
 
 def plotsIncr(plot_times, plot_Hcs, extra_gurobi=False):
-    colors = {'ibm':'#64B4DC', 'gurobi':'tab:orange', 'aer':'green', 'random':'gray'}
+    colors = {'ibm':'#54A4CC', 'gurobi':'tab:orange', 'aer':'green', 'random':'gray'}
 
     phys_values = list(plot_Hcs.keys())
     phys_values.sort()

@@ -1,0 +1,6 @@
+name,title,extent,shifts worked,work rate,prefer,prefer not,unavailable,satisfaction,worked last,prefer t0,prefer not t0,unavailable t0
+physician0,ÖL,100,0,0,['2025-06-26'],['2025-06-24'],[],0,0,[4],[2],[]
+physician1,ST,100,0,0,"['2025-06-25', '2025-06-28']",['2025-06-27'],[],0,0,"[3, 6]",[5],[]
+physician2,UL,100,0,0,['2025-06-24'],['2025-06-27'],[],0,0,[2],[5],[]
+physician3,AT,100,0,0,['2025-06-26'],['2025-06-23'],[],0,0,[4],[1],[]
+physician4,AT,100,0,0,[],[],[],0,0,[],[],[]
