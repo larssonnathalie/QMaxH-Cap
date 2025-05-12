@@ -380,8 +380,8 @@ class Evaluator:
                 pref_squares = ax.scatter(x.ravel(), y.ravel(), s=(50*scale_squares*(x_size/self.n_shifts))**2, c='none',marker='s', linewidths=4*scale_squares, edgecolors=prefer_colors) 
         
         xticks = [i for i in np.arange(self.n_shifts)]
-        xlabels = [date[5:] for date in self.result_df['date']] # NOTE removed year from ticks
-        ax.set_xticks(ticks=xticks, labels=xlabels,fontsize=8) 
+        xlabels = [str(date[-2:])+'/6' for date in self.result_df['date']] # NOTE removed year from ticks
+        ax.set_xticks(ticks=xticks, labels=xlabels,fontsize=8,rotation=45) 
         yticks = [i for i in np.arange(self.n_physicians)]
         ax.set_yticks(ticks=yticks, labels=[f'{name} ({title})({ext}%)' for name, title, ext in zip(self.physician_df['name'],self.physician_df['title'],self.physician_df['extent'])])
         #ax.spines["right"].set_linewidth(0) # remove right side of frame

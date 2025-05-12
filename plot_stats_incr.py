@@ -122,8 +122,8 @@ def getPlotlistsIncr(runs, all_data, extra_gurobi):
 
     return plot_times, plot_distr, plot_Hcs
 
-def plotsIncr(plot_times, plot_Hcs):
-    colors = {'ibm':'skyblue', 'gurobi':'tab:orange', 'aer':'green', 'random':'gray'}
+def plotsIncr(plot_times, plot_Hcs, extra_gurobi=False):
+    colors = {'ibm':'#64B4DC', 'gurobi':'tab:orange', 'aer':'green', 'random':'gray'}
 
     phys_values = list(plot_Hcs.keys())
     phys_values.sort()
@@ -179,8 +179,8 @@ def plotsIncr(plot_times, plot_Hcs):
     plt.show()
 
 def plotDistributions(n_phys):
-    methods = [ 'random','ibm',]#, 'gurobi']
-    colors = {'ibm':'skyblue', 'gurobi':'tab:orange', 'aer':'green', 'random':'gray'}
+    methods = [ 'random','ibm', 'gurobi']
+    colors = {'ibm':'#64B4DC', 'gurobi':'tab:orange', 'aer':'green', 'random':'gray'}
     for j, method in enumerate(methods):
         run_data = all_data[(method, n_phys)]['run']
         
@@ -256,6 +256,8 @@ all_data = {}
 for run in runs:
     method, n_phys = run[0], run[1]
     if n_phys==17 and method in ['ibm', 'random']: # error in 17 run for ibm
+        continue
+    if not extra_gurobi and n_phys >17:
         continue
     all_data[run] = combineDataIncr(method, n_phys, timestamps[(method,n_phys)])
 plot_times, plot_distr,  plot_Hcs = getPlotlistsIncr(runs, all_data, extra_gurobi=extra_gurobi)

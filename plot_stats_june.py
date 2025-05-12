@@ -10,7 +10,7 @@ from qaoa.qaoa import QToHc, costOfBitstring
         # gurobi
         # z3
     # samma phys
-
+'''
 def combineDataJune(backend, n_physicians, timestamp):
     print(f'\nSorting data for JUNE run on {backend}, {n_physicians} physicians at time {timestamp}')
 
@@ -71,8 +71,7 @@ def plotDataJune(method:str, schedule=True):
         evaluator_m = Evaluator(all_data[method]['schedule'], cl, time_period, lambdas, physician_path='data/intermediate/physician_universal_june.csv') # TODO: should be same prefs & exts as: f'data/results/physician/{method}_15phys_time{timestamps[method]}.csv'
         evaluator_m.makeResultMatrix()
         evaluator_m.evaluateConstraints(1)
-        fig = evaluator_m.cleanPlot(width=20,title=f'June schedule using {method}', tile_col = colors[method])
-        fig = evaluator_m.cleanPlot(width=20,title=f'June schedule using {method}', tile_col = colors[method])
+        fig = evaluator_m.cleanPlot(width=10,title=f'June schedule using {method}', tile_col = colors[method])
         fig.savefig(f'data/results/final_plots/june/schedules/{method}_final_schedule.png')
 
 
@@ -95,18 +94,20 @@ def plotStats(plot_data, methods, title='', ylabel=''):
     plt.show()
 
 n_physicians = 15 # SHOULD BE 15 
-methods = ['aer', 'ibm', 'gurobi']   #, 'ibm', 'gurobi', 'z3'] #maybe not z3
+methods = ['z3', 'gurobi'] #'aer', 'ibm', 'gurobi']   #, 'ibm', 'gurobi', 'z3'] #maybe not z3
 all_data = {}
 time_period = 'all'
 cl = 3
 lambdas = {'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 'titles':5, 'memory':3} 
 physician_universal_june = pd.read_csv('data/intermediate/physician_universal_june.csv', index_col=None)
 
-timestamps = {'aer':1746722550,'ibm':1746706255,'gurobi':1746970615,'z3':1746721526}
+timestamps = {'aer':1746722550,'ibm':1746706255,'gurobi':1747062967,'z3':1747063119}
+
+#timestamps = {'aer':1746722550,'ibm':1746706255,'gurobi':1746970615,'z3':1747063119}
 times_plot, Hcs_plot, manys_plot, fews_plot, titles_plot, sat_avgs_plot, sat_vars_plot, extents_plot, unavails_plot, physicians_compare  = [], [],[], [],[], [],[], [],[], []
 for method in methods:
-    if method =='z3':
-        n_physicians = 5
+    #if method =='z3':
+     #   n_physicians = 5
     all_data[method] = combineDataJune(method, n_physicians, timestamps[method])
 
 for method in methods:
@@ -129,12 +130,22 @@ if 'aer' in methods and 'ibm' in methods:
     quantum_methods = ['aer', 'ibm']
     aer_n_doubles, aer_depth = all_data['aer']['run']['double gates'], all_data['aer']['run']['depth']
     ibm_n_doubles, ibm_depth = all_data['ibm']['run']['double gates'], all_data['ibm']['run']['depth']
-    plotStats([aer_n_doubles, ibm_n_doubles],quantum_methods, title='Number of 2-qubit gates')
-    plotStats([aer_depth, ibm_depth], quantum_methods, title='Depth of transpiled circuit')
+    #plotStats([aer_n_doubles, ibm_n_doubles],quantum_methods, title='Number of 2-qubit gates')
+    #plotStats([aer_depth, ibm_depth], quantum_methods, title='Depth of transpiled circuit')'''
 
+cl, time_period, lambdas = 3, 'all', {'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 'titles':5, 'memory':3} 
 
+def plotShortSchedule(method, schedule):
 
+    # PLOT SCHEDULE
+    evaluator_m = Evaluator(schedule, cl, time_period, lambdas, physician_path='data/intermediate/physician_universal_june.csv') # TODO: should be same prefs & exts as: f'data/results/physician/{method}_15phys_time{timestamps[method]}.csv'
+    evaluator_m.makeResultMatrix()
+    evaluator_m.evaluateConstraints(1)
+    fig = evaluator_m.cleanPlot(width=10,title=f'June schedule using {method}', tile_col = None)
+    fig.savefig(f'data/results/final_plots/june/schedules/{method}_short_schedule.png')
 
+z3_schedule = pd.read_csv('data/results/schedules/z3_15phys_time1747063119.csv',index_col=None)
+plotShortSchedule('z3', z3_schedule)
 
-
-
+g_schedule = pd.read_csv('data/results/schedules/gurobi_15phys_time1747062967.csv',index_col=None)
+plotShortSchedule('gurobi', g_schedule)
