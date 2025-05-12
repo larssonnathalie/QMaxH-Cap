@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from qaoa.converters import *
 from collections import Counter
+from matplotlib.colors import ListedColormap
+
 
 #from ..preprocessing.preprocessing import makeObjectiveFunctions, objectivesToQubo
 #from ..qaoa.qaoa import QToHc, costOfBitstring
@@ -353,11 +355,18 @@ class Evaluator:
         # y_size = 8 
         y_size = self.n_physicians/self.n_shifts * x_size + 1
         fig, ax = plt.subplots(figsize=(x_size,y_size))
-        if tile_col is not None:
-            cmap = tile_col
+        if tile_col == 'skyblue':
+            cmap = ListedColormap(['white', '#505050'])
+
+            #cmap, vmax, vmin = 'skyblue',0,0#'Blues',1.5,0
+        elif tile_col == 'tab:orange':
+            cmap = ListedColormap(['white', '#505050'])
+            #cmap, vmax, vmin='tab:orange',0,0#'Oranges',2,0
         else:
-            cmap="Greens"
-        result = ax.pcolor(np.arange(self.n_shifts+1)-0.5, np.arange(self.n_physicians+1)-0.5,self.result_matrix, cmap=cmap, vmax=1,vmin=0)
+            cmap = ListedColormap(['white', '#505050'])
+            #cmap, vmax, vmin ='green',0,0#"Green",1,0
+
+        result = ax.pcolor(np.arange(self.n_shifts+1)-0.5, np.arange(self.n_physicians+1)-0.5, self.result_matrix, cmap=cmap)#, vmax=vmax,vmin=vmin)
 
         if self.cl>=2:  # PREFERENCE squares
             if self.lambdas['pref'] != 0:

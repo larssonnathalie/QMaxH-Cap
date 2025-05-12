@@ -40,21 +40,29 @@ def getTimestamps():
         method, phys, vars, time = file.split('_')
         phys = int(phys.rstrip('phys'))
         timestamp = int(time.lstrip('time-').rstrip('.json'))
-        timestamps[(method, phys)] = timestamp # Replacing if there is an older one
+        if (method, phys) not in timestamps:
+            timestamps[(method, phys)] = timestamp 
+        else:
+            if timestamp > timestamps[(method, phys)]: # Replacing with the newest one
+                timestamps[(method, phys)] = timestamp 
+
 
     all_runs = os.listdir(f'data/results/increasing_qubits/runs') # Look in 2 folders bc. Gurobi has no distribution and random has no runs
     for file in all_runs:
         method, phys, time = file.split('_')
         phys = int(phys.rstrip('phys'))
         timestamp = int(time.lstrip('time-').rstrip('.json'))
-        timestamps[(method, phys)] = timestamp 
+        if (method, phys) not in timestamps:
+            timestamps[(method, phys)] = timestamp 
+        else:
+            if timestamp > timestamps[(method, phys)]: # Replacing with the newest one
+                timestamps[(method, phys)] = timestamp 
     all_runs.sort()
 
-    print(timestamps)
     return timestamps
 
 
-def getPlotlistsIncr(runs, all_data):
+def getPlotlistsIncr(runs, all_data, extra_gurobi):
     plot_times, plot_Hcs, plot_distr = {'ibm':[], 'gurobi':[], 'aer':[]}, {'ibm':[], 'gurobi':[], 'random':[], 'aer':[], 'z3':[]}, {'ibm':[], 'random':[], 'aer':[]}
     for n_phys in [3,4,5,6,7,10,14]: # + maybe 17
         qubo_n = pd.read_csv(f'data/intermediate/Qubo_incr_{n_phys}phys.csv',header=None).to_numpy()
@@ -67,6 +75,9 @@ def getPlotlistsIncr(runs, all_data):
                 run_data  =  all_data[(method, n_phys)]['run']
                 if method != 'random' and 'full time' in run_data: # some times are missing
                     plot_times[method].append(run_data['full time'])
+                elif 'total time' in run_data:
+                    plot_times[method].append(run_data['total time'])
+
                 if method not in ['gurobi', 'z3']:
                     plot_distr[method].append(all_data[(method, n_phys)]['distribution'])
                 
@@ -104,6 +115,10 @@ def getPlotlistsIncr(runs, all_data):
                         with open(f'data/results/increasing_qubits/runs/{method}_{n_phys}phys_time{timestamps[(method, n_phys)]}.json', "w") as f:
                             json.dump(run_data, f)
                             f.close()
+    if extra_gurobi:
+        for n_phys in [17,21,28,35,42,49,70,119]:
+            plot_times['gurobi'].append((all_data[('gurobi', n_phys)]['run']['total time']))
+            plot_Hcs['gurobi'].append((all_data[('gurobi', n_phys)]['run']['Hc full']))
 
     return plot_times, plot_distr, plot_Hcs
 
@@ -112,7 +127,10 @@ def plotsIncr(plot_times, plot_Hcs):
 
     phys_values = list(plot_Hcs.keys())
     phys_values.sort()
-    xticks=[3,4,5,6,7,10,14,17]
+    if extra_gurobi:
+        xticks=[3,4,5,6,7,10,14,17,21,28,35,42,49,70,119]
+    else:
+        xticks=[3,4,5,6,7,10,14]
     xlabels = [i*7 for i in xticks]
     alp=0.6
     siz = 10
@@ -132,7 +150,8 @@ def plotsIncr(plot_times, plot_Hcs):
     plt.xticks(ticks=xticks, labels=xlabels)
     plt.xlabel('Decision variables')
     plt.ylabel('Time [s]')
-    plt.savefig('data/results/increasing_qubits/final_plots/computation_times.png')
+    extra_str = '_extra' if extra_gurobi else ''
+    plt.savefig(f'data/results/increasing_qubits/final_plots/computation_times{extra_str}.png')
     plt.show()
 
     # Avg Hc
@@ -141,7 +160,13 @@ def plotsIncr(plot_times, plot_Hcs):
     plt.plot(xticks[:len(plot_Hcs['gurobi'])], plot_Hcs['gurobi'], linewidth=3, label='Gurobi', color = colors['gurobi'], alpha=alp)
     plt.plot(xticks[:len(plot_Hcs['ibm'])], plot_Hcs['ibm'], linewidth=3, label='IBM', color = colors['ibm'], alpha=alp)
     plt.plot(xticks[:len(plot_Hcs['random'])], plot_Hcs['random'], linewidth=3, label='Random', color = colors['random'], alpha=alp)
+    plt.plot(xticks[:len(plot_Hcs['gurobi'])], plot_Hcs['gurobi'], linewidth=3, label='Gurobi', color = colors['gurobi'], alpha=alp)
+    plt.plot(xticks[:len(plot_Hcs['ibm'])], plot_Hcs['ibm'], linewidth=3, label='IBM', color = colors['ibm'], alpha=alp)
+    plt.plot(xticks[:len(plot_Hcs['random'])], plot_Hcs['random'], linewidth=3, label='Random', color = colors['random'], alpha=alp)
     # dots
+    plt.scatter(xticks[:len(plot_Hcs['gurobi'])], plot_Hcs['gurobi'], s=siz, color = colors['gurobi'])
+    plt.scatter(xticks[:len(plot_Hcs['ibm'])], plot_Hcs['ibm'], s=siz, color = colors['ibm'])
+    plt.scatter(xticks[:len(plot_Hcs['random'])], plot_Hcs['random'], s=siz, color = colors['random'])
     plt.scatter(xticks[:len(plot_Hcs['gurobi'])], plot_Hcs['gurobi'], s=siz, color = colors['gurobi'])
     plt.scatter(xticks[:len(plot_Hcs['ibm'])], plot_Hcs['ibm'], s=siz, color = colors['ibm'])
     plt.scatter(xticks[:len(plot_Hcs['random'])], plot_Hcs['random'], s=siz, color = colors['random'])
@@ -150,7 +175,7 @@ def plotsIncr(plot_times, plot_Hcs):
     plt.xticks(ticks=xticks, labels=xlabels)
     plt.xlabel('Decision variables')
 
-    plt.savefig('data/results/increasing_qubits/final_plots/Hc_costs.png')
+    plt.savefig(f'data/results/increasing_qubits/final_plots/Hc_costs{extra_str}.png')
     plt.show()
 
 def plotDistributions(n_phys):
@@ -183,14 +208,17 @@ def plotDistributions(n_phys):
                 f.close()
 
         if method != 'gurobi':
-            plt.hist(all_costs, bins=50, label=method, color=colors[method], alpha=0.4)
+            plt.hist(all_costs, bins=50, label=method, color=colors[method], alpha=0.5)
+
+    for method in methods:
+        run_data = all_data[(method, n_phys)]['run']
         try:
-            plt.axvline(x=run_data['Hc full'], color=colors[method], linestyle='--', linewidth=1)
+            plt.axvline(x=run_data['Hc full'], color=colors[method], linestyle=':', linewidth=2, label=f'{method} avg.')
         except:
-            plt.axvline(x=run_data['avg Hc'], color=colors[method], linestyle='--', linewidth=1)
+            plt.axvline(x=run_data['avg Hc'], color=colors[method], linestyle=':', linewidth=2, label=f'{method} avg.')
 
     
-    plt.text(-60, 25000, 'avg.',  ha='center', va='bottom', rotation=90, color='gray')
+    #plt.text(-50, 27000, 'avg',  ha='center', va='bottom', rotation=90, color='gray')
     plt.legend()
     plt.xlabel('Cost (Hc)')
     plt.ylabel('Probability [%]')
@@ -214,9 +242,9 @@ def plotDistributions(n_phys):
     #  14
     # (17)
 
-    
-#TODO INCREASE PHYS
+extra_gurobi = False
 timestamps = getTimestamps()
+print('ibm5:',timestamps[('ibm', 5)])
 runs = list(timestamps.keys())
 runs.sort()
 methods = set([run[0] for run in runs])
@@ -227,9 +255,9 @@ print('methods', methods)
 all_data = {}
 for run in runs:
     method, n_phys = run[0], run[1]
-    if n_phys==17: # error in 17 run for ibm
+    if n_phys==17 and method in ['ibm', 'random']: # error in 17 run for ibm
         continue
     all_data[run] = combineDataIncr(method, n_phys, timestamps[(method,n_phys)])
-plot_times, plot_distr,  plot_Hcs = getPlotlistsIncr(runs, all_data)
-plotsIncr(plot_times, plot_Hcs)
-plotDistributions(n_phys=5)
+plot_times, plot_distr,  plot_Hcs = getPlotlistsIncr(runs, all_data, extra_gurobi=extra_gurobi)
+plotsIncr(plot_times, plot_Hcs, extra_gurobi=extra_gurobi)
+plotDistributions(n_phys=4)

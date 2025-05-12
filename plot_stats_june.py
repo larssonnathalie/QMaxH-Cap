@@ -72,6 +72,7 @@ def plotDataJune(method:str, schedule=True):
         evaluator_m.makeResultMatrix()
         evaluator_m.evaluateConstraints(1)
         fig = evaluator_m.cleanPlot(width=20,title=f'June schedule using {method}', tile_col = colors[method])
+        fig = evaluator_m.cleanPlot(width=20,title=f'June schedule using {method}', tile_col = colors[method])
         fig.savefig(f'data/results/final_plots/june/schedules/{method}_final_schedule.png')
 
 
@@ -112,7 +113,7 @@ for method in methods:
     printDataJune(method)
     plotDataJune(method, schedule=True) # Plot schedule and append stats to lists
 
-
+"""
 plotStats(times_plot, methods, title='Full computation time', ylabel='Time [s]')
 plotStats(Hcs_plot, methods, title='Hc costs')
 plotStats(manys_plot, methods, title='Too many workers')
@@ -121,7 +122,7 @@ plotStats(titles_plot, methods, title='Wrong number of assigned titles')
 plotStats(sat_avgs_plot, methods, title='Satisfaction', ylabel='Avg. satisfaction score')
 plotStats(sat_vars_plot, methods, title='Satisfaction fairness', ylabel='Variance in satisfaction scores')
 plotStats(extents_plot, methods, title='Employment extent error', ylabel='Avg. distance from target n.o. shifts [%]')
-plotStats(unavails_plot, methods, title='Shifts assigned to unavailable physicians')
+plotStats(unavails_plot, methods, title='Shifts assigned to unavailable physicians')"""
 
 if 'aer' in methods and 'ibm' in methods:
     # Plot 2-gates and circuit depth

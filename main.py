@@ -25,7 +25,7 @@ backend = 'ibm'
 use_classical = not use_qaoa
 solver = 'z3'
 
-increasing_qubits = True
+increasing_qubits = False
 
 # Parameters
 start_date = '2025-06-01' 
@@ -70,6 +70,8 @@ lambdas = {'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 
 
 # Construct empty CALENDAR with holidays etc.
 T, total_holidays, n_days = emptyCalendar(end_date, start_date, cl, time_period=time_period)
+print(total_holidays)
+
 all_dates_df = pd.read_csv(f'data/intermediate/empty_calendar.csv',index_col=None)
 full_solution = []
 
@@ -326,6 +328,8 @@ if use_qaoa:
     incr_str = '/increasing_qubits' if increasing_qubits else ''
 
     if not increasing_qubits:
+        end_time = time.time()
+
         # GET FULL SCHEDULE 
         full_schedule_df = full_solution[0]
         for t in range(1,T):
