@@ -10,7 +10,7 @@ start_date = '2025-06-22'
 end_date = '2025-06-28'
 n_shifts = 7
 cl = 3               # complexity level: 
-n_physicians =  17  #,5,6,7,10,14,(17)
+n_physicians =  119  #,5,6,7,10,14,(17), 21,28,35,42,49,70,119
 preference_seed = 10
 
 time_period = 'all'

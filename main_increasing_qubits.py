@@ -3,13 +3,46 @@ from qaoa.qaoa import *
 from preprocessing.preprocessing import *
 from postprocessing.postprocessing import *
 from qaoa.testQandH import *
+from qaoa.qaoa import *
 from collections import Counter
 import time
 import json
 
 from qiskit_ibm_runtime import QiskitRuntimeService
 
-# Show all rows and columns
+estimation_iterations = 4000
+time_period = 'all'
+start_date = '2025-06-22'
+end_date = '2025-06-28'
+sampling_iterations = 100000
+n_physicians = 21            # 3, 4, 5, 6, 7, 10, 14, 17, 21, 28, 35,42,49, 70, 119
+n_vars = 7*n_physicians
+start_time = int(time.time())
+
+def costCountsDistribution(Hc, random_distribution=None):
+        # RANDOM 
+        if random_distribution is not None:
+            plot_costs = []
+            all_costs_random = []
+            for bitstring_i in random_distribution.keys():
+                count_i = random_distribution[bitstring_i]
+                cost_i = np.real(costOfBitstring(bitstring_i, Hc))
+                all_costs_random += [cost_i]*count_i
+        return np.mean(all_costs_random)
+
+
+random_distribution = generateRandomSolutions(n_vars, sampling_iterations)
+qubo_n = pd.read_csv(f'data/intermediate/Qubo_incr_{n_physicians}phys.csv',header=None).to_numpy()
+b = - sum(qubo_n[i,:] + qubo_n[:,i] for i in range(qubo_n.shape[0]))
+Hc_n = QToHc(qubo_n,b)
+avg_Hc_random = costCountsDistribution(Hc_n, random_distribution=random_distribution)
+random_run_data = {'Hc full': avg_Hc_random}
+with open(f'data/results/increasing_qubits/runs/random_{n_physicians}phys_time{start_time}.json', "w") as f:
+    json.dump(random_run_data, f)
+    f.close()
+
+
+'''# Show all rows and columns
 pd.set_option("display.max_rows", None)
 pd.set_option("display.max_columns", None)
 
@@ -22,7 +55,7 @@ pd.set_option("display.expand_frame_repr", False)
 
 
 # Analyze previous jobs by their id
-'''token = open('../token.txt').readline().strip()
+token = open('../token.txt').readline().strip()
 id = 'd034qrqrxz8g008fyjpg'
 service = QiskitRuntimeService(
     channel='ibm_quantum',
