@@ -62,7 +62,7 @@ if increasing_qubits:
     start_date = '2025-06-22'
     end_date = '2025-06-28'
     sampling_iterations = 100000
-    n_physicians = 5            # 3, 4, 5, 6, 7, 10, 14, 17, 21
+    n_physicians =  10           # 3, 4, 5, 6, 7, 10, 14, 17, 21
 
 # LAMBDAS = penalties (how hard a constraint is)
 # decided:{'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 'titles':5, 'memory':3} 
@@ -293,6 +293,7 @@ if use_qaoa:
         qaoa.findOptimalCircuit(estimation_iterations=estimation_iterations, search_iterations=search_iterations, Ns=Ns)
         best_bitstring_t = qaoa.samplerSearch(sampling_iterations, n_candidates, return_worst_solution=False)
         if increasing_qubits:
+            end_time = time.time()
             plt.figure()
             avg_Hc = qaoa.costCountsDistribution(start_time, n_physicians)
             # RANDOM
@@ -312,6 +313,7 @@ if use_qaoa:
             result_schedule_df_t = bitstringToSchedule(best_bitstring_t, calendar_df_t)
             full_solution.append(result_schedule_df_t)
             controled_result_df_t = controlSchedule(result_schedule_df_t, shifts_df, cl)
+            end_time = time.time()
 
 
             if cl>=2:
@@ -321,7 +323,6 @@ if use_qaoa:
     all_shifts_df = pd.read_csv('data/intermediate/shift_data_all_t.csv', index_col=None)
     n_shifts = len(all_shifts_df)
 
-    end_time = time.time()
     incr_str = '/increasing_qubits' if increasing_qubits else ''
 
     if not increasing_qubits:

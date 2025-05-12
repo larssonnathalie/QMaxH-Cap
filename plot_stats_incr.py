@@ -4,9 +4,9 @@ from qaoa.qaoa import QToHc, costOfBitstring
 import os
 
 # TODO
+    # plot 2-qubit gates, depth
     # (Kör om ibm 17 phys)
     # (Samma physician_df, gör convertPrefs,
-    # (Samma Hc på bs)
     # (add missing full times from ibm website)?
 
 
@@ -78,7 +78,7 @@ def getPlotlistsIncr(runs, all_data):
 
                 else:
                     # COMPUTE AVG Hc
-                    print('Get avg')
+                    print(f'Get avg for {n_phys}phys, {method}')
                     all_costs = []
                     for i, bitstring_i in enumerate(list(all_data[(method, n_phys)]['distribution'].keys())):
                         if i%1000 == 0:
@@ -108,7 +108,7 @@ def getPlotlistsIncr(runs, all_data):
     return plot_times, plot_distr, plot_Hcs
 
 def plotsIncr(plot_times, plot_Hcs):
-    colors = ['skyblue', 'tab:orange', 'green']
+    colors = {'ibm':'skyblue', 'gurobi':'tab:orange', 'aer':'green', 'random':'gray'}
 
     phys_values = list(plot_Hcs.keys())
     phys_values.sort()
@@ -120,11 +120,13 @@ def plotsIncr(plot_times, plot_Hcs):
     # TIMES
     plt.figure()
     plt.title(f'Computation times')
-    plt.plot(xticks[:len(plot_times['gurobi'])], plot_times['gurobi'], linewidth=3, label='Gurobi', color = colors[0], alpha=alp)
-    plt.plot(xticks[:len(plot_times['ibm'])], plot_times['ibm'], label = 'IBM',linewidth=3, color = colors[1], alpha=alp)
+    plt.plot(xticks[:len(plot_times['gurobi'])], plot_times['gurobi'], linewidth=3, label='Gurobi', color = colors['gurobi'], alpha=alp)
+    plt.plot(xticks[:len(plot_times['ibm'])], plot_times['ibm'], label = 'IBM',linewidth=3, color = colors['ibm'], alpha=alp)
+    plt.plot(xticks[:len(plot_times['aer'])], plot_times['aer'], label = 'Aer',linewidth=3, color = colors['aer'], alpha=alp)
     # dots
-    plt.scatter(xticks[:len(plot_times['gurobi'])], plot_times['gurobi'], s=siz, color = colors[0])
-    plt.scatter(xticks[:len(plot_times['ibm'])], plot_times['ibm'], s=siz, color = colors[1])
+    plt.scatter(xticks[:len(plot_times['gurobi'])], plot_times['gurobi'], s=siz, color = colors['gurobi'])
+    plt.scatter(xticks[:len(plot_times['ibm'])], plot_times['ibm'], s=siz, color = colors['ibm'])
+    plt.scatter(xticks[:len(plot_times['aer'])], plot_times['aer'], s=siz, color = colors['aer'])
 
     plt.legend()
     plt.xticks(ticks=xticks, labels=xlabels)
@@ -136,13 +138,13 @@ def plotsIncr(plot_times, plot_Hcs):
     # Avg Hc
     plt.figure()
     plt.title(f'Average Hc costs')
-    plt.plot(xticks[:len(plot_Hcs['gurobi'])], plot_Hcs['gurobi'], linewidth=3, label='Gurobi', color = colors[0], alpha=alp)
-    plt.plot(xticks[:len(plot_Hcs['ibm'])], plot_Hcs['ibm'], linewidth=3, label='IBM', color = colors[1], alpha=alp)
-    plt.plot(xticks[:len(plot_Hcs['random'])], plot_Hcs['random'], linewidth=3, label='Random', color = colors[2], alpha=alp)
+    plt.plot(xticks[:len(plot_Hcs['gurobi'])], plot_Hcs['gurobi'], linewidth=3, label='Gurobi', color = colors['gurobi'], alpha=alp)
+    plt.plot(xticks[:len(plot_Hcs['ibm'])], plot_Hcs['ibm'], linewidth=3, label='IBM', color = colors['ibm'], alpha=alp)
+    plt.plot(xticks[:len(plot_Hcs['random'])], plot_Hcs['random'], linewidth=3, label='Random', color = colors['random'], alpha=alp)
     # dots
-    plt.scatter(xticks[:len(plot_Hcs['gurobi'])], plot_Hcs['gurobi'], s=siz, color = colors[0])
-    plt.scatter(xticks[:len(plot_Hcs['ibm'])], plot_Hcs['ibm'], s=siz, color = colors[1])
-    plt.scatter(xticks[:len(plot_Hcs['random'])], plot_Hcs['random'], s=siz, color = colors[2])
+    plt.scatter(xticks[:len(plot_Hcs['gurobi'])], plot_Hcs['gurobi'], s=siz, color = colors['gurobi'])
+    plt.scatter(xticks[:len(plot_Hcs['ibm'])], plot_Hcs['ibm'], s=siz, color = colors['ibm'])
+    plt.scatter(xticks[:len(plot_Hcs['random'])], plot_Hcs['random'], s=siz, color = colors['random'])
 
     plt.legend()
     plt.xticks(ticks=xticks, labels=xlabels)
@@ -153,7 +155,7 @@ def plotsIncr(plot_times, plot_Hcs):
 
 def plotDistributions(n_phys):
     methods = [ 'random','ibm',]#, 'gurobi']
-    colors = [ 'gray', 'skyblue', 'tab:orange']
+    colors = {'ibm':'skyblue', 'gurobi':'tab:orange', 'aer':'green', 'random':'gray'}
     for j, method in enumerate(methods):
         run_data = all_data[(method, n_phys)]['run']
         
@@ -165,7 +167,7 @@ def plotDistributions(n_phys):
             qubo_n = pd.read_csv(f'data/intermediate/Qubo_incr_{n_phys}phys.csv',header=None).to_numpy()
             b = - sum(qubo_n[i,:] + qubo_n[:,i] for i in range(qubo_n.shape[0]))
             Hc_n = QToHc(qubo_n,b)
-
+            print('Computing cost for solution distribution of', method, n_phys,'phys')
             all_costs = []
             for i, bitstring_i in enumerate(list(all_data[(method, n_phys)]['distribution'].keys())):
                 if i%1000 == 0:
@@ -181,10 +183,14 @@ def plotDistributions(n_phys):
                 f.close()
 
         if method != 'gurobi':
-            plt.hist(all_costs, bins=50, label=method, color=colors[j], alpha=0.5)
-        plt.axvline(x=run_data['Hc full'], color=colors[j], linestyle='--', linewidth=0.5)
+            plt.hist(all_costs, bins=50, label=method, color=colors[method], alpha=0.4)
+        try:
+            plt.axvline(x=run_data['Hc full'], color=colors[method], linestyle='--', linewidth=1)
+        except:
+            plt.axvline(x=run_data['avg Hc'], color=colors[method], linestyle='--', linewidth=1)
+
     
-    plt.text(-50, 27000, 'avg',  ha='center', va='bottom')
+    plt.text(-60, 25000, 'avg.',  ha='center', va='bottom', rotation=90, color='gray')
     plt.legend()
     plt.xlabel('Cost (Hc)')
     plt.ylabel('Probability [%]')
@@ -226,4 +232,4 @@ for run in runs:
     all_data[run] = combineDataIncr(method, n_phys, timestamps[(method,n_phys)])
 plot_times, plot_distr,  plot_Hcs = getPlotlistsIncr(runs, all_data)
 plotsIncr(plot_times, plot_Hcs)
-plotDistributions(n_phys=4)
+plotDistributions(n_phys=5)
