@@ -116,7 +116,6 @@ for method in methods:
 
 
 
-"""
 plotStats(times_plot, methods, title='Full computation time', ylabel='Time [s]')
 plotStats(Hcs_plot, methods, title='Hc costs')
 plotStats(manys_plot, methods, title='Too many workers')
@@ -125,7 +124,7 @@ plotStats(titles_plot, methods, title='Wrong number of assigned titles')
 plotStats(sat_avgs_plot, methods, title='Satisfaction', ylabel='Avg. satisfaction score')
 plotStats(sat_vars_plot, methods, title='Satisfaction fairness', ylabel='Variance in satisfaction scores')
 plotStats(extents_plot, methods, title='Employment extent error', ylabel='Avg. distance from target n.o. shifts [%]')
-plotStats(unavails_plot, methods, title='Shifts assigned to unavailable physicians')"""
+plotStats(unavails_plot, methods, title='Shifts assigned to unavailable physicians')
 
 if 'aer' in methods and 'ibm' in methods:
     # Plot 2-gates and circuit depth

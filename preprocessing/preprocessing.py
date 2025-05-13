@@ -438,6 +438,230 @@ def makeObjectiveFunctions(demands, t, T, cl, lambdas, time_period, prints=False
     all_hamiltonians = sp.nsimplify(sp.expand(H_meet_demand*lambdas['demand'] + H_fair*lambdas['fair'] + H_pref*lambdas['pref'] + H_unavail*lambdas['unavail'] + H_extent*lambdas['extent'] + H_rest*lambdas['rest'] + H_titles*lambdas['titles']))
     return all_hamiltonians, x_symbols
 
+
+def makeObjectivesSeparated(demands, t, T, cl, lambdas, time_period, prints=False):
+    # Both objectives & constraints formulated as Hamiltonians
+    # Using sympy so we can simplify the H expressions
+    if T == 1:
+        shifts_df =  pd.read_csv(f'data/intermediate/shift_data_all_t.csv')
+    else:
+        shifts_df = pd.read_csv(f'data/intermediate/shift many t/shift_data_t{t}.csv')
+    n_shifts = len(shifts_df)
+    print('\nn shifts:', n_shifts)
+    physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
+    n_physicians = len(physician_df)
+
+    # DECISION VARIABLES (a list of lists)
+    x_symbols = []
+    for p in range(n_physicians):
+        x_symbols_p = [sp.symbols(f'x{p}_{s}') for s in range(n_shifts)]
+        x_symbols.append(x_symbols_p)
+
+    H_fair = 0
+    H_extent = 0
+    H_meet_demand = 0
+    H_pref = 0
+    H_unavail = 0
+    H_rest = 0
+    H_titles = 0
+
+    # minimize UNFAIRNESS
+    if cl == 1:
+        if T !=1:
+            print('\nERROR in makeObjectives..(): cl 1 not implemented for more than one t')  
+            return 
+        
+        # Hfair = ∑ᵢ₌₁ᴾ (∑ⱼ₌₁ˢ xᵢⱼ − S/P)²                 S = n_demand, P = n_physicians
+        n_demand = sum(int(shifts_df['demand'].iloc[s]) for s in range(n_shifts)) #NOTE TESTING
+        max_shifts_per_p = int((n_demand/n_physicians)+0.999 ) # fair distribution of shifts
+        for p in range(n_physicians):
+            H_fair_s_sum_p = sum(x_symbols[p][s] for s in range(n_shifts))   
+            H_fair_p = (H_fair_s_sum_p - max_shifts_per_p)**2   
+            H_fair += H_fair_p
+
+    elif cl != 1: 
+        if T == 1:
+            # Minimize PREFERENCE dissatisfaction
+            for p in range(n_physicians): 
+                prefer_p = physician_df[f'prefer t{t}'].iloc[p]
+                if prefer_p != '[]':
+                    prefer_shifts_p = prefer_p.strip('[').strip(']').split(',')  
+                    H_pref_p = sum(x_symbols[p][int(s)] for s in prefer_shifts_p) # Reward prefered shifts (negative penalties)
+                    H_pref -= H_pref_p 
+
+                prefer_not_p = physician_df[f'prefer not t{t}'].iloc[p]
+                if prefer_not_p != '[]':
+                    prefer_not_shifts_p = prefer_not_p.strip('[').strip(']').split(',')  
+                    H_pref_not_p = sum(x_symbols[p][int(s)] for s in prefer_not_shifts_p) # Penalize unprefered shifts
+                    H_pref += H_pref_not_p
+
+                # UNAVAILABLE constraint
+                unavail_shifts_p = physician_df[f'unavailable t{t}'].iloc[p]
+                if unavail_shifts_p != '[]':
+                    unavail_shifts_p = unavail_shifts_p.strip('[').strip(']').split(',')  
+                    H_unavail_p = sum(x_symbols[p][int(s)] for s in unavail_shifts_p)
+                    H_unavail += H_unavail_p
+                
+                # EXTENT
+                percentage = physician_df['extent'].iloc[p]
+                target_shifts_per_week_p = targetShiftsPerWeek(percentage, cl) #int((n_demand/n_physicians)+0.999 ) # fair distribution of shifts
+                target_shifts_p = target_shifts_per_week_p * (n_shifts/7)
+                n_shifts_p = sum(x_symbols[p][s] for s in range(n_shifts))
+                H_extent += (n_shifts_p-target_shifts_p)**2
+
+
+        elif T != 1: 
+            # long term SATISFACTION fairness
+            equality_priority = t/T        # Last t:s: prioritize fairness
+            optimize_priority = 1-equality_priority # First weeks: optimize overall satisfaction
+            min_prio = 0.01 * optimize_priority      # so the most satisfied p still has some priority. (First week this applies to all p)
+
+            prefer = {p:physician_df.loc[p,f'prefer t{t}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
+            prefer_not = {p:physician_df.loc[p,f'prefer not t{t}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
+            unavailable = {p:physician_df.loc[p,f'unavailable t{t}'].strip('[').strip(']').split(',') for p in range(n_physicians)}
+
+            if t == 0 or time_period=='all':
+                satisfaction = np.ones(n_physicians)*10
+            else:
+                satisfaction = np.array([float(sat) for sat in physician_df['satisfaction']])
+                sat= ''
+                for p in range(n_physicians):
+                    sat += str(satisfaction[p])[:4]+'  '
+                min_sat = np.min(satisfaction)
+                satisfaction = satisfaction - min_sat + 1   # shift whole column to set least satisfied = 1
+            
+            satisfaction_rate = satisfaction/np.max(satisfaction) 
+            #print('rates:')
+            rat= ''
+            for p in range(n_physicians):
+                rat += str(satisfaction_rate[p])[:4]+'  '
+            #print(rat)
+            priority = np.where((1 - satisfaction_rate)>min_prio, (1 - satisfaction_rate), min_prio)   # less satisfied are more important & apply min_prio
+            pri = ''
+            #print('prios:')
+            for p in range(n_physicians):
+                pri += str(priority[p])[:4]+'  '
+            #print(pri)
+
+            for p in range(n_physicians):
+                priority_p = priority[p]
+
+                for s in prefer[p]:
+                    if s != '':
+                        H_fair -= priority_p * x_symbols[p][int(s)]**2  # reward prefered shifts
+                        #print(p, 'prefered', s, 'has priority', priority_p)
+
+                for s in prefer_not[p]:
+                    if s != '':
+                        H_fair += priority_p * x_symbols[p][int(s)]**2  # penalize unprefered shifts
+                        #print(p, 'prefered not', s, 'has priority', priority_p)
+
+                for s in unavailable[p]:
+                    if s != '':
+                        H_unavail += x_symbols[p][int(s)]**2 # penalize assigning unavailable
+        
+        
+        # EXTENT
+        if time_period == 'shift' or time_period =='day':
+            days_passed = getDaysPassed(t, time_period)
+            extent_priority =min(days_passed/7, 1) # Extent is less important first days, so not all are assigned the first shifts
+            for p in range(n_physicians):
+                work_rate_p = physician_df['work rate'].iloc[p]
+                    #print(p, 'has work rate', work_rate_p)
+                priority_p = abs(extent_priority * (1 - float(work_rate_p) ))
+                    #print('priority\t', priority_p)
+
+                if work_rate_p < 1:
+                    if prints:
+                        print(p,'´s work rate is',work_rate_p)
+                    for s in range(n_shifts):
+                        H_extent -= priority_p * x_symbols[p][s]**2  # Reward shift assignment to p:s who have low work rate
+                
+                elif work_rate_p >=1:
+                    for s in range(n_shifts):
+                        H_extent += priority_p * x_symbols[p][s]**2 # penalize shift assignment to p:s who have high work rate
+
+
+        elif time_period == 'week':
+            shifts_per_week=shiftsPerWeek(cl)
+
+            for p in range(n_physicians):
+                extent_p = int(physician_df['extent'].iloc[p])
+                n_shifts_target = targetShiftsPerWeek(extent_p, cl)
+                n_shifts_target = n_shifts_target * (n_shifts/shifts_per_week)
+                assigned_shifts = sum(x_symbols[p][s] for s in range(n_shifts))
+                H_extent += (assigned_shifts-sp.Integer(n_shifts_target))**2
+        
+        elif time_period == 'all':
+            for p in range(n_physicians):
+                extent_p = int(physician_df['extent'].iloc[p])
+                n_shifts_target = targetShiftsPerWeek(extent_p, cl)
+                n_shifts_target = n_shifts_target * (n_shifts/7)
+                assigned_shifts = sum(x_symbols[p][s] for s in range(n_shifts))
+                H_extent += (assigned_shifts-sp.Integer(n_shifts_target))**2
+            #print('\nEXTENT:\n',H_extent)
+
+        if shiftsPerWeek(cl)==21:
+            # REST between shifts
+            for p in range(n_physicians):
+                worked_last = int(physician_df['worked last'].iloc[p]) 
+                if worked_last == 1:
+                    H_rest += x_symbols[p][0]**2 # penalize first shift if p worked last shift in previous t
+                
+                if n_shifts>1:
+                    for s in range(1,n_shifts):
+                        H_rest += x_symbols[p][s]*x_symbols[p][s-1] # penalize working two following shift
+
+    if cl >=3:
+
+        for s in range(n_shifts):
+            # TITLES constraint
+            #s = 0    
+            demand = shifts_df['demand'].iloc[s] 
+            all_with_title = {'ST':[],'AT':[],'ÖL':[],'Chef':[],'UL':[]}
+            for p in range(n_physicians):
+                title_p = physician_df['title'].iloc[p]
+                all_with_title[title_p].append(p) 
+            
+            n_ST = sum(x_symbols[p][s] for p in all_with_title['ST'])
+            n_UL = sum(x_symbols[p][s] for p in all_with_title['UL'])
+            n_ÖL = sum(x_symbols[p][s] for p in all_with_title['ÖL'])
+            
+            H_titles_s = (n_ST-(demand/4))**2 + (n_UL-(demand/4))**2 + (n_ÖL-(demand/4))**2 # Goal: 1/4 ST, 1/4 ÖL, 1/4 UL of demand, each day
+            H_titles += H_titles_s/n_shifts 
+
+    # DEMAND
+    # ∑s=1 (demanded – (∑p=1  x_ps))^2
+    for s in range(n_shifts): 
+        demand_s = shifts_df['demand'].iloc[s]
+        workers_s = sum(x_symbols[p][s] for p in range(n_physicians))   
+        H_meet_demand_s = (workers_s-sp.Integer(demand_s))**2 
+        H_meet_demand += H_meet_demand_s
+    
+    H_fair = sp.expand(H_fair)
+    H_extent = sp.expand(H_extent)
+    H_meet_demand = sp.expand(H_meet_demand)
+    H_pref = sp.expand(H_pref)
+    H_unavail = sp.expand(H_unavail)
+    H_rest = sp.expand(H_rest)
+    H_titles = sp.expand(H_titles)
+
+    O_unavail =  sp.simplify(H_unavail*lambdas['unavail'])
+    O_titles = sp.simplify(sp.expand(H_titles*lambdas['titles']))
+    O_demand = sp.simplify(H_meet_demand*lambdas['demand'])
+    O_fair = sp.simplify(H_fair*lambdas['fair'])
+    O_extent = sp.simplify(H_extent*lambdas['extent'])
+    O_pref = sp.simplify(H_pref*lambdas['pref'])
+
+    #print('H unavail:', sp.simplify(H_unavail*lambdas['unavail']))
+    #print('H titles:', sp.simplify(sp.expand(H_titles*lambdas['titles'])))'''
+
+    # Combine all to one single H
+    # H = λ₁H_fair + λ₂H_pref + λ₃H_meetDemand + ...
+    #all_hamiltonians = sp.nsimplify(sp.expand(H_meet_demand*lambdas['demand'] + H_fair*lambdas['fair'] + H_pref*lambdas['pref'] + H_unavail*lambdas['unavail'] + H_extent*lambdas['extent'] + H_rest*lambdas['rest'] + H_titles*lambdas['titles']))
+    O = {'unavail':O_unavail, 'titles':O_titles, 'demand':O_demand, 'fair':O_fair, 'extent':O_extent, 'pref':O_pref}
+    return O, x_symbols
+
 def objectivesToQubo(all_hamiltonians, n_shifts, x_symbols, cl, mirror=True, prints=False):
     physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
     n_physicians = len(physician_df)

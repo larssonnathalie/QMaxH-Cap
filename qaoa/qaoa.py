@@ -50,9 +50,7 @@ def QToHc(Q, b):
             if Q[i, j] != 0:
                 pauli_string = ['I'] * n_vars
                 pauli_string[i], pauli_string[j] = 'Z', 'Z'     # "Z" at positions i and j
-                coeff = Q[i, j] / 4                         
-
-                pauli_string.reverse() 
+                coeff = Q[i, j] / 4                        
                 pauli_list.append(("".join(pauli_string), coeff))
 
     # "b"terms
@@ -60,14 +58,12 @@ def QToHc(Q, b):
         if b[i] != 0: 
             pauli_string = ['I'] * n_vars
             pauli_string[i] = 'Z'
-            coeff = b[i] / 4
-            pauli_string.reverse() 
+            coeff = b[i] / 4 
             pauli_list.append(("".join(pauli_string), coeff))
     
     Hc = SparsePauliOp.from_list(pauli_list)
 
     return Hc
-
 
 
 
