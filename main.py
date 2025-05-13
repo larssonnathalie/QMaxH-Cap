@@ -78,14 +78,10 @@ full_solution = []
 # PHYSICIAN
 # preferences, titles etc.
 generatePhysicianData(all_dates_df, n_physicians, cl, seed=preference_seed, only_fulltime=only_fulltime)  
-convertPreferences(all_dates_df,0)
-universal = pd.read_csv(f'data/intermediate/physician_universal_june.csv')
-names = universal['name']
 physician_df = pd.read_csv(f'data/intermediate/physician_data.csv')
-physician_df['name'] = names[:10]
-physician_df.to_csv('data/intermediate/10physician_data.csv', index=None)#TEMPORARY
 
-'''# DEMAND  
+
+# DEMAND  
 if shiftsPerWeek(cl)==7:    
     # Set from amount of workers and their extent
     target_n_shifts_total_per_week = sum(targetShiftsPerWeek(physician_df['extent'].iloc[p], cl) for p in range(n_physicians)) 
@@ -394,4 +390,4 @@ if use_qaoa:
 
         ax.legend()
         plt.show()
-        fig.savefig(f'data/results{incr_str}/plots/{backend}_{n_physicians}phys_time{int(start_time)}_satisfaction.png', dpi=300, bbox_inches='tight')'''
+        fig.savefig(f'data/results{incr_str}/plots/{backend}_{n_physicians}phys_time{int(start_time)}_satisfaction.png', dpi=300, bbox_inches='tight')

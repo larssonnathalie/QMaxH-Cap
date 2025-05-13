@@ -10,7 +10,6 @@ import os
     # (add missing full times from ibm website)?
 
 
-
 def combineDataIncr(method, n_physicians, timestamp):
     print(f'Sorting data for: {method}, {n_physicians} physicians at time {timestamp}')
     all_data = {}
@@ -231,7 +230,6 @@ def plotDistributions(n_phys):
     plt.ylim((0,30000))
     plt.savefig(f'data/results/increasing_qubits/final_plots/cost_distribution_{n_phys*7}vars.png')
     plt.show()
-
 
 
 # Compare incr:  (show: time, avg Hc,     + Quantum: depth, 2-gates)
