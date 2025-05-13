@@ -39,7 +39,7 @@ def printDataJune(method:str):
     physicians_compare.append(all_data[method]['physician path'])
 
 def plotDataJune(method:str, schedule=True):
-    colors = {'ibm':'skyblue', 'z3':'tab:orange', 'aer':'green'}
+    colors = {'ibm':'skyblue', 'gurobi':'tab:orange', 'aer':'green'}
     # TODO PLOT RUNS DATA         # 'run': {'full time':end_time-start_time, 'Hc full':qaoa_Hc_cost, 'bitstring':qaoa_bitstring, 'demands':demands, 'layers':n_layers,'search iterations (if aer)':search_iterations, 'pref seed':preference_seed,'n candidates':n_candidates,'lambdas':lambdas, 'constraints':constraint_scores}
     times_plot.append(all_data[method]['run']['full time'])
     Hcs_plot.append(all_data[method]['run']['Hc full'])
@@ -70,7 +70,7 @@ def plotDataJune(method:str, schedule=True):
         evaluator_m = Evaluator(all_data[method]['schedule'], cl, time_period, lambdas, physician_path='data/intermediate/physician_universal_june.csv') # TODO: should be same prefs & exts as: f'data/results/physician/{method}_15phys_time{timestamps[method]}.csv'
         evaluator_m.makeResultMatrix()
         evaluator_m.evaluateConstraints(1)
-        fig = evaluator_m.cleanPlot(width=20,title=f'June schedule using {method}', tile_col = colors[method])
+        fig = evaluator_m.cleanPlot(width=10,title=f'June schedule using {method}', tile_col = colors[method])
         fig.savefig(f'data/results/final_plots/june/schedules/{method}_final_schedule.png')
 
 
@@ -93,14 +93,14 @@ def plotStats(plot_data, methods, title='', ylabel=''):
     plt.show()
 
 n_physicians = 15 # SHOULD BE 15 
-methods = ['aer', 'ibm', 'z3']#'gurobi']   #, 'ibm', 'gurobi', 'z3'] #maybe not z3
+methods = ['aer', 'ibm', 'gurobi']   #, 'ibm', 'gurobi', 'z3'] #maybe not z3
 all_data = {}
 time_period = 'all'
 cl = 3
 lambdas = {'demand':3, 'fair':10, 'pref':5, 'unavail':15, 'extent':8, 'rest':0, 'titles':5, 'memory':3} 
 physician_universal_june = pd.read_csv('data/intermediate/physician_universal_june.csv', index_col=None)
 
-timestamps = {'aer':1746722550,'ibm':1746706255,'gurobi':0000,'z3':1746721526}
+timestamps = {'aer':1746722550,'ibm':1746706255,'gurobi':1747069324,'z3':1746721526}
 times_plot, Hcs_plot, manys_plot, fews_plot, titles_plot, sat_avgs_plot, sat_vars_plot, extents_plot, unavails_plot, physicians_compare  = [], [],[], [],[], [],[], [],[], []
 for method in methods:
     if method =='z3':
@@ -111,7 +111,7 @@ for method in methods:
     printDataJune(method)
     plotDataJune(method, schedule=True) # Plot schedule and append stats to lists
 
-"""
+
 plotStats(times_plot, methods, title='Full computation time', ylabel='Time [s]')
 plotStats(Hcs_plot, methods, title='Hc costs')
 plotStats(manys_plot, methods, title='Too many workers')
@@ -120,7 +120,7 @@ plotStats(titles_plot, methods, title='Wrong number of assigned titles')
 plotStats(sat_avgs_plot, methods, title='Satisfaction', ylabel='Avg. satisfaction score')
 plotStats(sat_vars_plot, methods, title='Satisfaction fairness', ylabel='Variance in satisfaction scores')
 plotStats(extents_plot, methods, title='Employment extent error', ylabel='Avg. distance from target n.o. shifts [%]')
-plotStats(unavails_plot, methods, title='Shifts assigned to unavailable physicians')"""
+plotStats(unavails_plot, methods, title='Shifts assigned to unavailable physicians')
 
 if 'aer' in methods and 'ibm' in methods:
     # Plot 2-gates and circuit depth
