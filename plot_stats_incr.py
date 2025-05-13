@@ -123,7 +123,8 @@ def getPlotlistsIncr(runs, all_data, extra_gurobi):
     return plot_times, plot_distr, plot_Hcs
 
 def plotsIncr(plot_times, plot_Hcs, extra_gurobi=False):
-    colors = {'ibm':'#54A4CC', 'gurobi':'tab:orange', 'aer':'green', 'random':'gray'}
+    #colors = {'ibm':'#54A4CC', 'gurobi':'tab:orange', 'aer':'green', 'random':'gray'}
+    colors = {'gurobi':'#FF8E2E', 'z3':'#FFDD33', 'ibm':'#0099DD', 'aer':'skyblue', 'random':'gray'}
 
     phys_values = list(plot_Hcs.keys())
     phys_values.sort()
@@ -134,13 +135,14 @@ def plotsIncr(plot_times, plot_Hcs, extra_gurobi=False):
     xlabels = [i*7 for i in xticks]
     alp=0.6
     siz = 10
+    lw = 3.3
 
     # TIMES
     plt.figure()
     plt.title(f'Computation times')
-    plt.plot(xticks[:len(plot_times['gurobi'])], plot_times['gurobi'], linewidth=3, label='Gurobi', color = colors['gurobi'], alpha=alp)
-    plt.plot(xticks[:len(plot_times['ibm'])], plot_times['ibm'], label = 'IBM',linewidth=3, color = colors['ibm'], alpha=alp)
-    plt.plot(xticks[:len(plot_times['aer'])], plot_times['aer'], label = 'Aer',linewidth=3, color = colors['aer'], alpha=alp)
+    plt.plot(xticks[:len(plot_times['gurobi'])], plot_times['gurobi'], linewidth=lw, label='Gurobi', color = colors['gurobi'], alpha=alp)
+    plt.plot(xticks[:len(plot_times['ibm'])], plot_times['ibm'], label = 'IBM',linewidth=lw, color = colors['ibm'], alpha=alp)
+    plt.plot(xticks[:len(plot_times['aer'])], plot_times['aer'], label = 'Aer',linewidth=lw, color = colors['aer'], alpha=alp)
     # dots
     plt.scatter(xticks[:len(plot_times['gurobi'])], plot_times['gurobi'], s=siz, color = colors['gurobi'])
     plt.scatter(xticks[:len(plot_times['ibm'])], plot_times['ibm'], s=siz, color = colors['ibm'])
@@ -157,19 +159,18 @@ def plotsIncr(plot_times, plot_Hcs, extra_gurobi=False):
     # Avg Hc
     plt.figure()
     plt.title(f'Average Hc costs')
-    plt.plot(xticks[:len(plot_Hcs['gurobi'])], plot_Hcs['gurobi'], linewidth=3, label='Gurobi', color = colors['gurobi'], alpha=alp)
-    plt.plot(xticks[:len(plot_Hcs['ibm'])], plot_Hcs['ibm'], linewidth=3, label='IBM', color = colors['ibm'], alpha=alp)
-    plt.plot(xticks[:len(plot_Hcs['random'])], plot_Hcs['random'], linewidth=3, label='Random', color = colors['random'], alpha=alp)
-    plt.plot(xticks[:len(plot_Hcs['gurobi'])], plot_Hcs['gurobi'], linewidth=3, label='Gurobi', color = colors['gurobi'], alpha=alp)
-    plt.plot(xticks[:len(plot_Hcs['ibm'])], plot_Hcs['ibm'], linewidth=3, label='IBM', color = colors['ibm'], alpha=alp)
-    plt.plot(xticks[:len(plot_Hcs['random'])], plot_Hcs['random'], linewidth=3, label='Random', color = colors['random'], alpha=alp)
+    plt.plot(xticks[:len(plot_Hcs['random'])], plot_Hcs['random'], linewidth=lw, label='Random', color = colors['random'], alpha=alp)
+    plt.plot(xticks[:len(plot_Hcs['gurobi'])], plot_Hcs['gurobi'], linewidth=lw, label='Gurobi', color = colors['gurobi'], alpha=alp)
+    plt.plot(xticks[:len(plot_Hcs['ibm'])], plot_Hcs['ibm'], linewidth=lw, label='IBM', color = colors['ibm'], alpha=alp)
+    plt.plot(xticks[:len(plot_Hcs['aer'])], plot_times['aer'], label = 'Aer',linewidth=lw, color = colors['aer'], alpha=alp)
+
+
     # dots
-    plt.scatter(xticks[:len(plot_Hcs['gurobi'])], plot_Hcs['gurobi'], s=siz, color = colors['gurobi'])
-    plt.scatter(xticks[:len(plot_Hcs['ibm'])], plot_Hcs['ibm'], s=siz, color = colors['ibm'])
     plt.scatter(xticks[:len(plot_Hcs['random'])], plot_Hcs['random'], s=siz, color = colors['random'])
     plt.scatter(xticks[:len(plot_Hcs['gurobi'])], plot_Hcs['gurobi'], s=siz, color = colors['gurobi'])
     plt.scatter(xticks[:len(plot_Hcs['ibm'])], plot_Hcs['ibm'], s=siz, color = colors['ibm'])
-    plt.scatter(xticks[:len(plot_Hcs['random'])], plot_Hcs['random'], s=siz, color = colors['random'])
+    plt.scatter(xticks[:len(plot_Hcs['aer'])], plot_Hcs['aer'], s=siz, color = colors['aer'])
+
 
     plt.legend()
     plt.xticks(ticks=xticks, labels=xlabels)
@@ -180,7 +181,9 @@ def plotsIncr(plot_times, plot_Hcs, extra_gurobi=False):
 
 def plotDistributions(n_phys):
     methods = [ 'random','ibm', 'gurobi']
-    colors = {'ibm':'#64B4DC', 'gurobi':'tab:orange', 'aer':'green', 'random':'gray'}
+    #colors = {'ibm':'#64B4DC', 'gurobi':'tab:orange', 'aer':'green', 'random':'gray'}
+    colors = {'gurobi':'#FF8E2E', 'z3':'#FFDD33', 'ibm':'#0099DD', 'aer':'skyblue', 'random':'gray'}
+
     for j, method in enumerate(methods):
         run_data = all_data[(method, n_phys)]['run']
         
@@ -208,14 +211,14 @@ def plotDistributions(n_phys):
                 f.close()
 
         if method != 'gurobi':
-            plt.hist(all_costs, bins=50, label=method, color=colors[method], alpha=0.5)
+            plt.hist(all_costs, bins=50, label=method.capitalize(), color=colors[method], alpha=0.3)
 
     for method in methods:
         run_data = all_data[(method, n_phys)]['run']
         try:
-            plt.axvline(x=run_data['Hc full'], color=colors[method], linestyle=':', linewidth=2, label=f'{method} avg.')
+            plt.axvline(x=run_data['Hc full'], color=colors[method], linestyle=':', linewidth=2, label=f'{method.capitalize()} avg.')
         except:
-            plt.axvline(x=run_data['avg Hc'], color=colors[method], linestyle=':', linewidth=2, label=f'{method} avg.')
+            plt.axvline(x=run_data['avg Hc'], color=colors[method], linestyle=':', linewidth=2, label=f'{method.capitalize()} avg.')
 
     
     #plt.text(-50, 27000, 'avg',  ha='center', va='bottom', rotation=90, color='gray')

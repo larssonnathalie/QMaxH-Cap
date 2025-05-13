@@ -353,7 +353,9 @@ class Evaluator:
     def cleanPlot(self, width=10, show_plot=True, title='', tile_col = None):
         x_size = width
         # y_size = 8 
-        y_size = self.n_physicians/self.n_shifts * x_size + 1
+        y_size = self.n_physicians/self.n_shifts * x_size -1 #WAS +1 BEFORE
+        print('\nSIZES')
+        print(x_size, y_size)
         fig, ax = plt.subplots(figsize=(x_size,y_size))
         if tile_col == 'skyblue':
             cmap = ListedColormap(['white', '#505050'])
@@ -376,8 +378,8 @@ class Evaluator:
                 prefer_colors = np.where(self.prefer_matrix.flatten()==-2,'red',prefer_colors) # unavailable
 
                 x, y = np.meshgrid(np.arange(self.n_shifts), np.arange(self.n_physicians)) 
-                scale_squares = 1#/3 # Should be = 1 for full-size squares
-                pref_squares = ax.scatter(x.ravel(), y.ravel(), s=(50*scale_squares*(x_size/self.n_shifts))**2, c='none',marker='s', linewidths=4*scale_squares, edgecolors=prefer_colors) 
+                scale_squares = 0.8#/3 # Should be = 1 for full-size squares
+                pref_squares = ax.scatter(x.ravel(), y.ravel(), s=(50*scale_squares*(x_size/self.n_shifts))**2, c='none',marker='s', linewidths=3.6*scale_squares, edgecolors=prefer_colors) 
         
         xticks = [i for i in np.arange(self.n_shifts)]
         xlabels = [str(date[-2:])+'/6' for date in self.result_df['date']] # NOTE removed year from ticks
@@ -387,7 +389,7 @@ class Evaluator:
         #ax.spines["right"].set_linewidth(0) # remove right side of frame
         #ax.spines["top"].set_linewidth(0) 
         plt.title(title)
-        plt.subplots_adjust(left=0.15, right=0.95, bottom=0.1) # Adjust padding
+        plt.subplots_adjust(left=0.25, right=0.95, bottom=0.1) # Adjust padding
 
         if show_plot:
             plt.show()
