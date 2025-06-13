@@ -368,7 +368,11 @@ class Evaluator:
             cmap = ListedColormap(['white', '#505050'])
             #cmap, vmax, vmin ='green',0,0#"Green",1,0
 
-        result = ax.pcolor(np.arange(self.n_shifts+1)-0.5, np.arange(self.n_physicians+1)-0.5, self.result_matrix, cmap=cmap)#, vmax=vmax,vmin=vmin)
+        # TEMPORARY #
+        #result = ax.pcolor(np.arange(self.n_shifts+1)-0.5, np.arange(self.n_physicians+1)-0.5, self.result_matrix, cmap=cmap)#, vmax=vmax,vmin=vmin)
+        show_grid = np.zeros((self.result_matrix.shape))
+        result = ax.pcolor(np.arange(self.n_shifts+1)-0.5, np.arange(self.n_physicians+1)-0.5, show_grid, edgecolors='gray',cmap=cmap)#, vmax=vmax,vmin=vmin)
+
 
         if self.cl>=2:  # PREFERENCE squares
             if self.lambdas['pref'] != 0:
@@ -383,12 +387,15 @@ class Evaluator:
         
         xticks = [i for i in np.arange(self.n_shifts)]
         xlabels = [str(date[-2:])+'/6' for date in self.result_df['date']] # NOTE removed year from ticks
-        ax.set_xticks(ticks=xticks, labels=xlabels,fontsize=8,rotation=45) 
+        ax.set_xticks(ticks=xticks, labels=xlabels,fontsize=8,rotation=45, color='white') 
         yticks = [i for i in np.arange(self.n_physicians)]
-        ax.set_yticks(ticks=yticks, labels=[f'{name} ({title})({ext}%)' for name, title, ext in zip(self.physician_df['name'],self.physician_df['title'],self.physician_df['extent'])])
+        fig.patch.set_facecolor('#202020')  # Outside the axes
+        ax.set_yticks(ticks=yticks, labels=[f'{name} ({title})({ext}%)' for name, title, ext in zip(self.physician_df['name'],self.physician_df['title'],self.physician_df['extent'])], color='white')
+
+        #ax.set_yticks(ticks=yticks, labels=[f'{name} ({title})' for name, title, ext in zip(self.physician_df['name'],self.physician_df['title'],self.physician_df['extent'])], color='white')
         #ax.spines["right"].set_linewidth(0) # remove right side of frame
         #ax.spines["top"].set_linewidth(0) 
-        plt.title(title)
+        plt.title(title, color='white')
         plt.subplots_adjust(left=0.25, right=0.95, bottom=0.1) # Adjust padding
 
         if show_plot:

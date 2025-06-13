@@ -71,7 +71,10 @@ def plotDataJune(method:str, schedule=True):
         evaluator_m = Evaluator(all_data[method]['schedule'], cl, time_period, lambdas, physician_path='data/intermediate/physician_universal_june.csv') # TODO: should be same prefs & exts as: f'data/results/physician/{method}_15phys_time{timestamps[method]}.csv'
         evaluator_m.makeResultMatrix()
         evaluator_m.evaluateConstraints(1)
-        fig = evaluator_m.cleanPlot(width=10,title=f'June schedule using {str(method).capitalize()}', tile_col = colors[method])
+
+        #fig = evaluator_m.cleanPlot(width=10,title=f'June schedule using {str(method).capitalize()}', tile_col = colors[method])
+        fig = evaluator_m.cleanPlot(width=10,title=f'Month Scheduling', tile_col = colors[method])
+
         fig.savefig(f'data/results/final_plots/june/schedules/{method}_final_schedule.png')
 
 
@@ -94,7 +97,7 @@ def plotStats(plot_data, methods, title='', ylabel=''):
     plt.show()
 
 n_physicians = 15 # SHOULD BE 15 
-methods = ['aer', 'gurobi', 'ibm'] #'aer', 'ibm', 'gurobi']   #, 'ibm', 'gurobi', 'z3'] #maybe not z3
+methods = ['aer']# 'gurobi', 'ibm'] #'aer', 'ibm', 'gurobi']   #, 'ibm', 'gurobi', 'z3'] #maybe not z3
 all_data = {}
 time_period = 'all'
 cl = 3
@@ -115,7 +118,7 @@ for method in methods:
 
 
 
-
+"""
 plotStats(times_plot, methods, title='Full computation time', ylabel='Time [s]')
 plotStats(Hcs_plot, methods, title='Hc costs')
 plotStats(manys_plot, methods, title='Too many workers')
@@ -138,7 +141,7 @@ cl, time_period, lambdas = 3, 'all', {'demand':3, 'fair':10, 'pref':5, 'unavail'
 
 
 
-"""def plotShortSchedule(method, schedule):
+def plotShortSchedule(method, schedule):
 
     # PLOT SCHEDULE
     evaluator_m = Evaluator(schedule, cl, time_period, lambdas, physician_path='data/intermediate/physician_universal_june.csv') # TODO: should be same prefs & exts as: f'data/results/physician/{method}_15phys_time{timestamps[method]}.csv'

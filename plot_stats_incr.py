@@ -162,7 +162,7 @@ def plotsIncr(plot_times, plot_Hcs, extra_gurobi=False):
     plt.plot(xticks[:len(plot_Hcs['gurobi'])], plot_Hcs['gurobi'], linewidth=lw, label='Gurobi', color = colors['gurobi'], alpha=alp)
     plt.plot(xticks[:len(plot_Hcs['ibm'])], plot_Hcs['ibm'], linewidth=lw, label='IBM', color = colors['ibm'], alpha=alp)
     plt.plot(xticks[:len(plot_Hcs['aer'])], plot_times['aer'], label = 'Aer',linewidth=lw, color = colors['aer'], alpha=alp)
-
+    plt.ylabel('Hc cost')
 
     # dots
     plt.scatter(xticks[:len(plot_Hcs['random'])], plot_Hcs['random'], s=siz, color = colors['random'])
